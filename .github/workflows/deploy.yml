@@ -1,0 +1,56 @@
+name: Deploy to Hostinger
+
+on:
+  # Manual trigger from the Actions tab.
+  workflow_dispatch:
+  # Automatic deploy once CI passes on main.
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: SSH deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Skip when the triggering CI run failed.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    environment:
+      name: production
+      url: ${{ vars.APP_URL }}
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script_stop: true
+          command_timeout: 15m
+          script: |
+            set -euo pipefail
+            cd ${{ vars.APP_DIR || '/var/www/taskforge' }}
+            ./deploy/deploy.sh
+
+      - name: Verify the site is up
+        run: |
+          for i in $(seq 1 10); do
+            if curl -fsS --max-time 10 "${{ vars.APP_URL }}/api/health"; then
+              echo "Deploy verified."
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying…"
+            sleep 6
+          done
+          echo "Health check never succeeded." >&2
+          exit 1

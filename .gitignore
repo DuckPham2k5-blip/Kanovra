@@ -1,0 +1,55 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/plugins
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+/dist
+
+# misc
+.DS_Store
+*.pem
+Thumbs.db
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files
+.env
+.env*.local
+.env.production
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+
+# prisma
+/prisma/*.db
+/prisma/*.db-journal
+
+# pm2 / deploy
+/logs
+*.log
+
+# clerk configuration (can include secrets)
+/.clerk/

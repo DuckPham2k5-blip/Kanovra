@@ -1,0 +1,180 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 224 30% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 30% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 30% 12%;
+
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 20% 96%;
+    --secondary-foreground: 224 30% 20%;
+
+    --muted: 220 20% 96%;
+    --muted-foreground: 220 12% 46%;
+
+    --accent: 243 60% 96%;
+    --accent-foreground: 243 60% 34%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 18% 90%;
+    --input: 220 18% 90%;
+    --ring: 243 75% 59%;
+
+    --sidebar: 220 30% 98%;
+    --sidebar-foreground: 224 20% 30%;
+    --sidebar-accent: 243 60% 95%;
+    --sidebar-border: 220 18% 91%;
+
+    /* Categorical chart hues, assigned in this fixed order and never cycled.
+       Validated for the light surface: OKLCH lightness band, chroma floor,
+       adjacent-pair CVD separation (protan/deutan/tritan), normal-vision
+       separation and >= 3:1 contrast. Re-run the validator before changing
+       any of them. */
+    --chart-1: 243 75% 59%;
+    --chart-2: 175 84% 32%;
+    --chart-3: 32 95% 44%;
+    --chart-4: 200 98% 39%;
+    --chart-5: 333 71% 51%;
+
+    --radius: 0.65rem;
+  }
+
+  .dark {
+    --background: 224 32% 8%;
+    --foreground: 220 20% 96%;
+
+    --card: 224 28% 11%;
+    --card-foreground: 220 20% 96%;
+
+    --popover: 224 28% 11%;
+    --popover-foreground: 220 20% 96%;
+
+    --primary: 243 80% 68%;
+    --primary-foreground: 224 40% 10%;
+
+    --secondary: 224 20% 17%;
+    --secondary-foreground: 220 20% 92%;
+
+    --muted: 224 20% 16%;
+    --muted-foreground: 220 12% 62%;
+
+    --accent: 243 40% 22%;
+    --accent-foreground: 243 90% 88%;
+
+    --destructive: 0 65% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 224 18% 20%;
+    --input: 224 18% 22%;
+    --ring: 243 80% 68%;
+
+    --sidebar: 224 30% 10%;
+    --sidebar-foreground: 220 16% 78%;
+    --sidebar-accent: 243 40% 20%;
+    --sidebar-border: 224 18% 18%;
+
+    /* Dark steps are chosen against the dark surface, not derived by flipping
+       the light ones. Only chart-1 shifts; the rest already sit inside the
+       dark lightness band with >= 3:1 contrast. */
+    --chart-1: 239 84% 67%;
+    --chart-2: 175 84% 32%;
+    --chart-3: 32 95% 44%;
+    --chart-4: 200 98% 39%;
+    --chart-5: 333 71% 51%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
+  }
+
+  /* Slim, unobtrusive scrollbars — the board has a lot of them. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-border;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/40;
+  }
+}
+
+@layer components {
+  /* Shared elevation for board cards and popovers. */
+  .tf-card {
+    @apply rounded-lg border bg-card shadow-sm transition-shadow;
+  }
+
+  .tf-card-hover {
+    @apply hover:border-primary/40 hover:shadow-md;
+  }
+
+  /* Skeleton shimmer used by loading.tsx files. */
+  .tf-shimmer {
+    @apply relative overflow-hidden bg-muted;
+  }
+  .tf-shimmer::after {
+    @apply absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-background/60 to-transparent;
+    content: "";
+  }
+
+  .tf-scroll-x {
+    scrollbar-width: thin;
+    overflow-x: auto;
+  }
+
+  /* Dotted backdrop for the marketing hero and empty states. */
+  .tf-dots {
+    background-image: radial-gradient(circle at 1px 1px, hsl(var(--border)) 1px, transparent 0);
+    background-size: 22px 22px;
+  }
+
+  /* Card lifted by dnd-kit while it is being dragged. */
+  .tf-dragging {
+    @apply rotate-2 opacity-90 shadow-2xl ring-2 ring-primary;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Applied to <body> while a card is being dragged so nothing else selects. */
+  .dragging * {
+    @apply cursor-grabbing select-none;
+  }
+}

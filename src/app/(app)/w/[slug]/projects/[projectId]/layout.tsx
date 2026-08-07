@@ -1,0 +1,71 @@
+import { notFound } from "next/navigation";
+
+import { ProjectHeader } from "@/components/project/project-header";
+import { requireWorkspace } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { getWorkspaceMembers } from "@/lib/queries";
+
+export default async function ProjectLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode;
+  params: Promise<{ slug: string; projectId: string }>;
+}) {
+  const { slug, projectId } = await params;
+  const { workspace, role, can } = await requireWorkspace(slug);
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, workspaceId: workspace.id },
+    include: {
+      _count: { select: { tasks: true } },
+      members: {
+        include: { user: { select: { id: true, name: true, imageUrl: true, email: true } } },
+      },
+    },
+  });
+
+  if (!project) notFound();
+
+  const workspaceMembers = await getWorkspaceMembers(workspace.id);
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <ProjectHeader
+        workspaceSlug={slug}
+        workspaceId={workspace.id}
+        project={{
+          id: project.id,
+          name: project.name,
+          key: project.key,
+          description: project.description,
+          color: project.color,
+          icon: project.icon,
+          status: project.status,
+          archived: project.archived,
+          startDate: project.startDate?.toISOString() ?? null,
+          dueDate: project.dueDate?.toISOString() ?? null,
+          taskCount: project._count.tasks,
+        }}
+        members={project.members.map((m) => ({
+          id: m.user.id,
+          name: m.user.name,
+          email: m.user.email,
+          imageUrl: m.user.imageUrl,
+        }))}
+        workspaceMembers={workspaceMembers.map((m) => ({
+          id: m.id,
+          name: m.name,
+          email: m.email,
+          imageUrl: m.imageUrl,
+          role: m.role,
+          memberId: m.memberId,
+        }))}
+        role={role}
+        canEditProject={can("project:update")}
+        canDeleteProject={can("project:delete")}
+      />
+      <div className="min-h-0 flex-1">{children}</div>
+    </div>
+  );
+}

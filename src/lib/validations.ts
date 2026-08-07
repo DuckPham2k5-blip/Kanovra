@@ -1,0 +1,157 @@
+import { Priority, ProjectStatus, Role, TaskStatus } from "@prisma/client";
+import { z } from "zod";
+
+/**
+ * Every server action validates its input with one of these schemas, so the
+ * client and the server agree on the shape without duplicating rules.
+ */
+
+const hexColor = z
+  .string()
+  .regex(/^#[0-9a-fA-F]{6}$/, "Màu không hợp lệ")
+  .default("#6366f1");
+
+const optionalDate = z.coerce.date().nullish();
+
+// --- Workspace -------------------------------------------------------------
+
+export const workspaceCreateSchema = z.object({
+  name: z.string().trim().min(2, "Tên tối thiểu 2 ký tự").max(60),
+  description: z.string().trim().max(280).optional().or(z.literal("")),
+  color: hexColor,
+});
+
+export const workspaceUpdateSchema = workspaceCreateSchema.partial().extend({
+  workspaceId: z.string().min(1),
+});
+
+export const inviteMemberSchema = z.object({
+  workspaceId: z.string().min(1),
+  email: z.string().trim().email("Email không hợp lệ"),
+  role: z.nativeEnum(Role).default(Role.MEMBER),
+});
+
+export const updateMemberRoleSchema = z.object({
+  workspaceId: z.string().min(1),
+  memberId: z.string().min(1),
+  role: z.nativeEnum(Role),
+});
+
+// --- Project ---------------------------------------------------------------
+
+export const projectCreateSchema = z.object({
+  workspaceId: z.string().min(1),
+  name: z.string().trim().min(2, "Tên tối thiểu 2 ký tự").max(60),
+  key: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z0-9]{2,6}$/, "Mã dự án gồm 2–6 chữ hoa hoặc số")
+    .optional()
+    .or(z.literal("")),
+  description: z.string().trim().max(500).optional().or(z.literal("")),
+  color: hexColor,
+  icon: z.string().min(1).default("Rocket"),
+  status: z.nativeEnum(ProjectStatus).default(ProjectStatus.ACTIVE),
+  startDate: optionalDate,
+  dueDate: optionalDate,
+});
+
+export const projectUpdateSchema = projectCreateSchema
+  .omit({ workspaceId: true, key: true })
+  .partial()
+  .extend({ projectId: z.string().min(1) });
+
+// --- Board columns ---------------------------------------------------------
+
+export const columnCreateSchema = z.object({
+  projectId: z.string().min(1),
+  name: z.string().trim().min(1, "Nhập tên cột").max(40),
+  color: hexColor.default("#94a3b8"),
+  status: z.nativeEnum(TaskStatus).default(TaskStatus.TODO),
+  wipLimit: z.coerce.number().int().min(0).max(99).default(0),
+});
+
+export const columnUpdateSchema = columnCreateSchema
+  .omit({ projectId: true })
+  .partial()
+  .extend({ columnId: z.string().min(1) });
+
+export const columnReorderSchema = z.object({
+  projectId: z.string().min(1),
+  /** Column ids in their new left-to-right order. */
+  orderedIds: z.array(z.string().min(1)).min(1),
+});
+
+// --- Task ------------------------------------------------------------------
+
+export const taskCreateSchema = z.object({
+  projectId: z.string().min(1),
+  columnId: z.string().min(1).nullish(),
+  parentId: z.string().min(1).nullish(),
+  title: z.string().trim().min(1, "Nhập tiêu đề công việc").max(200),
+  description: z.string().trim().max(10_000).optional().or(z.literal("")),
+  priority: z.nativeEnum(Priority).default(Priority.NONE),
+  assigneeId: z.string().min(1).nullish(),
+  startDate: optionalDate,
+  dueDate: optionalDate,
+  estimate: z.coerce.number().min(0).max(999).nullish(),
+  labelIds: z.array(z.string().min(1)).default([]),
+});
+
+export const taskUpdateSchema = z.object({
+  taskId: z.string().min(1),
+  title: z.string().trim().min(1).max(200).optional(),
+  description: z.string().trim().max(10_000).nullish(),
+  status: z.nativeEnum(TaskStatus).optional(),
+  priority: z.nativeEnum(Priority).optional(),
+  assigneeId: z.string().min(1).nullish(),
+  startDate: optionalDate,
+  dueDate: optionalDate,
+  estimate: z.coerce.number().min(0).max(999).nullish(),
+  labelIds: z.array(z.string().min(1)).optional(),
+});
+
+/** Payload emitted by the Kanban board after a drag ends. */
+export const taskMoveSchema = z.object({
+  taskId: z.string().min(1),
+  toColumnId: z.string().min(1),
+  /** Index the card was dropped at, within the destination column. */
+  toIndex: z.coerce.number().int().min(0),
+});
+
+export const taskDeleteSchema = z.object({ taskId: z.string().min(1) });
+
+// --- Checklist / comments / labels ----------------------------------------
+
+export const checklistCreateSchema = z.object({
+  taskId: z.string().min(1),
+  title: z.string().trim().min(1, "Nhập nội dung").max(200),
+});
+
+export const checklistToggleSchema = z.object({
+  itemId: z.string().min(1),
+  done: z.boolean(),
+});
+
+export const checklistDeleteSchema = z.object({ itemId: z.string().min(1) });
+
+export const commentCreateSchema = z.object({
+  taskId: z.string().min(1),
+  content: z.string().trim().min(1, "Nhập nội dung bình luận").max(5_000),
+});
+
+export const commentDeleteSchema = z.object({ commentId: z.string().min(1) });
+
+export const labelCreateSchema = z.object({
+  workspaceId: z.string().min(1),
+  name: z.string().trim().min(1, "Nhập tên nhãn").max(30),
+  color: hexColor,
+});
+
+export const labelDeleteSchema = z.object({ labelId: z.string().min(1) });
+
+export type WorkspaceCreateInput = z.infer<typeof workspaceCreateSchema>;
+export type ProjectCreateInput = z.infer<typeof projectCreateSchema>;
+export type TaskCreateInput = z.infer<typeof taskCreateSchema>;
+export type TaskUpdateInput = z.infer<typeof taskUpdateSchema>;

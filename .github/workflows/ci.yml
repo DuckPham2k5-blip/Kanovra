@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  quality:
+    name: Lint, typecheck & build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: taskforge
+          POSTGRES_PASSWORD: taskforge
+          POSTGRES_DB: taskforge_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U taskforge"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://taskforge:taskforge@localhost:5432/taskforge_test?schema=public
+      DIRECT_URL: postgresql://taskforge:taskforge@localhost:5432/taskforge_test?schema=public
+      # Build-time placeholders — Clerk keys are never needed to compile.
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2ktcGxhY2Vob2xkZXItY2xlcmsuZGV2JA
+      CLERK_SECRET_KEY: sk_test_ci_placeholder
+      CLERK_WEBHOOK_SECRET: whsec_ci_placeholder
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Push schema to the test database
+        run: npx prisma db push --skip-generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+  migrations:
+    name: Validate Prisma schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Validate schema
+        run: npx prisma validate
+        env:
+          DATABASE_URL: postgresql://user:pass@localhost:5432/db
+          DIRECT_URL: postgresql://user:pass@localhost:5432/db
+      - name: Check schema formatting
+        run: npx prisma format --check
+        env:
+          DATABASE_URL: postgresql://user:pass@localhost:5432/db
+          DIRECT_URL: postgresql://user:pass@localhost:5432/db

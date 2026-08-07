@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(node -v)",
+      "PowerShell(npm -v)",
+      "PowerShell($env:Path = \"C:\\\\Program Files\\\\nodejs;\" + $env:Path; npm view next@15 version --json 2>$null | Select-Object -Last 5; \"---clerk---\"; npm view \"@clerk/nextjs\" version)"
+    ]
+  }
+}

@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: taskforge-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: taskforge
+      POSTGRES_PASSWORD: taskforge
+      POSTGRES_DB: taskforge
+    ports:
+      - "5432:5432"
+    volumes:
+      - taskforge-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskforge -d taskforge"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Optional: run the app itself in Docker.
+  #   docker compose --profile app up -d --build
+  # Leave it out for local development — `npm run dev` against the db above is
+  # faster and gives you hot reload.
+  app:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+    container_name: taskforge-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://taskforge:taskforge@postgres:5432/taskforge?schema=public
+      DIRECT_URL: postgresql://taskforge:taskforge@postgres:5432/taskforge?schema=public
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+    ports:
+      - "3000:3000"
+
+volumes:
+  taskforge-pgdata:
