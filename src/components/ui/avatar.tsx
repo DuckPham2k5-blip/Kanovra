@@ -12,7 +12,11 @@ const Avatar = React.forwardRef<
   <AvatarPrimitive.Root
     ref={ref}
     className={cn(
-      "relative flex size-8 shrink-0 overflow-hidden rounded-full border border-background",
+      // `bg-background` is load-bearing, not decoration: the fallback tint is
+      // deliberately translucent, and avatar stacks overlap with a negative
+      // margin. Without an opaque base you can read the avatar underneath
+      // straight through the one in front.
+      "relative flex size-8 shrink-0 overflow-hidden rounded-full border border-background bg-background",
       className,
     )}
     {...props}

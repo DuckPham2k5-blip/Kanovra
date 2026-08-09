@@ -162,6 +162,273 @@
   .tf-dragging {
     @apply rotate-2 opacity-90 shadow-2xl ring-2 ring-primary;
   }
+
+  /* ---------------------------------------------------------------------
+     Ambient backdrop
+     --------------------------------------------------------------------- */
+
+  /* Carries the route's accent hue for everything beneath it. The transition
+     lives here rather than on the backdrop so the wash, the veil and the
+     active nav item all interpolate off one animation and stay in step. */
+  .tf-accent-scope {
+    transition: --page-accent 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .tf-ambient {
+    @apply pointer-events-none fixed inset-0 z-0 overflow-hidden;
+    transition: --page-accent 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Sits low enough that its bright centre clears the 4rem top bar — at
+     `top: -18rem` the peak landed 16px from the top of the viewport, hidden
+     behind the chrome, which is why the colour change was invisible. */
+  .tf-ambient-bloom {
+    @apply absolute left-1/2 h-[44rem] w-[70rem] -translate-x-1/2;
+    top: -13rem;
+    background: radial-gradient(
+      50% 50% at 50% 50%,
+      color-mix(in srgb, var(--page-accent) 26%, transparent) 0%,
+      color-mix(in srgb, var(--page-accent) 10%, transparent) 45%,
+      transparent 72%
+    );
+  }
+  .dark .tf-ambient-bloom {
+    background: radial-gradient(
+      50% 50% at 50% 50%,
+      color-mix(in srgb, var(--page-accent) 42%, transparent) 0%,
+      color-mix(in srgb, var(--page-accent) 17%, transparent) 45%,
+      transparent 72%
+    );
+  }
+
+  /* A tinted band down the top of the content column. The bloom alone reads as
+     a vague glow; this gives the hue a definite edge so a route change is
+     unmistakable rather than merely atmospheric. */
+  .tf-accent-veil {
+    @apply pointer-events-none absolute inset-x-0 top-0 z-0 h-64;
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--page-accent) 22%, transparent) 0%,
+      color-mix(in srgb, var(--page-accent) 9%, transparent) 38%,
+      transparent 100%
+    );
+  }
+  .dark .tf-accent-veil {
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--page-accent) 26%, transparent) 0%,
+      color-mix(in srgb, var(--page-accent) 10%, transparent) 38%,
+      transparent 100%
+    );
+  }
+
+  /* Hairline under the top bar, carrying the accent across the full width. */
+  .tf-accent-rule {
+    @apply pointer-events-none absolute inset-x-0 bottom-0 h-px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--page-accent) 65%, transparent) 22%,
+      color-mix(in srgb, var(--page-accent) 80%, transparent) 50%,
+      color-mix(in srgb, var(--page-accent) 65%, transparent) 78%,
+      transparent
+    );
+  }
+
+  /* The active nav item picks up the accent too, so the colour shift is tied
+     to the thing the user just clicked. */
+  .tf-nav-active {
+    background: color-mix(in srgb, var(--page-accent) 14%, transparent);
+    color: color-mix(in srgb, var(--page-accent) 62%, black);
+  }
+  .dark .tf-nav-active {
+    background: color-mix(in srgb, var(--page-accent) 20%, transparent);
+    color: color-mix(in srgb, var(--page-accent) 55%, white);
+  }
+
+  .tf-ambient-arcs {
+    @apply absolute left-1/2 top-0 h-[52rem] w-[80rem] -translate-x-1/2 opacity-40;
+  }
+  .dark .tf-ambient-arcs {
+    @apply opacity-70;
+  }
+
+  .tf-ambient-horizon {
+    @apply absolute left-1/2 h-px w-[46rem] max-w-[85vw] -translate-x-1/2 opacity-0;
+    top: 15rem;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, color-mix(in srgb, var(--page-accent) 55%, white) 90%, transparent) 50%,
+      transparent
+    );
+    box-shadow: 0 0 24px 2px color-mix(in srgb, var(--page-accent) 45%, transparent);
+  }
+  .dark .tf-ambient-horizon {
+    @apply opacity-100;
+  }
+
+  /* Taller, more pronounced treatment for the marketing hero.
+
+     Unlike the app variant, this one is `absolute` so it is clipped to — and
+     scrolls away with — the hero section rather than trailing the viewport
+     down the whole marketing page. */
+  .tf-ambient-hero {
+    @apply absolute;
+  }
+  .tf-ambient-hero .tf-ambient-bloom {
+    @apply h-[46rem] w-[76rem];
+    top: -14rem;
+  }
+  .tf-ambient-hero .tf-ambient-horizon {
+    top: 42rem;
+  }
+
+  /* ---------------------------------------------------------------------
+     Nav ripple
+     --------------------------------------------------------------------- */
+
+  .tf-ripple {
+    @apply pointer-events-none absolute rounded-full;
+    background: currentColor;
+    opacity: 0.28;
+    transform: scale(0);
+    animation: tf-ripple 420ms cubic-bezier(0.2, 0, 0.2, 1) forwards;
+  }
+
+  /* ---------------------------------------------------------------------
+     Page glyph — the outline drawing behind each page
+     --------------------------------------------------------------------- */
+
+  /* Centred on the content column, not the viewport: the 16rem sidebar would
+     otherwise push the drawing visibly left of centre. Offsetting by half the
+     sidebar puts it in the middle of what the user is actually reading. */
+  .tf-glyph {
+    @apply pointer-events-none fixed top-1/2 z-0 hidden text-foreground lg:block;
+    left: calc(50% + 8rem);
+    width: 34rem;
+    height: 34rem;
+    transform: translate(-50%, -50%);
+    /* Base opacity sits on the wrapper so the breathing animation below can be
+       one shared keyframe: nested opacities multiply, so the pulse scales
+       whatever the theme's base is instead of overwriting it. */
+    opacity: 0.18;
+  }
+  .dark .tf-glyph {
+    opacity: 0.32;
+  }
+
+  .tf-glyph-svg {
+    @apply size-full;
+    /* Slow and shallow — it should read as breathing, never as flashing. */
+    animation: tf-glyph-breathe 4.5s ease-in-out infinite;
+    /* Promotes the drop-shadow stack to its own layer, so the glow is
+       rasterised once instead of on every frame of the loop. Without this a
+       permanently-running animation over a filtered element repaints the
+       whole 34rem square continuously. */
+    will-change: opacity;
+  }
+
+  /* On dark, the lines go pure white and carry a bloom, so they read as light
+     falling on the page rather than as ink drawn over it. A white glow is
+     meaningless on the light theme, hence the split. */
+  .dark .tf-glyph-svg {
+    color: #ffffff;
+    filter: drop-shadow(0 0 5px rgb(255 255 255 / 0.8))
+      drop-shadow(0 0 16px rgb(255 255 255 / 0.42));
+  }
+
+  /* Lines draw themselves on. The dash length just has to exceed the longest
+     path in the set; any leftover simply starts fully offset. */
+  .tf-glyph-line {
+    stroke-dasharray: 900;
+    stroke-dashoffset: 900;
+    animation: tf-glyph-draw 1100ms cubic-bezier(0.33, 1, 0.68, 1) forwards;
+  }
+
+  /* Joints light up first, in sequence — the constellation forming before the
+     lines are drawn between its stars. */
+  .tf-glyph-node {
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: tf-glyph-star 900ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+}
+
+/* Registering the hue as a number is what lets it interpolate. Browsers
+   without @property ignore this and snap to the new hue instead — the layout
+   is unaffected either way. */
+@property --page-accent {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: hsl(243 88% 60%);
+}
+
+@keyframes tf-ripple {
+  to {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@keyframes tf-glyph-breathe {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes tf-glyph-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Overshoot on the way in, so each joint pops like a star catching light
+   rather than simply fading up. */
+@keyframes tf-glyph-star {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.55);
+  }
+  100% {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+}
+
+/* The ambient hue transition and the ripple are pure decoration — drop both
+   when the visitor asks for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  /* The preference targets movement that can trigger vestibular symptoms —
+     travel, parallax, zoom, spin. A colour cross-fade and a slow brightness
+     breathe are neither, and they are the two effects this interface is built
+     around, so they stay; only the ripple, which actually scales across the
+     screen, is dropped. The breathe is lengthened and shallowed here rather
+     than switched off. */
+  .tf-ripple {
+    animation: none;
+    display: none;
+  }
+  .tf-glyph-svg {
+    animation-duration: 9s;
+  }
+  .tf-glyph-line {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .tf-glyph-node {
+    animation: none;
+    opacity: 0.75;
+  }
 }
 
 @layer utilities {

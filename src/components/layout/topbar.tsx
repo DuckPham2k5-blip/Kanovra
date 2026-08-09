@@ -28,7 +28,9 @@ export function Topbar({
   React.useEffect(() => setMounted(true), []);
 
   return (
-    <header className="flex h-16 shrink-0 items-center gap-2 border-b bg-background/80 px-3 backdrop-blur sm:px-4">
+    <header className="relative flex h-16 shrink-0 items-center gap-2 border-b bg-background/60 px-3 backdrop-blur-xl sm:px-4">
+      {/* Carries the page accent across the full width of the chrome. */}
+      <div className="tf-accent-rule" aria-hidden="true" />
       {menuButton}
 
       <button
@@ -36,7 +38,7 @@ export function Topbar({
         className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors hover:bg-muted sm:max-w-md"
       >
         <Search className="size-4 shrink-0" />
-        <span className="truncate">Tìm dự án, công việc…</span>
+        <span className="truncate">Search projects and tasks…</span>
         <kbd className="ml-auto hidden shrink-0 rounded border bg-background px-1.5 py-0.5 font-mono text-[10px] sm:inline-block">
           Ctrl K
         </kbd>
@@ -61,7 +63,7 @@ export function Topbar({
       </div>
 
       <span className="sr-only">
-        Đăng nhập với tên {user.name} trong {workspace.name}
+        Signed in as {user.name} in {workspace.name}
       </span>
     </header>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { SignOutButton } from "@clerk/nextjs";
 import type { Role } from "@prisma/client";
 import {
   BarChart3,
@@ -10,6 +11,7 @@ import {
   FolderKanban,
   LayoutDashboard,
   ListChecks,
+  LogOut,
   Plus,
   Settings,
   Users,
@@ -64,17 +66,17 @@ export function Sidebar({
   const [projectDialogOpen, setProjectDialogOpen] = React.useState(false);
 
   const nav: NavItem[] = [
-    { href: base, label: "Tổng quan", icon: LayoutDashboard, exact: true },
-    { href: `${base}/my-tasks`, label: "Việc của tôi", icon: ListChecks },
-    { href: `${base}/projects`, label: "Dự án", icon: FolderKanban },
-    { href: `${base}/calendar`, label: "Lịch", icon: CalendarDays },
-    { href: `${base}/analytics`, label: "Phân tích", icon: BarChart3 },
-    { href: `${base}/notifications`, label: "Thông báo", icon: Bell, badge: unreadCount },
+    { href: base, label: "Overview", icon: LayoutDashboard, exact: true },
+    { href: `${base}/my-tasks`, label: "My tasks", icon: ListChecks },
+    { href: `${base}/projects`, label: "Projects", icon: FolderKanban },
+    { href: `${base}/calendar`, label: "Calendar", icon: CalendarDays },
+    { href: `${base}/analytics`, label: "Analytics", icon: BarChart3 },
+    { href: `${base}/notifications`, label: "Notifications", icon: Bell, badge: unreadCount },
   ];
 
   const footerNav: NavItem[] = [
-    { href: `${base}/members`, label: "Thành viên", icon: Users },
-    { href: `${base}/settings`, label: "Cài đặt", icon: Settings },
+    { href: `${base}/members`, label: "Members", icon: Users },
+    { href: `${base}/settings`, label: "Settings", icon: Settings },
   ];
 
   function isActive(item: NavItem) {
@@ -101,13 +103,13 @@ export function Sidebar({
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{workspace.name}</span>
-                <span className="block text-[11px] text-muted-foreground">Không gian làm việc</span>
+                <span className="block text-[11px] text-muted-foreground">Workspace</span>
               </span>
               <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-60">
-            <DropdownMenuLabel>Chuyển không gian</DropdownMenuLabel>
+            <DropdownMenuLabel>Switch workspace</DropdownMenuLabel>
             {workspaces.map((ws) => (
               <DropdownMenuItem key={ws.id} asChild>
                 <Link href={`/w/${ws.slug}`} onClick={onNavigate}>
@@ -125,7 +127,7 @@ export function Sidebar({
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link href="/onboarding?new=1" onClick={onNavigate}>
-                <Plus /> Tạo không gian mới
+                <Plus /> New workspace
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -142,14 +144,14 @@ export function Sidebar({
         <div className="px-3 pb-3">
           <div className="mb-1 flex items-center justify-between px-2">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Dự án
+              Projects
             </span>
             {can(role, "project:create") ? (
               <Button
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setProjectDialogOpen(true)}
-                aria-label="Tạo dự án"
+                aria-label="New project"
               >
                 <Plus className="size-3.5" />
               </Button>
@@ -159,7 +161,7 @@ export function Sidebar({
           <div className="space-y-0.5">
             {projects.length === 0 ? (
               <p className="px-2 py-3 text-xs text-muted-foreground">
-                Chưa có dự án nào.
+                No projects yet.
               </p>
             ) : (
               projects.map((project) => {
@@ -194,11 +196,25 @@ export function Sidebar({
         {footerNav.map((item) => (
           <SidebarLink key={item.href} item={item} active={isActive(item)} onClick={onNavigate} />
         ))}
+
+        {/* Signing out is also available inside the account menu in the top
+            bar, but that is Clerk's own popover and easy to miss — this puts
+            it where the rest of the navigation lives. */}
+        <SignOutButton redirectUrl="/">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60"
+          >
+            <LogOut className="size-4 shrink-0" />
+            <span className="flex-1 text-left">Log out</span>
+          </button>
+        </SignOutButton>
+
         <Link
           href="/"
           className="mt-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
-          <Logo className="size-5 rounded" />
+          <Logo className="size-5" />
           <Wordmark className="text-xs" />
         </Link>
       </div>
@@ -213,6 +229,11 @@ export function Sidebar({
   );
 }
 
+type Ripple = { id: number; x: number; y: number; size: number };
+
+/** Monotonic ripple key, shared across links — only ever used as a React key. */
+let rippleId = 0;
+
 function SidebarLink({
   item,
   active,
@@ -223,17 +244,57 @@ function SidebarLink({
   onClick?: () => void;
 }) {
   const { icon: Icon } = item;
+  const [ripples, setRipples] = React.useState<Ripple[]>([]);
+
+  function handleClick(event: React.MouseEvent<HTMLAnchorElement>) {
+    onClick?.();
+
+    // With `prefers-reduced-motion` the ripple's animation is switched off in
+    // CSS, so `animationend` never fires and every click would leave a node
+    // behind for the life of the session. Skip creating one entirely.
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    // Diameter large enough that the circle covers the pill from wherever it
+    // was clicked, so the wash always reaches every corner.
+    const size = Math.max(rect.width, rect.height) * 1.2;
+    // `Date.now()` collides when two clicks land in the same millisecond, which
+    // would duplicate React keys; a counter cannot.
+    rippleId += 1;
+    const ripple: Ripple = {
+      id: rippleId,
+      x: event.clientX - rect.left - size / 2,
+      y: event.clientY - rect.top - size / 2,
+      size,
+    };
+    setRipples((current) => [...current, ripple]);
+  }
+
   return (
     <Link
       href={item.href}
-      onClick={onClick}
+      onClick={handleClick}
       className={cn(
-        "flex items-center gap-2.5 rounded-md px-2 py-2 text-sm transition-colors",
-        active
-          ? "bg-sidebar-accent font-medium text-accent-foreground"
-          : "text-sidebar-foreground hover:bg-sidebar-accent/60",
+        "relative flex items-center gap-2.5 overflow-hidden rounded-md px-2 py-2 text-sm transition-colors",
+        // The active item is tinted with the page accent, so the colour shift
+        // is anchored to the thing the user just clicked rather than only
+        // happening somewhere off in the background.
+        active ? "tf-nav-active font-medium" : "text-sidebar-foreground hover:bg-sidebar-accent/60",
       )}
     >
+      {ripples.map((ripple) => (
+        <span
+          key={ripple.id}
+          className="tf-ripple"
+          style={{ left: ripple.x, top: ripple.y, width: ripple.size, height: ripple.size }}
+          // Self-cleanup: drop the node once its animation finishes, so a long
+          // session never accumulates dead spans.
+          onAnimationEnd={() =>
+            setRipples((current) => current.filter((r) => r.id !== ripple.id))
+          }
+        />
+      ))}
+
       <Icon className="size-4 shrink-0" />
       <span className="flex-1 truncate">{item.label}</span>
       {item.badge ? (

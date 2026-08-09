@@ -4,7 +4,11 @@ import type { Role } from "@prisma/client";
 import { Menu } from "lucide-react";
 import * as React from "react";
 
+import { AmbientBackdrop } from "@/components/layout/ambient-backdrop";
 import { CommandPalette } from "@/components/layout/command-palette";
+import { PageAccentScope } from "@/components/layout/page-accent-scope";
+import { PageGlyph } from "@/components/layout/page-glyph";
+import { RealtimeSync } from "@/components/layout/realtime-sync";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
@@ -73,8 +77,16 @@ export function AppShell({
   }, []);
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-background">
-      <aside className="hidden w-64 shrink-0 border-r bg-sidebar lg:block">
+    <PageAccentScope className="relative flex h-dvh overflow-hidden bg-background">
+      <AmbientBackdrop />
+      <RealtimeSync workspaceSlug={workspace.slug} currentUserId={user.id} />
+
+      {/* `relative z-10` on the chrome and the content column is what keeps
+          them above the decorative layers. Those layers cannot use a negative
+          z-index: this wrapper is positioned but does not create a stacking
+          context, so a negative index would drop them into the root context
+          and paint them *behind* this element's own opaque background. */}
+      <aside className="relative z-10 hidden w-64 shrink-0 border-r bg-sidebar/70 backdrop-blur-xl lg:block">
         <Sidebar
           workspace={workspace}
           workspaces={workspaces}
@@ -86,7 +98,7 @@ export function AppShell({
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="left" className="w-72 bg-sidebar p-0">
-          <SheetTitle className="sr-only">Điều hướng</SheetTitle>
+          <SheetTitle className="sr-only">Navigation</SheetTitle>
           <Sidebar
             workspace={workspace}
             workspaces={workspaces}
@@ -98,7 +110,7 @@ export function AppShell({
         </SheetContent>
       </Sheet>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         <Topbar
           user={user}
           workspace={workspace}
@@ -110,13 +122,20 @@ export function AppShell({
               size="icon"
               className="lg:hidden"
               onClick={() => setMobileOpen(true)}
-              aria-label="Mở menu"
+              aria-label="Open menu"
             >
               <Menu />
             </Button>
           }
         />
-        <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+        <main className="relative min-h-0 flex-1 overflow-y-auto">
+          {/* The veil gives the accent a hard edge under the top bar; the glyph
+              names the section. Both sit at z-0 and the page's own content is
+              lifted to z-10 over them. */}
+          <div className="tf-accent-veil" />
+          <PageGlyph />
+          <div className="relative z-10">{children}</div>
+        </main>
       </div>
 
       <CommandPalette
@@ -125,6 +144,6 @@ export function AppShell({
         workspaceSlug={workspace.slug}
         projects={projects}
       />
-    </div>
+    </PageAccentScope>
   );
 }

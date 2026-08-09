@@ -17,6 +17,7 @@ import { useRouter, useSelectedLayoutSegment } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { AiProjectSummary } from "@/components/ai/ai-project-summary";
 import { ProjectIcon } from "@/components/icon-picker";
 import { ProjectDialog } from "@/components/project/project-dialog";
 import { ProjectMembersDialog } from "@/components/project/project-members-dialog";
@@ -51,9 +52,9 @@ type ProjectInfo = {
 };
 
 const TABS = [
-  { segment: "board", label: "Bảng", icon: KanbanSquare },
-  { segment: "list", label: "Danh sách", icon: List },
-  { segment: "calendar", label: "Lịch", icon: CalendarDays },
+  { segment: "board", label: "Board", icon: KanbanSquare },
+  { segment: "list", label: "List", icon: List },
+  { segment: "calendar", label: "Calendar", icon: CalendarDays },
 ] as const;
 
 export function ProjectHeader({
@@ -89,7 +90,7 @@ export function ProjectHeader({
       toast.error(result.error);
       return;
     }
-    toast.success(project.archived ? "Đã khôi phục dự án." : "Đã lưu trữ dự án.");
+    toast.success(project.archived ? "Project restored." : "Project archived.");
     router.refresh();
   }
 
@@ -99,7 +100,7 @@ export function ProjectHeader({
       toast.error(result.error);
       return;
     }
-    toast.success("Đã xoá dự án.");
+    toast.success("Project deleted.");
     router.push(`/w/${workspaceSlug}/projects`);
   }
 
@@ -124,17 +125,17 @@ export function ProjectHeader({
               </span>
               <ProjectStatusBadge status={project.status} />
               {project.archived ? (
-                <span className="text-xs text-muted-foreground">(đã lưu trữ)</span>
+                <span className="text-xs text-muted-foreground">(archived)</span>
               ) : null}
             </div>
 
             <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">
-              {project.description || "Chưa có mô tả"}
+              {project.description || "No description"}
             </p>
 
             <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              <span>{project.taskCount} công việc</span>
-              {project.dueDate ? <span>Hạn: {formatDate(project.dueDate)}</span> : null}
+              <span>{project.taskCount} tasks</span>
+              {project.dueDate ? <span>Due: {formatDate(project.dueDate)}</span> : null}
             </div>
           </div>
         </div>
@@ -143,7 +144,7 @@ export function ProjectHeader({
           <button
             onClick={() => canEditProject && setMembersOpen(true)}
             className={cn("rounded-full", canEditProject && "hover:opacity-80")}
-            aria-label="Thành viên dự án"
+            aria-label="Project members"
           >
             <AvatarStack users={members} max={4} />
           </button>
@@ -151,7 +152,7 @@ export function ProjectHeader({
           {canEditProject ? (
             <Button variant="outline" size="sm" onClick={() => setMembersOpen(true)}>
               <UserPlus className="size-4" />
-              <span className="hidden sm:inline">Thành viên</span>
+              <span className="hidden sm:inline">Members</span>
             </Button>
           ) : null}
 
@@ -159,23 +160,23 @@ export function ProjectHeader({
             <DropdownMenu>
               {/* Explicit id — see the comment in sidebar.tsx's workspace switcher. */}
               <DropdownMenuTrigger asChild id={`project-options-trigger-${project.id}`}>
-                <Button variant="ghost" size="icon" aria-label="Tuỳ chọn dự án">
+                <Button variant="ghost" size="icon" aria-label="Project options">
                   <MoreHorizontal className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setEditOpen(true)}>
-                  <Pencil /> Chỉnh sửa
+                  <Pencil /> Edit
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => void handleArchive()}>
                   {project.archived ? <ArchiveRestore /> : <Archive />}
-                  {project.archived ? "Khôi phục" : "Lưu trữ"}
+                  {project.archived ? "Restore" : "Archive"}
                 </DropdownMenuItem>
                 {canDeleteProject ? (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem variant="destructive" onClick={() => setConfirmDelete(true)}>
-                      <Trash2 /> Xoá dự án
+                      <Trash2 /> Delete project
                     </DropdownMenuItem>
                   </>
                 ) : null}
@@ -183,6 +184,12 @@ export function ProjectHeader({
             </DropdownMenu>
           ) : null}
         </div>
+      </div>
+
+      {/* On-demand AI read of the board. Full width so the generated summary
+          has room to breathe once it expands. */}
+      <div className="mt-3">
+        <AiProjectSummary projectId={project.id} />
       </div>
 
       {/* View tabs */}
@@ -238,9 +245,9 @@ export function ProjectHeader({
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
-        title={`Xoá dự án "${project.name}"?`}
-        description="Toàn bộ công việc, bình luận và lịch sử hoạt động của dự án sẽ bị xoá vĩnh viễn."
-        confirmLabel="Xoá dự án"
+        title={`Delete project "${project.name}"?`}
+        description="Every task, comment and activity record in this project is deleted permanently."
+        confirmLabel="Delete project"
         destructive
         onConfirm={handleDelete}
       />

@@ -22,7 +22,9 @@ export function UserAvatar({
     <Avatar className={cn("size-6", className)}>
       {user?.imageUrl ? <AvatarImage src={user.imageUrl} alt={user.name} /> : null}
       <AvatarFallback
-        style={user ? { backgroundColor: `${colorFromString(user.id)}22` } : undefined}
+        // Tint over the root's opaque background, so the per-person colour is
+        // readable without letting a stacked avatar show through.
+        style={user ? { backgroundColor: `${colorFromString(user.id)}33` } : undefined}
       >
         {initials(user?.name)}
       </AvatarFallback>
