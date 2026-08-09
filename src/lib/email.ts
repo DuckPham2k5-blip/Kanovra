@@ -1,6 +1,7 @@
 import "server-only";
 
 import { Resend } from "resend";
+import { logError } from "@/lib/logger";
 
 /**
  * Thin wrapper around Resend. Every call is fire-and-forget from the caller's
@@ -19,7 +20,7 @@ function getClient(): Resend | null {
 }
 
 const FROM =
-  process.env.RESEND_FROM_EMAIL ?? "TaskForge <onboarding@resend.dev>";
+  process.env.RESEND_FROM_EMAIL ?? "Kanovra <onboarding@resend.dev>";
 
 export async function sendEmail(input: { to: string; subject: string; html: string }) {
   const resend = getClient();
@@ -37,9 +38,9 @@ export async function sendEmail(input: { to: string; subject: string; html: stri
       subject: input.subject,
       html: input.html,
     });
-    if (error) console.error("[email] Resend rejected the message", error);
+    if (error) logError("email.rejected", error, { to: input.to, subject: input.subject });
   } catch (error) {
-    console.error("[email] failed to send", error);
+    logError("email", error, { to: input.to, subject: input.subject });
   }
 }
 
@@ -49,11 +50,11 @@ function emailShell(bodyHtml: string) {
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; color: #1e1b2e;">
       <div style="display: inline-flex; align-items: center; gap: 8px; margin-bottom: 24px;">
         <div style="width: 28px; height: 28px; border-radius: 8px; background: #6366f1; display: inline-block;"></div>
-        <span style="font-size: 18px; font-weight: 700; vertical-align: middle;">TaskForge</span>
+        <span style="font-size: 18px; font-weight: 700; vertical-align: middle;">Kanovra</span>
       </div>
       ${bodyHtml}
       <p style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;">
-        Bạn nhận được email này vì có người thao tác trên TaskForge liên quan đến địa chỉ email của bạn.
+        You received this email because of activity on Kanovra involving your address.
       </p>
     </div>
   `;
@@ -66,19 +67,19 @@ export function workspaceInviteEmail(input: {
   inviteUrl: string;
 }) {
   return emailShell(`
-    <h1 style="font-size: 20px; margin: 0 0 12px;">Lời mời tham gia ${input.workspaceName}</h1>
+    <h1 style="font-size: 20px; margin: 0 0 12px;">Invitation to join ${input.workspaceName}</h1>
     <p style="font-size: 14px; line-height: 1.6; color: #374151;">
-      <strong>${input.inviterName}</strong> đã mời bạn tham gia không gian làm việc
-      <strong>${input.workspaceName}</strong> trên TaskForge với vai trò <strong>${input.roleLabel}</strong>.
+      <strong>${input.inviterName}</strong> invited you to join the
+      <strong>${input.workspaceName}</strong> workspace on Kanovra as <strong>${input.roleLabel}</strong>.
     </p>
     <a href="${input.inviteUrl}"
        style="display: inline-block; margin-top: 20px; padding: 10px 20px; background: #6366f1; color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 600;">
-      Chấp nhận lời mời
+      Accept invitation
     </a>
     <p style="margin-top: 20px; font-size: 12px; color: #6b7280;">
-      Hoặc dán đường dẫn này vào trình duyệt: <br />
+      Or paste this link into your browser: <br />
       <a href="${input.inviteUrl}" style="color: #6366f1;">${input.inviteUrl}</a>
     </p>
-    <p style="margin-top: 12px; font-size: 12px; color: #9ca3af;">Lời mời có hiệu lực trong 14 ngày.</p>
+    <p style="margin-top: 12px; font-size: 12px; color: #9ca3af;">This invitation is valid for 14 days.</p>
   `);
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export async function GET() {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("[health] database check failed", error);
+    logError("health", error, { check: "database" });
     return NextResponse.json(
       {
         status: "error",

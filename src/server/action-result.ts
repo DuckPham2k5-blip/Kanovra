@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { ForbiddenError } from "@/lib/auth";
+import { logError } from "@/lib/logger";
 
 /**
  * Uniform return shape for every server action. Clients only ever branch on
@@ -29,17 +30,20 @@ export async function withErrorHandling<T>(fn: () => Promise<ActionResult<T>>) {
     return await fn();
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return fail("Dữ liệu không hợp lệ.", error.flatten().fieldErrors as Record<string, string[]>);
+      return fail("That data is not valid.", error.flatten().fieldErrors as Record<string, string[]>);
     }
     if (error instanceof ForbiddenError) {
       return fail(error.message);
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === "P2002") return fail("Giá trị này đã tồn tại, vui lòng chọn giá trị khác.");
-      if (error.code === "P2025") return fail("Không tìm thấy dữ liệu cần thao tác.");
+      if (error.code === "P2002") return fail("That value already exists — please choose another.");
+      if (error.code === "P2025") return fail("The record you are acting on no longer exists.");
     }
-    console.error("[action] unhandled error", error);
-    return fail("Đã có lỗi xảy ra. Vui lòng thử lại.");
+    // Unexpected: log it with a reference and show the user that reference, so
+    // a bug report or a screenshot points at exactly one line in the server log
+    // instead of "it broke sometime this afternoon".
+    const errorId = logError("action", error);
+    return fail(`Something went wrong. Please try again. (ref: ${errorId})`);
   }
 }
 
@@ -49,5 +53,5 @@ export function parse<S extends z.ZodTypeAny>(schema: S, input: unknown): z.infe
 }
 
 /** Messages reused across actions so the wording stays consistent. */
-export const NOT_FOUND = "Không tìm thấy dữ liệu hoặc bạn không có quyền truy cập.";
-export const NO_PERMISSION = "Bạn không có quyền thực hiện thao tác này.";
+export const NOT_FOUND = "Not found, or you do not have access to it.";
+export const NO_PERMISSION = "You don't have permission to do that.";

@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { Webhook } from "svix";
 
 import { prisma } from "@/lib/prisma";
+import { logError, logWarn } from "@/lib/logger";
 
 /**
  * Keeps the local `users` table in sync with Clerk.
@@ -15,7 +16,7 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   const secret = process.env.CLERK_WEBHOOK_SECRET;
   if (!secret) {
-    console.error("[clerk-webhook] CLERK_WEBHOOK_SECRET is not set");
+    logWarn("clerk-webhook", "CLERK_WEBHOOK_SECRET is not set; rejecting the delivery");
     return NextResponse.json({ error: "Webhook not configured" }, { status: 500 });
   }
 
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
       "svix-signature": svixSignature,
     }) as WebhookEvent;
   } catch (error) {
-    console.error("[clerk-webhook] signature verification failed", error);
+    logError("clerk-webhook", error, { stage: "verify" });
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
@@ -88,7 +89,7 @@ export async function POST(req: Request) {
         break;
     }
   } catch (error) {
-    console.error(`[clerk-webhook] failed to handle ${event.type}`, error);
+    logError("clerk-webhook", error, { stage: "handle", event: event.type });
     return NextResponse.json({ error: "Handler failed" }, { status: 500 });
   }
 

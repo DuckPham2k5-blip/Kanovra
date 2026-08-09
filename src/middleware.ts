@@ -2,8 +2,14 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 /**
- * Everything is private by default. Only the marketing page, the auth screens
- * and the Clerk webhook are reachable without a session.
+ * Everything is private by default. Only the marketing page, the auth screens,
+ * the Clerk webhook and the health probe are reachable without a session.
+ *
+ * `/api/health` has to be public: Docker's HEALTHCHECK, PM2 and the deploy
+ * script's readiness gate all call it with no cookies, and `auth.protect()`
+ * answers an unauthenticated API request with a 404 — which would leave the
+ * container permanently unhealthy. It reports liveness only and exposes no
+ * workspace data.
  */
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -11,6 +17,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/invite/(.*)",
   "/api/webhooks/(.*)",
+  "/api/health",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
