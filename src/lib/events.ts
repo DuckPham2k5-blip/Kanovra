@@ -3,6 +3,8 @@ import "server-only";
 import type { ActivityType, NotificationType, Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/logger";
+import { publishChange, type ChangeEvent } from "@/lib/realtime";
 
 /**
  * Activity + notification writes. Both are fire-and-forget from the caller's
@@ -20,6 +22,21 @@ type ActivityInput = {
   metadata?: Prisma.InputJsonValue;
 };
 
+/**
+ * Maps an activity type onto the coarse scope sent to connected clients, so a
+ * browser can ignore a change it does not currently render.
+ */
+function scopeForActivity(type: ActivityType): ChangeEvent["scope"] {
+  const name = String(type);
+  if (name.startsWith("TASK_") || name.startsWith("SUBTASK_") || name.startsWith("CHECKLIST_")) {
+    return "task";
+  }
+  if (name.startsWith("PROJECT_")) return "project";
+  if (name.startsWith("COMMENT_")) return "comment";
+  if (name.startsWith("MEMBER_")) return "member";
+  return "workspace";
+}
+
 export async function logActivity(input: ActivityInput) {
   try {
     await prisma.activity.create({
@@ -34,8 +51,17 @@ export async function logActivity(input: ActivityInput) {
       },
     });
   } catch (error) {
-    console.error("[activity] failed to record", error);
+    logError("activity", error, { workspaceId: input.workspaceId, type: input.type });
   }
+
+  // Every meaningful mutation already records an activity, which makes this
+  // the one place that has to know about live updates — the alternative was
+  // adding a publish call to all 26 mutation sites and missing some.
+  publishChange({
+    workspaceId: input.workspaceId,
+    scope: scopeForActivity(input.type),
+    actorId: input.actorId,
+  });
 }
 
 type NotifyInput = {
@@ -64,7 +90,7 @@ export async function notify(input: NotifyInput) {
       },
     });
   } catch (error) {
-    console.error("[notification] failed to create", error);
+    logError("notification", error, { userId: input.userId, type: input.type });
   }
 }
 
@@ -85,7 +111,7 @@ export async function notifyMany(userIds: string[], input: Omit<NotifyInput, "us
       })),
     });
   } catch (error) {
-    console.error("[notification] failed to fan out", error);
+    logError("notification.fanout", error, { recipients: userIds.length });
   }
 }
 
