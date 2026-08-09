@@ -14,9 +14,11 @@ const nextConfig: NextConfig = {
     ],
   },
   experimental: {
-    // Server Actions receive board reorder payloads which can be a few hundred KB.
+    // Board reorder payloads are a few hundred KB; attachment uploads travel
+    // through a Server Action too, so this has to clear MAX_ATTACHMENT_BYTES
+    // (10 MB) with room for the multipart envelope.
     serverActions: {
-      bodySizeLimit: "2mb",
+      bodySizeLimit: "12mb",
     },
   },
   async headers() {

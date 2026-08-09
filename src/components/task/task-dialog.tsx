@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { AiDraftButton } from "@/components/ai/ai-draft-button";
 import { LabelChip } from "@/components/shared/badges";
 import { DatePicker } from "@/components/shared/date-picker";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -101,7 +102,7 @@ export function TaskDialog({
         return;
       }
 
-      toast.success(parentId ? "Đã thêm công việc con." : "Đã tạo công việc.");
+      toast.success(parentId ? "Subtask added." : "Task created.");
       onOpenChange(false);
       onCreated?.(result.data.id);
       router.refresh();
@@ -114,45 +115,53 @@ export function TaskDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{parentId ? "Thêm công việc con" : "Công việc mới"}</DialogTitle>
+          <DialogTitle>{parentId ? "Add subtask" : "New task"}</DialogTitle>
           <DialogDescription>
-            Chỉ tiêu đề là bắt buộc — mọi trường khác có thể bổ sung sau.
+            Only the title is required — everything else can come later.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="t-title">Tiêu đề</Label>
+            <Label htmlFor="t-title">Title</Label>
             <Input
               id="t-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Cần làm gì?"
+              placeholder="What needs to be done?"
               required
               autoFocus
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="t-desc">Mô tả</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="t-desc">Description</Label>
+              <AiDraftButton
+                projectId={projectId}
+                title={title}
+                existing={description}
+                onDrafted={setDescription}
+              />
+            </div>
             <Textarea
               id="t-desc"
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Bối cảnh, tiêu chí hoàn thành…"
+              placeholder="Context, acceptance criteria…"
             />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Người phụ trách</Label>
+              <Label>Assignee</Label>
               <Select value={assigneeId} onValueChange={setAssigneeId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Chưa giao" />
+                  <SelectValue placeholder="Unassigned" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={UNASSIGNED}>Chưa giao</SelectItem>
+                  <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
                   {members.map((member) => (
                     <SelectItem key={member.id} value={member.id}>
                       <span className="flex items-center gap-2">
@@ -166,7 +175,7 @@ export function TaskDialog({
             </div>
 
             <div className="space-y-2">
-              <Label>Độ ưu tiên</Label>
+              <Label>Priority</Label>
               <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -188,12 +197,12 @@ export function TaskDialog({
             </div>
 
             <div className="space-y-2">
-              <Label>Hạn hoàn thành</Label>
+              <Label>Due date</Label>
               <DatePicker value={dueDate} onChange={setDueDate} />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="t-est">Ước lượng (giờ)</Label>
+              <Label htmlFor="t-est">Estimate (h)</Label>
               <Input
                 id="t-est"
                 type="number"
@@ -208,7 +217,7 @@ export function TaskDialog({
 
           {labels.length > 0 ? (
             <div className="space-y-2">
-              <Label>Nhãn</Label>
+              <Label>Labels</Label>
               <div className="flex flex-wrap gap-2">
                 {labels.map((label) => {
                   const selected = labelIds.includes(label.id);
@@ -237,10 +246,10 @@ export function TaskDialog({
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Huỷ
+              Cancel
             </Button>
             <Button type="submit" loading={pending} disabled={!title.trim()}>
-              Tạo công việc
+              Create task
             </Button>
           </DialogFooter>
         </form>

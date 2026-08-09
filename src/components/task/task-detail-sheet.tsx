@@ -6,9 +6,12 @@ import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { AiDraftButton } from "@/components/ai/ai-draft-button";
+import { AiSubtaskSuggestions } from "@/components/ai/ai-subtask-suggestions";
 import { DueBadge, LabelChip, StatusBadge } from "@/components/shared/badges";
 import { DatePicker } from "@/components/shared/date-picker";
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { AttachmentSection } from "@/components/task/attachment-section";
 import { ChecklistSection } from "@/components/task/checklist-section";
 import { CommentSection } from "@/components/task/comment-section";
 import { TaskDialog } from "@/components/task/task-dialog";
@@ -104,7 +107,7 @@ export function TaskDetailSheet({
       toast.error(result.error);
       return;
     }
-    toast.success("Đã nhân bản công việc.");
+    toast.success("Task duplicated.");
     router.refresh();
   }
 
@@ -114,7 +117,7 @@ export function TaskDetailSheet({
       toast.error(result.error);
       return;
     }
-    toast.success("Đã xoá công việc.");
+    toast.success("Task deleted.");
     close();
     router.refresh();
   }
@@ -136,7 +139,7 @@ export function TaskDetailSheet({
             <StatusBadge status={task.status} />
             {task.parent ? (
               <span className="truncate text-xs text-muted-foreground">
-                thuộc {task.projectKey}-{task.parent.number}
+                in {task.projectKey}-{task.parent.number}
               </span>
             ) : null}
 
@@ -145,27 +148,27 @@ export function TaskDetailSheet({
                 <DropdownMenu>
                   {/* Explicit id — see the comment in sidebar.tsx's workspace switcher. */}
                   <DropdownMenuTrigger asChild id={`task-options-trigger-${task.id}`}>
-                    <Button variant="ghost" size="icon-sm" aria-label="Tuỳ chọn">
+                    <Button variant="ghost" size="icon-sm" aria-label="Task options">
                       <MoreHorizontal className="size-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => void handleDuplicate()}>
-                      <Copy /> Nhân bản
+                      <Copy /> Duplicate
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => {
                         void navigator.clipboard.writeText(
                           `${window.location.origin}/w/${workspaceSlug}/projects/${task.projectId}/board?task=${task.id}`,
                         );
-                        toast.success("Đã sao chép liên kết.");
+                        toast.success("Link copied.");
                       }}
                     >
-                      <Check /> Sao chép liên kết
+                      <Check /> Copy link
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem variant="destructive" onClick={() => setConfirmDelete(true)}>
-                      <Trash2 /> Xoá công việc
+                      <Trash2 /> Delete task
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -185,7 +188,7 @@ export function TaskDetailSheet({
                   if (!result.success) toast.error(result.error);
                   else router.refresh();
                 }}
-                aria-label="Đánh dấu hoàn thành"
+                aria-label="Mark complete"
               />
               <Textarea
                 value={title}
@@ -204,7 +207,7 @@ export function TaskDetailSheet({
 
             {/* Properties */}
             <div className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2">
-              <PropertyRow label="Trạng thái">
+              <PropertyRow label="Status">
                 <Select
                   value={task.status}
                   disabled={!canEdit || savingField === "status"}
@@ -229,7 +232,7 @@ export function TaskDetailSheet({
                 </Select>
               </PropertyRow>
 
-              <PropertyRow label="Người phụ trách">
+              <PropertyRow label="Assignee">
                 <Select
                   value={task.assignee?.id ?? UNASSIGNED}
                   disabled={!canEdit || savingField === "assignee"}
@@ -238,10 +241,10 @@ export function TaskDetailSheet({
                   }
                 >
                   <SelectTrigger className="h-8">
-                    <SelectValue placeholder="Chưa giao" />
+                    <SelectValue placeholder="Unassigned" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={UNASSIGNED}>Chưa giao</SelectItem>
+                    <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
                     {members.map((member) => (
                       <SelectItem key={member.id} value={member.id}>
                         <span className="flex items-center gap-2">
@@ -254,7 +257,7 @@ export function TaskDetailSheet({
                 </Select>
               </PropertyRow>
 
-              <PropertyRow label="Độ ưu tiên">
+              <PropertyRow label="Priority">
                 <Select
                   value={task.priority}
                   disabled={!canEdit || savingField === "priority"}
@@ -279,7 +282,7 @@ export function TaskDetailSheet({
                 </Select>
               </PropertyRow>
 
-              <PropertyRow label="Hạn hoàn thành">
+              <PropertyRow label="Due date">
                 <div className="space-y-1">
                   <DatePicker
                     value={task.dueDate ? new Date(task.dueDate) : null}
@@ -291,7 +294,7 @@ export function TaskDetailSheet({
                 </div>
               </PropertyRow>
 
-              <PropertyRow label="Bắt đầu">
+              <PropertyRow label="Get started">
                 <DatePicker
                   value={task.startDate ? new Date(task.startDate) : null}
                   disabled={!canEdit}
@@ -300,7 +303,7 @@ export function TaskDetailSheet({
                 />
               </PropertyRow>
 
-              <PropertyRow label="Ước lượng (giờ)">
+              <PropertyRow label="Estimate (h)">
                 <Input
                   type="number"
                   min={0}
@@ -318,11 +321,11 @@ export function TaskDetailSheet({
 
             {/* Labels */}
             <section className="space-y-2">
-              <Label className="text-sm font-semibold">Nhãn</Label>
+              <Label className="text-sm font-semibold">Labels</Label>
               <div className="flex flex-wrap gap-2">
                 {labels.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    Chưa có nhãn nào trong không gian làm việc.
+                    No labels in this workspace yet.
                   </p>
                 ) : (
                   labels.map((label) => {
@@ -356,9 +359,22 @@ export function TaskDetailSheet({
 
             {/* Description */}
             <section className="space-y-2">
-              <Label htmlFor="task-desc" className="text-sm font-semibold">
-                Mô tả
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="task-desc" className="text-sm font-semibold">
+                  Description
+                </Label>
+                {canEdit ? (
+                  <AiDraftButton
+                    projectId={task.projectId}
+                    title={title}
+                    existing={description}
+                    onDrafted={(text) => {
+                      setDescription(text);
+                      void patch("description", { description: text });
+                    }}
+                  />
+                ) : null}
+              </div>
               <Textarea
                 id="task-desc"
                 rows={5}
@@ -370,7 +386,7 @@ export function TaskDetailSheet({
                     void patch("description", { description });
                   }
                 }}
-                placeholder="Thêm mô tả chi tiết…"
+                placeholder="Add a detailed description…"
               />
             </section>
 
@@ -379,13 +395,17 @@ export function TaskDetailSheet({
             {/* Subtasks */}
             <section className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Công việc con ({task.subtasks.length})</h3>
+                <h3 className="text-sm font-semibold">Subtasks ({task.subtasks.length})</h3>
                 {canEdit ? (
                   <Button variant="ghost" size="sm" onClick={() => setSubtaskDialog(true)}>
-                    <Plus className="size-4" /> Thêm
+                    <Plus className="size-4" /> Add
                   </Button>
                 ) : null}
               </div>
+
+              {canEdit ? (
+                <AiSubtaskSuggestions taskId={task.id} projectId={task.projectId} />
+              ) : null}
 
               <ul className="space-y-1">
                 {task.subtasks.map((subtask) => (
@@ -401,7 +421,7 @@ export function TaskDetailSheet({
                         if (!result.success) toast.error(result.error);
                         else router.refresh();
                       }}
-                      aria-label={`Hoàn thành ${subtask.title}`}
+                      aria-label={`Completed ${subtask.title}`}
                     />
                     <span
                       className={cn(
@@ -417,7 +437,7 @@ export function TaskDetailSheet({
                 ))}
 
                 {task.subtasks.length === 0 ? (
-                  <li className="text-sm text-muted-foreground">Chưa có công việc con.</li>
+                  <li className="text-sm text-muted-foreground">No subtasks yet.</li>
                 ) : null}
               </ul>
             </section>
@@ -425,6 +445,14 @@ export function TaskDetailSheet({
             <Separator />
 
             <ChecklistSection taskId={task.id} items={task.checklist} canEdit={canEdit} />
+
+            <Separator />
+
+            <AttachmentSection
+              taskId={task.id}
+              attachments={task.attachments}
+              canEdit={canEdit}
+            />
 
             <Separator />
 
@@ -438,8 +466,8 @@ export function TaskDetailSheet({
             />
 
             <p className="pt-2 text-xs text-muted-foreground">
-              Tạo bởi {task.createdBy.name}
-              {task.completedAt ? ` · Hoàn thành ${fromNow(task.completedAt)}` : ""}
+              Created by {task.createdBy.name}
+              {task.completedAt ? ` · Completed ${fromNow(task.completedAt)}` : ""}
             </p>
           </div>
         </SheetContent>
@@ -458,9 +486,9 @@ export function TaskDetailSheet({
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
-        title="Xoá công việc này?"
-        description={`"${task.title}" cùng toàn bộ công việc con, checklist và bình luận sẽ bị xoá vĩnh viễn.`}
-        confirmLabel="Xoá"
+        title="Delete this task?"
+        description={`"${task.title}" and all of its subtasks, checklist items and comments will be permanently deleted.`}
+        confirmLabel="Delete"
         destructive
         onConfirm={handleDelete}
       />
