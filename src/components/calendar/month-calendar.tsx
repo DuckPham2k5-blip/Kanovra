@@ -105,13 +105,13 @@ export function MonthCalendar({
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold capitalize">{format(current, "MMMM yyyy")}</h2>
         <div className="ml-auto flex items-center gap-1">
-          <Button variant="outline" size="icon-sm" onClick={() => navigate(-1)} aria-label="Tháng trước">
+          <Button variant="outline" size="icon-sm" onClick={() => navigate(-1)} aria-label="Previous month">
             <ChevronLeft className="size-4" />
           </Button>
           <Button variant="outline" size="sm" onClick={goToday}>
-            Hôm nay
+            Today
           </Button>
-          <Button variant="outline" size="icon-sm" onClick={() => navigate(1)} aria-label="Tháng sau">
+          <Button variant="outline" size="icon-sm" onClick={() => navigate(1)} aria-label="Next month">
             <ChevronRight className="size-4" />
           </Button>
         </div>
@@ -200,8 +200,8 @@ export function MonthCalendar({
         {tasks.length === 0 ? (
           <EmptyState
             icon={CalendarDays}
-            title="Không có công việc nào đến hạn"
-            description="Tháng này chưa có công việc nào được đặt hạn hoàn thành."
+            title="Nothing due"
+            description="Nothing in this month has a due date set."
           />
         ) : (
           days
@@ -251,7 +251,7 @@ export function MonthCalendar({
               {format(selected, "EEEE, dd/MM/yyyy")}
             </p>
             <Button variant="ghost" size="sm" onClick={() => setSelected(null)}>
-              Đóng
+              Close
             </Button>
           </div>
           <div className="space-y-1.5">
@@ -274,7 +274,7 @@ export function MonthCalendar({
 
       {tasks.length === 0 ? (
         <p className="hidden text-center text-sm text-muted-foreground md:block">
-          Không có công việc nào đến hạn trong tháng này.
+          No tasks are due this month.
         </p>
       ) : null}
     </div>

@@ -68,7 +68,7 @@ export async function toggleChecklistItem(input: unknown): Promise<ActionResult>
       taskId: item.taskId,
       actorId: user.id,
       type: "CHECKLIST_UPDATED",
-      message: `${user.name} đã ${data.done ? "đánh dấu hoàn thành" : "bỏ đánh dấu"} "${item.title}"`,
+      message: `${user.name} ${data.done ? "checked off" : "unchecked"} "${item.title}"`,
     });
 
     revalidatePath(`/w/${ctx.workspace.slug}/projects/${ctx.task.projectId}`, "layout");

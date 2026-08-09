@@ -38,7 +38,7 @@ export function LabelManager({
     event.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) {
-      toast.error("Nhập tên nhãn.");
+      toast.error("Enter a label name.");
       return;
     }
 
@@ -49,7 +49,7 @@ export function LabelManager({
         return;
       }
       setName("");
-      toast.success("Đã thêm nhãn.");
+      toast.success("Label added.");
       router.refresh();
     });
   }
@@ -61,7 +61,7 @@ export function LabelManager({
       toast.error(result.error);
       return;
     }
-    toast.success("Đã xoá nhãn.");
+    toast.success("Label deleted.");
     router.refresh();
   }
 
@@ -69,7 +69,7 @@ export function LabelManager({
     <div className="space-y-5">
       {labels.length === 0 ? (
         <p className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-          Chưa có nhãn nào. Thêm nhãn đầu tiên bên dưới.
+          No labels yet. Add your first one below.
         </p>
       ) : (
         <ul className="divide-y rounded-lg border">
@@ -83,13 +83,13 @@ export function LabelManager({
                 {label.name}
               </span>
               <span className="ml-auto text-xs text-muted-foreground">
-                {label.taskCount} công việc
+                {label.taskCount} tasks
               </span>
               {canManage ? (
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label={`Xoá nhãn ${label.name}`}
+                  aria-label={`Delete label ${label.name}`}
                   onClick={() => setPendingDelete(label)}
                 >
                   <Trash2 className="size-4 text-muted-foreground" />
@@ -106,13 +106,13 @@ export function LabelManager({
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Tên nhãn mới"
+              placeholder="New label name"
               maxLength={30}
               disabled={pending}
             />
             <Button type="submit" loading={pending} className="shrink-0">
               {pending ? null : <Plus />}
-              Thêm
+              Add
             </Button>
           </div>
           <ColorPicker value={color} onChange={setColor} />
@@ -122,13 +122,13 @@ export function LabelManager({
       <ConfirmDialog
         open={Boolean(pendingDelete)}
         onOpenChange={(open) => (open ? null : setPendingDelete(null))}
-        title={`Xoá nhãn "${pendingDelete?.name}"?`}
+        title={`Delete label "${pendingDelete?.name}"?`}
         description={
           pendingDelete && pendingDelete.taskCount > 0
-            ? `Nhãn này đang được gắn cho ${pendingDelete.taskCount} công việc. Xoá nhãn sẽ gỡ nó khỏi tất cả các công việc đó.`
-            : "Thao tác này không thể hoàn tác."
+            ? `This label is on ${pendingDelete.taskCount} tasks. Deleting it removes the label from all of them.`
+            : "This cannot be undone."
         }
-        confirmLabel="Xoá nhãn"
+        confirmLabel="Delete label"
         destructive
         onConfirm={handleDelete}
       />

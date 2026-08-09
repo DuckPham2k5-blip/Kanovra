@@ -40,10 +40,10 @@ export function CalendarFilters({
     <div className="flex flex-wrap gap-2">
       <Select value={projectId ?? ALL} onValueChange={(v) => setParam("project", v)}>
         <SelectTrigger className="w-auto min-w-40">
-          <SelectValue placeholder="Mọi dự án" />
+          <SelectValue placeholder="All projects" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ALL}>Mọi dự án</SelectItem>
+          <SelectItem value={ALL}>All projects</SelectItem>
           {projects.map((p) => (
             <SelectItem key={p.id} value={p.id}>
               {p.name}
@@ -54,10 +54,10 @@ export function CalendarFilters({
 
       <Select value={assigneeId ?? ALL} onValueChange={(v) => setParam("assignee", v)}>
         <SelectTrigger className="w-auto min-w-40">
-          <SelectValue placeholder="Mọi người" />
+          <SelectValue placeholder="Everyone" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ALL}>Mọi người</SelectItem>
+          <SelectItem value={ALL}>Everyone</SelectItem>
           {members.map((m) => (
             <SelectItem key={m.id} value={m.id}>
               {m.name}

@@ -9,7 +9,7 @@ import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getWorkspaceMembers } from "@/lib/queries";
 
-export const metadata: Metadata = { title: "Thành viên" };
+export const metadata: Metadata = { title: "Members" };
 
 export default async function MembersPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -45,8 +45,8 @@ export default async function MembersPage({ params }: { params: Promise<{ slug: 
   return (
     <div className="flex flex-col">
       <PageHeader
-        title="Thành viên"
-        description={`${members.length} người trong ${workspace.name}`}
+        title="Members"
+        description={`${members.length} people in ${workspace.name}`}
         actions={
           canManage ? (
             <InviteMemberDialog workspaceId={workspace.id} currentUserRole={

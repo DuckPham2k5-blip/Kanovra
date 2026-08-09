@@ -12,7 +12,7 @@ export function NewProjectButton({
   workspaceSlug,
   variant = "default",
   size = "sm",
-  label = "Dự án mới",
+  label = "New project",
 }: {
   workspaceId: string;
   workspaceSlug: string;

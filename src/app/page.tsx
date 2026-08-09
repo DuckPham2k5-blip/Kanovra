@@ -5,6 +5,7 @@ import {
   Bell,
   CalendarDays,
   CheckCircle2,
+  Gauge,
   KanbanSquare,
   Moon,
   ShieldCheck,
@@ -15,6 +16,19 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Logo, Wordmark } from "@/components/brand";
+import { AmbientBackdrop } from "@/components/layout/ambient-backdrop";
+import { PageAccentScope } from "@/components/layout/page-accent-scope";
+import {
+  ClaudeMark,
+  FigmaMark,
+  GithubMark,
+  GmailMark,
+  GoogleDriveMark,
+  NotionMark,
+  OpenAiMark,
+  SlackMark,
+  ZapierMark,
+} from "@/components/marketing/integration-marks";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,41 +42,126 @@ export const metadata: Metadata = {
 const FEATURES = [
   {
     icon: KanbanSquare,
-    title: "Bảng Kanban kéo thả",
-    body: "Kéo thả mượt mà, giới hạn WIP theo cột, cột tuỳ biến và cập nhật tức thì cho cả nhóm.",
+    title: "Drag-and-drop Kanban",
+    body: "Fluid drag and drop, per-column WIP limits, custom columns, instant team-wide updates.",
   },
   {
     icon: CheckCircle2,
     title: "Task, Subtask & Checklist",
-    body: "Chia nhỏ công việc thành công việc con và checklist, theo dõi tiến độ đến từng bước.",
+    body: "Break work into subtasks and checklists, and track progress step by step.",
   },
   {
     icon: BarChart3,
     title: "Dashboard & Analytics",
-    body: "Biểu đồ trạng thái, độ ưu tiên, khối lượng theo người và thời gian hoàn thành trung bình.",
+    body: "Charts for status, priority, per-person workload and average cycle time.",
   },
   {
     icon: CalendarDays,
-    title: "Lịch & Dòng thời gian",
-    body: "Nhìn toàn bộ deadline theo tháng, lọc theo dự án hoặc người phụ trách.",
+    title: "Calendar & Timeline",
+    body: "See every deadline by month, filtered by project or assignee.",
   },
   {
     icon: Bell,
-    title: "Thông báo thời gian thực",
-    body: "Được giao việc, được nhắc tên trong bình luận hay sắp đến hạn — bạn đều biết ngay.",
+    title: "Real-time notifications",
+    body: "Assignments, mentions in comments, upcoming deadlines — you hear about all of it.",
   },
   {
     icon: ShieldCheck,
-    title: "Phân quyền 4 cấp",
-    body: "Chủ sở hữu, quản trị viên, thành viên và người xem, kiểm soát chặt ở cả tầng server.",
+    title: "Four permission levels",
+    body: "Owner, admin, member and viewer — enforced on the server, not just in the UI.",
+  },
+  {
+    icon: Sparkles,
+    title: "Built-in AI assistant",
+    body: "Break a task into subtasks, draft a description, or read the board's status — all reviewed before anything is saved.",
   },
 ];
 
 const STATS = [
-  { value: "4", label: "cấp phân quyền" },
-  { value: "5", label: "chế độ xem dự án" },
+  { value: "4", label: "permission levels" },
+  { value: "5", label: "project views" },
   { value: "100%", label: "TypeScript" },
-  { value: "2", label: "chế độ sáng / tối" },
+  { value: "2", label: "light / dark" },
+];
+
+/**
+ * Integrations grid. `status` is honest about what ships today versus what is
+ * on the roadmap — a marketing page that overstates it becomes a support
+ * burden the first week after launch.
+ */
+const INTEGRATIONS = [
+  {
+    mark: GoogleDriveMark,
+    name: "Google Drive",
+    body: "Attach specs, designs and sheets to a task without leaving the board.",
+    status: "Planned",
+  },
+  {
+    mark: GmailMark,
+    name: "Gmail",
+    body: "Invites and deadline digests land in the inbox your team already lives in.",
+    status: "Live",
+  },
+  {
+    mark: ClaudeMark,
+    name: "Claude",
+    body: "Powers the built-in assistant: task breakdowns, drafts and board summaries.",
+    status: "Live",
+  },
+  {
+    mark: SlackMark,
+    name: "Slack",
+    body: "Push assignments and status changes into the channel that owns the work.",
+    status: "Planned",
+  },
+  {
+    mark: GithubMark,
+    name: "GitHub",
+    body: "Link branches and pull requests to the task key, and close on merge.",
+    status: "Planned",
+  },
+  {
+    mark: NotionMark,
+    name: "Notion",
+    body: "Keep a spec in Notion and mirror its status onto the Kanovra board.",
+    status: "Planned",
+  },
+  {
+    mark: FigmaMark,
+    name: "Figma",
+    body: "Preview the frame a design task refers to, right inside the task panel.",
+    status: "Planned",
+  },
+  {
+    mark: OpenAiMark,
+    name: "OpenAI",
+    body: "Bring your own key if your organisation has standardised on GPT models.",
+    status: "Planned",
+  },
+  {
+    mark: ZapierMark,
+    name: "Zapier",
+    body: "Reach the long tail — 6,000+ apps through a single outbound webhook.",
+    status: "Planned",
+  },
+];
+
+const PRINCIPLES = [
+  {
+    icon: ShieldCheck,
+    title: "The server is the source of truth",
+    body: "Every permission is checked again on the server. Hiding a button is a courtesy, never a control — a crafted request gets the same answer as a click.",
+  },
+  {
+    icon: Gauge,
+    title: "Fast enough to stay out of the way",
+    body: "Server Components render on the server, mutations run as Server Actions, and the board updates optimistically. No loading spinner between a thought and a change.",
+  },
+  {
+    icon: Sparkles,
+    title: "AI suggests, people decide",
+    body: "The assistant proposes subtasks, drafts and summaries. Nothing it writes reaches the database until someone reviews it and clicks.",
+  },
 ];
 
 export default function LandingPage() {
@@ -76,26 +175,32 @@ export default function LandingPage() {
           </Link>
           <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
             <a href="#features" className="transition-colors hover:text-foreground">
-              Tính năng
+              Features
             </a>
             <a href="#workflow" className="transition-colors hover:text-foreground">
-              Cách hoạt động
+              How it works
+            </a>
+            <a href="#integrations" className="transition-colors hover:text-foreground">
+              Integrations
+            </a>
+            <a href="#about" className="transition-colors hover:text-foreground">
+              About
             </a>
           </nav>
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <SignedOut>
               <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
-                <Link href="/sign-in">Đăng nhập</Link>
+                <Link href="/sign-in">Sign in</Link>
               </Button>
               <Button size="sm" asChild>
-                <Link href="/sign-up">Dùng thử miễn phí</Link>
+                <Link href="/sign-up">Try it free</Link>
               </Button>
             </SignedOut>
             <SignedIn>
               <Button size="sm" asChild>
                 <Link href="/onboarding">
-                  Vào ứng dụng <ArrowRight className="size-4" />
+                  Open app <ArrowRight className="size-4" />
                 </Link>
               </Button>
             </SignedIn>
@@ -105,42 +210,39 @@ export default function LandingPage() {
 
       <main className="flex-1">
         {/* Hero */}
-        <section className="relative overflow-hidden border-b">
+        <PageAccentScope className="relative overflow-hidden border-b">
+          <AmbientBackdrop variant="hero" />
           <div className="tf-dots absolute inset-0 opacity-60" aria-hidden="true" />
-          <div
-            className="absolute left-1/2 top-0 -z-0 h-72 w-[42rem] -translate-x-1/2 rounded-full bg-primary/20 blur-[100px]"
-            aria-hidden="true"
-          />
           <div className="relative mx-auto w-full max-w-6xl px-4 py-20 text-center sm:px-6 sm:py-28">
             <Badge variant="soft" className="mx-auto mb-5 px-3 py-1">
               <Sparkles className="size-3.5" />
-              Kanban · Analytics · Lịch · Phân quyền
+              Kanban · Analytics · Calendar · Roles
             </Badge>
             <h1 className="mx-auto max-w-3xl text-balance text-4xl font-semibold tracking-tight sm:text-6xl">
-              Quản lý công việc nhóm{" "}
+              Team task management,{" "}
               <span className="bg-gradient-to-r from-indigo-500 to-violet-500 bg-clip-text text-transparent">
-                gọn gàng và rõ ràng
+                clear and uncluttered
               </span>
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-pretty text-base text-muted-foreground sm:text-lg">
-              {APP_DESCRIPTION} Được xây dựng trên Next.js 15, Prisma và PostgreSQL — sẵn sàng cho
-              đội ngũ thật, dữ liệu thật.
+              {APP_DESCRIPTION} Built on Next.js 15, Prisma and PostgreSQL — ready for
+              real teams and real data.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <SignedOut>
                 <Button size="lg" asChild>
                   <Link href="/sign-up">
-                    Bắt đầu ngay <ArrowRight className="size-4" />
+                    Get started <ArrowRight className="size-4" />
                   </Link>
                 </Button>
                 <Button size="lg" variant="outline" asChild>
-                  <Link href="/sign-in">Tôi đã có tài khoản</Link>
+                  <Link href="/sign-in">I already have an account</Link>
                 </Button>
               </SignedOut>
               <SignedIn>
                 <Button size="lg" asChild>
                   <Link href="/onboarding">
-                    Mở không gian làm việc <ArrowRight className="size-4" />
+                    Open your workspace <ArrowRight className="size-4" />
                   </Link>
                 </Button>
               </SignedIn>
@@ -155,15 +257,15 @@ export default function LandingPage() {
               ))}
             </dl>
           </div>
-        </section>
+        </PageAccentScope>
 
         {/* Features */}
         <section id="features" className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-semibold tracking-tight">Đủ dùng cho một nhóm thật sự</h2>
+            <h2 className="text-3xl font-semibold tracking-tight">Enough for a real team</h2>
             <p className="mt-3 text-muted-foreground">
-              Không phải bản demo. Mọi thao tác đều ghi xuống PostgreSQL, có kiểm tra quyền ở tầng
-              server và ghi lại nhật ký hoạt động.
+              Not a mock-up. Every action writes to PostgreSQL, with permission checks on the
+              server and a full activity log.
             </p>
           </div>
 
@@ -186,24 +288,24 @@ export default function LandingPage() {
             <div className="grid items-center gap-12 lg:grid-cols-2">
               <div>
                 <h2 className="text-3xl font-semibold tracking-tight">
-                  Từ ý tưởng đến hoàn thành, trong một luồng
+                  From idea to done, in one flow
                 </h2>
                 <ol className="mt-8 space-y-6">
                   {[
                     {
                       icon: Users,
-                      title: "Tạo workspace, mời cả nhóm",
-                      body: "Một không gian cho mỗi đội. Mời qua email và gán vai trò phù hợp.",
+                      title: "Create a workspace, invite the team",
+                      body: "One space per team. Invite by email and assign the right role.",
                     },
                     {
                       icon: KanbanSquare,
-                      title: "Dựng dự án và bảng Kanban",
-                      body: "Mỗi dự án có mã riêng (WEB-42), cột tuỳ biến và giới hạn WIP.",
+                      title: "Set up projects and boards",
+                      body: "Each project gets its own key (WEB-42), custom columns and WIP limits.",
                     },
                     {
                       icon: BarChart3,
-                      title: "Theo dõi bằng số liệu, không phải cảm tính",
-                      body: "Dashboard và Analytics cập nhật theo từng thay đổi của nhóm.",
+                      title: "Track with numbers, not gut feel",
+                      body: "Dashboard and Analytics update with every change the team makes.",
                     },
                   ].map(({ icon: Icon, title, body }, i) => (
                     <li key={title} className="flex gap-4">
@@ -229,14 +331,14 @@ export default function LandingPage() {
                   <span className="size-2.5 rounded-full bg-amber-400" />
                   <span className="size-2.5 rounded-full bg-emerald-400" />
                   <span className="ml-2 font-mono text-xs text-muted-foreground">
-                    taskforge.app/w/acme/board
+                    kanovra.app/w/acme/board
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-3 pt-4">
                   {[
-                    { name: "Cần làm", color: "#64748b", items: ["Thiết kế hero", "Viết tài liệu"] },
-                    { name: "Đang làm", color: "#6366f1", items: ["Kéo thả Kanban", "API thông báo"] },
-                    { name: "Xong", color: "#10b981", items: ["Khởi tạo dự án"] },
+                    { name: "To do", color: "#64748b", items: ["Design the hero", "Write the docs"] },
+                    { name: "In progress", color: "#6366f1", items: ["Kanban drag & drop", "Notifications API"] },
+                    { name: "Done", color: "#10b981", items: ["Project scaffolding"] },
                   ].map((col) => (
                     <div key={col.name} className="space-y-2">
                       <div className="flex items-center gap-1.5 px-1">
@@ -263,19 +365,108 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* About */}
+        <section id="about" className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
+          <div className="grid gap-12 lg:grid-cols-[1fr_1.15fr]">
+            <div>
+              <Badge variant="soft" className="mb-4 px-3 py-1">
+                About {APP_NAME}
+              </Badge>
+              <h2 className="text-3xl font-semibold tracking-tight">
+                Built by a team that got tired of its own tools
+              </h2>
+              <div className="mt-5 space-y-4 text-sm leading-relaxed text-muted-foreground">
+                <p>
+                  {APP_NAME} started as an internal board. We were running a product team
+                  across three tools — one for tickets, one for docs, one for the weekly
+                  status — and spending more time keeping them in sync than doing the work
+                  they described.
+                </p>
+                <p>
+                  So we wrote down what a small team actually needs on a Tuesday afternoon:
+                  see what is in flight, move one card, know who is overloaded, and leave.
+                  Everything that did not serve that got cut. What is left is a board fast
+                  enough to keep open all day and structured enough to answer a planning
+                  question without a spreadsheet.
+                </p>
+                <p>
+                  We are a distributed team of six. We use {APP_NAME} to build {APP_NAME},
+                  which means every rough edge lands on us first.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-1">
+              {PRINCIPLES.map(({ icon: Icon, title, body }) => (
+                <div key={title} className="tf-card p-6">
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <Icon className="size-4" />
+                    </span>
+                    <h3 className="font-medium">{title}</h3>
+                  </div>
+                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Integrations */}
+        <section id="integrations" className="border-y bg-muted/40">
+          <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
+            <div className="mx-auto max-w-2xl text-center">
+              <h2 className="text-3xl font-semibold tracking-tight">
+                Connects to the rest of your stack
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                A board is only useful if the work around it can reach in. Files, mail,
+                chat, code and AI — wired to the task, not bolted to the side.
+              </p>
+            </div>
+
+            <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {INTEGRATIONS.map(({ mark: Mark, name, body, status }) => (
+                <div key={name} className="tf-card tf-card-hover flex gap-4 p-5">
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border bg-background">
+                    <Mark className="size-6" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-medium">{name}</h3>
+                      <Badge
+                        variant={status === "Live" ? "soft" : "outline"}
+                        className="px-1.5 py-0 text-[10px]"
+                      >
+                        {status}
+                      </Badge>
+                    </div>
+                    <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{body}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p className="mt-8 text-center text-sm text-muted-foreground">
+              Need something that is not listed? Every workspace event is available on an
+              outbound webhook, so you can wire the rest yourself.
+            </p>
+          </div>
+        </section>
+
         {/* CTA */}
         <section className="mx-auto w-full max-w-6xl px-4 py-20 text-center sm:px-6">
           <Moon className="mx-auto size-8 text-muted-foreground" />
           <h2 className="mt-4 text-3xl font-semibold tracking-tight">
-            Sáng, tối, và mọi kích thước màn hình
+            Light, dark, and every screen size
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
-            Giao diện responsive hoàn chỉnh với Dark Mode thật sự — không phải lớp phủ, mà là bộ
-            token màu riêng cho từng chế độ.
+            Fully responsive, with a real dark mode — not an overlay, but its own set of
+            colour tokens per theme.
           </p>
           <Button size="lg" className="mt-8" asChild>
             <Link href="/sign-up">
-              Tạo không gian làm việc <ArrowRight className="size-4" />
+              Create workspace <ArrowRight className="size-4" />
             </Link>
           </Button>
         </section>

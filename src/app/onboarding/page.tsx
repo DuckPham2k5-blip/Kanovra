@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { getUserWorkspaces, requireUser } from "@/lib/auth";
 import { ROLE_LABEL } from "@/lib/permissions";
 
-export const metadata: Metadata = { title: "Bắt đầu" };
+export const metadata: Metadata = { title: "Get started" };
 
 /**
  * Landing spot after sign-in. Users with exactly one workspace go straight in;
@@ -46,8 +46,8 @@ export default async function OnboardingPage({
         {showPicker ? (
           <Card>
             <CardHeader>
-              <CardTitle>Chào {user.name.split(" ").slice(-1)[0]} 👋</CardTitle>
-              <CardDescription>Chọn không gian làm việc để tiếp tục.</CardDescription>
+              <CardTitle>Hi {user.name.split(" ").slice(-1)[0]} 👋</CardTitle>
+              <CardDescription>Pick a workspace to continue.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               {workspaces.map((ws) => (
@@ -65,8 +65,8 @@ export default async function OnboardingPage({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{ws.name}</span>
                     <span className="block text-xs text-muted-foreground">
-                      {ROLE_LABEL[ws.role]} · {ws._count.members} thành viên ·{" "}
-                      {ws._count.projects} dự án
+                      {ROLE_LABEL[ws.role]} · {ws._count.members} members ·{" "}
+                      {ws._count.projects} projects
                     </span>
                   </span>
                   <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
@@ -75,7 +75,7 @@ export default async function OnboardingPage({
 
               <Button variant="outline" className="w-full" asChild>
                 <Link href="/onboarding?new=1">
-                  <Plus /> Tạo không gian mới
+                  <Plus /> New workspace
                 </Link>
               </Button>
             </CardContent>
@@ -84,17 +84,17 @@ export default async function OnboardingPage({
           <Card>
             <CardHeader>
               <CardTitle>
-                {workspaces.length > 0 ? "Tạo không gian mới" : "Tạo không gian làm việc đầu tiên"}
+                {workspaces.length > 0 ? "New workspace" : "Create your first workspace"}
               </CardTitle>
               <CardDescription>
-                Mỗi không gian là một đội. Bạn có thể mời thành viên và tạo dự án ngay sau đó.
+                Each workspace is a team. Invite members and create projects right after.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <WorkspaceForm />
               {workspaces.length > 0 ? (
                 <Button variant="ghost" className="mt-3 w-full" asChild>
-                  <Link href="/onboarding">Quay lại danh sách</Link>
+                  <Link href="/onboarding">Back to the list</Link>
                 </Button>
               ) : null}
             </CardContent>

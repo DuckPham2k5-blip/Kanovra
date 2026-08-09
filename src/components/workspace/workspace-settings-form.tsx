@@ -41,7 +41,7 @@ export function WorkspaceSettingsForm({
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (name.trim().length < 2) {
-      toast.error("Tên tối thiểu 2 ký tự.");
+      toast.error("Name must be at least 2 characters.");
       return;
     }
 
@@ -57,7 +57,7 @@ export function WorkspaceSettingsForm({
         toast.error(result.error);
         return;
       }
-      toast.success("Đã lưu thay đổi.");
+      toast.success("Changes saved.");
       router.refresh();
     });
   }
@@ -65,7 +65,7 @@ export function WorkspaceSettingsForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-2">
-        <Label htmlFor="ws-name">Tên</Label>
+        <Label htmlFor="ws-name">Name</Label>
         <Input
           id="ws-name"
           value={name}
@@ -77,20 +77,20 @@ export function WorkspaceSettingsForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="ws-description">Mô tả</Label>
+        <Label htmlFor="ws-description">Description</Label>
         <Textarea
           id="ws-description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           maxLength={280}
           rows={3}
-          placeholder="Nhóm này làm gì?"
+          placeholder="What does this team do?"
           disabled={!canEdit || pending}
         />
       </div>
 
       <div className="space-y-2">
-        <Label>Màu nhận diện</Label>
+        <Label>Accent colour</Label>
         {canEdit ? (
           <ColorPicker value={color} onChange={setColor} />
         ) : (
@@ -104,7 +104,7 @@ export function WorkspaceSettingsForm({
       {canEdit ? (
         <div className="flex items-center gap-3">
           <Button type="submit" loading={pending} disabled={!dirty}>
-            Lưu thay đổi
+            Save changes
           </Button>
           {dirty ? (
             <Button
@@ -117,13 +117,13 @@ export function WorkspaceSettingsForm({
                 setColor(workspace.color);
               }}
             >
-              Hoàn tác
+              Undo
             </Button>
           ) : null}
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Bạn cần vai trò Quản trị viên trở lên để chỉnh sửa.
+          You need the Admin role or higher to make changes.
         </p>
       )}
     </form>

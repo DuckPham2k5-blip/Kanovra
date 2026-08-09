@@ -45,7 +45,7 @@ export async function createWorkspace(
       workspaceId: workspace.id,
       actorId: user.id,
       type: "MEMBER_JOINED",
-      message: `${user.name} đã tạo không gian làm việc ${workspace.name}`,
+      message: `${user.name} created the workspace ${workspace.name}`,
     });
 
     revalidatePath("/", "layout");
@@ -86,7 +86,7 @@ export async function deleteWorkspace(workspaceId: string): Promise<ActionResult
       select: { ownerId: true },
     });
     if (workspace?.ownerId !== user.id) {
-      return fail("Chỉ chủ sở hữu mới xoá được không gian làm việc.");
+      return fail("Only the owner can delete the workspace.");
     }
 
     await prisma.workspace.delete({ where: { id: workspaceId } });
@@ -100,9 +100,9 @@ export async function leaveWorkspace(workspaceId: string): Promise<ActionResult>
   return withErrorHandling(async () => {
     const user = await requireUser();
     const membership = await getMembership(user.id, workspaceId);
-    if (!membership) return fail("Bạn không thuộc không gian làm việc này.");
+    if (!membership) return fail("You are not a member of this workspace.");
     if (membership.role === Role.OWNER) {
-      return fail("Chủ sở hữu cần chuyển quyền trước khi rời đi.");
+      return fail("The owner must transfer ownership before leaving.");
     }
 
     await prisma.workspaceMember.delete({ where: { id: membership.id } });

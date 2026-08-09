@@ -95,31 +95,31 @@ export function CommandPalette({
   }
 
   const navItems = [
-    { label: "Tổng quan", href: base, icon: LayoutDashboard },
-    { label: "Việc của tôi", href: `${base}/my-tasks`, icon: ListChecks },
-    { label: "Dự án", href: `${base}/projects`, icon: FolderKanban },
-    { label: "Lịch", href: `${base}/calendar`, icon: CalendarDays },
-    { label: "Phân tích", href: `${base}/analytics`, icon: BarChart3 },
-    { label: "Thông báo", href: `${base}/notifications`, icon: Bell },
-    { label: "Thành viên", href: `${base}/members`, icon: Users },
-    { label: "Cài đặt", href: `${base}/settings`, icon: Settings },
+    { label: "Overview", href: base, icon: LayoutDashboard },
+    { label: "My tasks", href: `${base}/my-tasks`, icon: ListChecks },
+    { label: "Projects", href: `${base}/projects`, icon: FolderKanban },
+    { label: "Calendar", href: `${base}/calendar`, icon: CalendarDays },
+    { label: "Analytics", href: `${base}/analytics`, icon: BarChart3 },
+    { label: "Notifications", href: `${base}/notifications`, icon: Bell },
+    { label: "Members", href: `${base}/members`, icon: Users },
+    { label: "Settings", href: `${base}/settings`, icon: Settings },
   ];
 
   const projectList = results.projects.length > 0 ? results.projects : projects;
 
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange} title="Tìm kiếm nhanh">
+    <CommandDialog open={open} onOpenChange={onOpenChange} title="Quick search">
       <CommandInput
-        placeholder="Tìm dự án, công việc hoặc điều hướng…"
+        placeholder="Search projects, tasks, or jump to a page…"
         value={query}
         onValueChange={setQuery}
       />
       <CommandList>
-        <CommandEmpty>Không tìm thấy kết quả nào.</CommandEmpty>
+        <CommandEmpty>No results found.</CommandEmpty>
 
         {results.tasks.length > 0 ? (
           <>
-            <CommandGroup heading="Công việc">
+            <CommandGroup heading="Tasks">
               {results.tasks.map((task) => (
                 <CommandItem
                   key={task.id}
@@ -148,7 +148,7 @@ export function CommandPalette({
 
         {projectList.length > 0 ? (
           <>
-            <CommandGroup heading="Dự án">
+            <CommandGroup heading="Projects">
               {projectList.map((project) => (
                 <CommandItem
                   key={project.id}
@@ -167,7 +167,7 @@ export function CommandPalette({
           </>
         ) : null}
 
-        <CommandGroup heading="Điều hướng">
+        <CommandGroup heading="Navigation">
           {navItems.map(({ label, href, icon: Icon }) => (
             <CommandItem key={href} value={`nav-${label}`} onSelect={() => go(href)}>
               <Icon />

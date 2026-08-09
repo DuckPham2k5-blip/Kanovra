@@ -87,8 +87,8 @@ export function AnalyticsCharts({
       {/* Throughput */}
       <Card className="lg:col-span-2">
         <CardHeader>
-          <CardTitle className="text-base">Công việc tạo mới và hoàn thành</CardTitle>
-          <CardDescription>So sánh lượng việc vào và ra theo từng ngày.</CardDescription>
+          <CardTitle className="text-base">Tasks created and completed</CardTitle>
+          <CardDescription>Compare work coming in against work going out, day by day.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-64 w-full">
@@ -112,7 +112,7 @@ export function AnalyticsCharts({
                 <Area
                   type="monotone"
                   dataKey="created"
-                  name="Tạo mới"
+                  name="New"
                   stroke="hsl(var(--chart-1))"
                   fill="url(#fillCreated)"
                   strokeWidth={2}
@@ -120,7 +120,7 @@ export function AnalyticsCharts({
                 <Area
                   type="monotone"
                   dataKey="completed"
-                  name="Hoàn thành"
+                  name="Done"
                   stroke="hsl(var(--chart-2))"
                   fill="url(#fillCompleted)"
                   strokeWidth={2}
@@ -134,8 +134,8 @@ export function AnalyticsCharts({
       {/* Status donut */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Phân bố theo trạng thái</CardTitle>
-          <CardDescription>{totalStatus} công việc</CardDescription>
+          <CardTitle className="text-base">Status distribution</CardTitle>
+          <CardDescription>{totalStatus} tasks</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-64 w-full">
@@ -165,8 +165,8 @@ export function AnalyticsCharts({
       {/* Priority bars */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Phân bố theo độ ưu tiên</CardTitle>
-          <CardDescription>Giúp phát hiện tồn đọng việc gấp.</CardDescription>
+          <CardTitle className="text-base">Priority distribution</CardTitle>
+          <CardDescription>Helps surface a backlog of urgent work.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-64 w-full">
@@ -176,7 +176,7 @@ export function AnalyticsCharts({
                 <XAxis dataKey="name" {...axisProps} />
                 <YAxis allowDecimals={false} {...axisProps} />
                 <Tooltip content={<ChartTooltip />} cursor={{ fill: "hsl(var(--muted))" }} />
-                <Bar dataKey="value" name="Công việc" radius={[6, 6, 0, 0]}>
+                <Bar dataKey="value" name="Tasks" radius={[6, 6, 0, 0]}>
                   {priorityData.map((entry) => (
                     <Cell key={entry.name} fill={entry.color} />
                   ))}
@@ -190,8 +190,8 @@ export function AnalyticsCharts({
       {/* Per project */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Khối lượng theo dự án</CardTitle>
-          <CardDescription>Số công việc trong từng dự án.</CardDescription>
+          <CardTitle className="text-base">Workload by project</CardTitle>
+          <CardDescription>Task count per project.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-64 w-full">
@@ -205,7 +205,7 @@ export function AnalyticsCharts({
                 <XAxis type="number" allowDecimals={false} {...axisProps} />
                 <YAxis type="category" dataKey="name" width={110} {...axisProps} />
                 <Tooltip content={<ChartTooltip />} cursor={{ fill: "hsl(var(--muted))" }} />
-                <Bar dataKey="value" name="Công việc" radius={[0, 6, 6, 0]}>
+                <Bar dataKey="value" name="Tasks" radius={[0, 6, 6, 0]}>
                   {projectData.map((entry) => (
                     <Cell key={entry.name} fill={entry.color} />
                   ))}
@@ -219,13 +219,13 @@ export function AnalyticsCharts({
       {/* Workload */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Khối lượng theo thành viên</CardTitle>
-          <CardDescription>Tỉ lệ hoàn thành của từng người.</CardDescription>
+          <CardTitle className="text-base">Workload by member</CardTitle>
+          <CardDescription>Completion rate per person.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {workload.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              Chưa có công việc nào được giao.
+              No tasks have been assigned yet.
             </p>
           ) : (
             workload.slice(0, 8).map((item) => (

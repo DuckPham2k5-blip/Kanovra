@@ -91,7 +91,7 @@ export async function createTask(input: unknown): Promise<ActionResult<{ id: str
       taskId: task.id,
       actorId: user.id,
       type: data.parentId ? "SUBTASK_CREATED" : "TASK_CREATED",
-      message: `${user.name} đã tạo ${data.parentId ? "công việc con" : "công việc"} ${ctx.project.key}-${number}: ${task.title}`,
+      message: `${user.name} created ${data.parentId ? "subtask" : "task"} ${ctx.project.key}-${number}: ${task.title}`,
     });
 
     if (task.assigneeId) {
@@ -100,7 +100,7 @@ export async function createTask(input: unknown): Promise<ActionResult<{ id: str
         workspaceId: ctx.workspace.id,
         actorId: user.id,
         type: "TASK_ASSIGNED",
-        title: "Bạn được giao một công việc mới",
+        title: "A new task was assigned to you",
         body: `${ctx.project.key}-${number}: ${task.title}`,
         link: taskLink(ctx.workspace.slug, data.projectId, task.id),
       });
@@ -173,7 +173,7 @@ export async function updateTask(input: unknown): Promise<ActionResult> {
         taskId: before.id,
         actorId: user.id,
         type: nowDone ? "TASK_COMPLETED" : before.status === TaskStatus.DONE ? "TASK_REOPENED" : "TASK_UPDATED",
-        message: `${user.name} đã chuyển ${ref} sang trạng thái mới`,
+        message: `${user.name} changed the status of ${ref}`,
         metadata: { from: before.status, to: data.status },
       });
       if (nowDone) {
@@ -181,7 +181,7 @@ export async function updateTask(input: unknown): Promise<ActionResult> {
           workspaceId: ctx.workspace.id,
           actorId: user.id,
           type: "TASK_COMPLETED",
-          title: `${ref} đã hoàn thành`,
+          title: `${ref} is done`,
           body: before.title,
           link,
         });
@@ -196,8 +196,8 @@ export async function updateTask(input: unknown): Promise<ActionResult> {
         actorId: user.id,
         type: data.assigneeId ? "TASK_ASSIGNED" : "TASK_UNASSIGNED",
         message: data.assigneeId
-          ? `${user.name} đã giao ${ref} cho một thành viên`
-          : `${user.name} đã bỏ người phụ trách của ${ref}`,
+          ? `${user.name} assigned ${ref} to someone`
+          : `${user.name} unassigned ${ref}`,
       });
       if (data.assigneeId) {
         await notify({
@@ -205,7 +205,7 @@ export async function updateTask(input: unknown): Promise<ActionResult> {
           workspaceId: ctx.workspace.id,
           actorId: user.id,
           type: "TASK_ASSIGNED",
-          title: "Bạn được giao một công việc",
+          title: "A task was assigned to you",
           body: `${ref}: ${before.title}`,
           link,
         });
@@ -219,7 +219,7 @@ export async function updateTask(input: unknown): Promise<ActionResult> {
         taskId: before.id,
         actorId: user.id,
         type: "TASK_UPDATED",
-        message: `${user.name} đã đổi độ ưu tiên của ${ref} thành ${PRIORITY_META[data.priority].label}`,
+        message: `${user.name} set the priority of ${ref} to ${PRIORITY_META[data.priority].label}`,
       });
     }
 
@@ -245,7 +245,7 @@ export async function moveTask(input: unknown): Promise<ActionResult> {
     const column = await prisma.boardColumn.findFirst({
       where: { id: data.toColumnId, projectId: ctx.task.projectId },
     });
-    if (!column) return fail("Cột đích không thuộc dự án này.");
+    if (!column) return fail("That column does not belong to this project.");
 
     const siblings = await prisma.task.findMany({
       where: {
@@ -284,7 +284,7 @@ export async function moveTask(input: unknown): Promise<ActionResult> {
         taskId: ctx.task.id,
         actorId: user.id,
         type: nowDone ? "TASK_COMPLETED" : "TASK_MOVED",
-        message: `${user.name} đã chuyển ${ref} sang cột ${column.name}`,
+        message: `${user.name} moved ${ref} to ${column.name}`,
         metadata: { column: column.name, from: ctx.task.status, to: column.status },
       });
       if (nowDone) {
@@ -292,7 +292,7 @@ export async function moveTask(input: unknown): Promise<ActionResult> {
           workspaceId: ctx.workspace.id,
           actorId: user.id,
           type: "TASK_COMPLETED",
-          title: `${ref} đã hoàn thành`,
+          title: `${ref} is done`,
           body: ctx.task.title,
           link: taskLink(ctx.workspace.slug, ctx.task.projectId, ctx.task.id),
         });
@@ -336,7 +336,7 @@ export async function toggleTaskDone(taskId: string): Promise<ActionResult<{ don
       taskId,
       actorId: user.id,
       type: done ? "TASK_COMPLETED" : "TASK_REOPENED",
-      message: `${user.name} đã ${done ? "hoàn thành" : "mở lại"} ${ctx.project.key}-${ctx.task.number}`,
+      message: `${user.name} ${done ? "completed" : "reopened"} ${ctx.project.key}-${ctx.task.number}`,
     });
 
     revalidateProject(ctx.workspace.slug, ctx.task.projectId);
@@ -364,7 +364,7 @@ export async function deleteTask(input: unknown): Promise<ActionResult> {
       projectId: ctx.task.projectId,
       actorId: user.id,
       type: "TASK_DELETED",
-      message: `${user.name} đã xoá ${ctx.project.key}-${ctx.task.number}: ${ctx.task.title}`,
+      message: `${user.name} deleted ${ctx.project.key}-${ctx.task.number}: ${ctx.task.title}`,
     });
 
     revalidateProject(ctx.workspace.slug, ctx.task.projectId);
@@ -393,7 +393,7 @@ export async function duplicateTask(taskId: string): Promise<ActionResult<{ id: 
         columnId: source.columnId,
         parentId: source.parentId,
         number,
-        title: `${source.title} (bản sao)`,
+        title: `${source.title} (copy)`,
         description: source.description,
         status: source.status,
         priority: source.priority,

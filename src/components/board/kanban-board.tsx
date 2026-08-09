@@ -218,7 +218,7 @@ export function KanbanBoard({
       return;
     }
 
-    if (column && column.status === "DONE") toast.success("Đã đánh dấu hoàn thành 🎉");
+    if (column && column.status === "DONE") toast.success("Marked as done 🎉");
     router.refresh();
   }
 
@@ -236,7 +236,7 @@ export function KanbanBoard({
       toast.error(result.error);
       return;
     }
-    toast.success("Đã xoá cột. Các thẻ được chuyển sang cột đầu tiên.");
+    toast.success("Column deleted. Its cards moved to the first column.");
     setColumnToDelete(null);
     router.refresh();
   }
@@ -279,7 +279,7 @@ export function KanbanBoard({
                 className="h-11 w-full border-dashed"
                 onClick={() => setColumnDialog({ open: true, column: null })}
               >
-                <Plus className="size-4" /> Thêm cột
+                <Plus className="size-4" /> Add column
               </Button>
             </div>
           ) : null}
@@ -316,9 +316,9 @@ export function KanbanBoard({
       <ConfirmDialog
         open={Boolean(columnToDelete)}
         onOpenChange={(open) => !open && setColumnToDelete(null)}
-        title={`Xoá cột "${columnToDelete?.name}"?`}
-        description="Các công việc trong cột sẽ được chuyển sang cột đầu tiên của bảng, không bị xoá."
-        confirmLabel="Xoá cột"
+        title={`Delete column "${columnToDelete?.name}"?`}
+        description="Its tasks move to the board's first column — nothing is deleted."
+        confirmLabel="Delete column"
         destructive
         onConfirm={confirmDeleteColumn}
       />

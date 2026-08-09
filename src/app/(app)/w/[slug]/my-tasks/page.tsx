@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { getMyTasks, getTaskDetail, getWorkspaceMembers } from "@/lib/queries";
 import type { LabelDTO, MemberDTO } from "@/types";
 
-export const metadata: Metadata = { title: "Việc của tôi" };
+export const metadata: Metadata = { title: "My tasks" };
 
 export default async function MyTasksPage({
   params,
@@ -82,16 +82,16 @@ export default async function MyTasksPage({
   return (
     <div>
       <PageHeader
-        title="Việc của tôi"
-        description="Mọi công việc đang được giao cho bạn trong không gian làm việc này."
+        title="My tasks"
+        description="Everything currently assigned to you in this workspace."
       />
 
       <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-6 sm:pb-0 xl:grid-cols-4">
-        <StatCard label="Tổng cộng" value={listTasks.length} icon={ListChecks} />
-        <StatCard label="Đang làm" value={inProgress} icon={Timer} />
-        <StatCard label="Hoàn thành" value={done} icon={CheckCircle2} tone="success" />
+        <StatCard label="Total" value={listTasks.length} icon={ListChecks} />
+        <StatCard label="In progress" value={inProgress} icon={Timer} />
+        <StatCard label="Done" value={done} icon={CheckCircle2} tone="success" />
         <StatCard
-          label="Quá hạn"
+          label="Overdue"
           value={overdue}
           icon={AlertTriangle}
           tone={overdue > 0 ? "danger" : "success"}
@@ -104,7 +104,7 @@ export default async function MyTasksPage({
         labels={labels}
         canEdit={can("task:update")}
         showProject
-        emptyHint="Chưa có công việc nào được giao cho bạn."
+        emptyHint="Nothing is assigned to you yet."
       />
 
       {openTask ? (

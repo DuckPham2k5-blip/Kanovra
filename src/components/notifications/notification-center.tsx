@@ -77,7 +77,7 @@ export function NotificationCenter({
         toast.error(result.error);
         return;
       }
-      toast.success("Đã xoá các thông báo đã đọc.");
+      toast.success("Read notifications cleared.");
       router.refresh();
     });
   }
@@ -86,8 +86,8 @@ export function NotificationCenter({
     return (
       <EmptyState
         icon={BellOff}
-        title="Chưa có thông báo"
-        description="Khi bạn được giao việc, được nhắc tên hoặc có bình luận mới, thông báo sẽ xuất hiện tại đây."
+        title="No notifications"
+        description="When you are assigned work, mentioned, or someone comments, it shows up here."
       />
     );
   }
@@ -97,15 +97,15 @@ export function NotificationCenter({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
           <TabsList>
-            <TabsTrigger value="all">Tất cả ({items.length})</TabsTrigger>
-            <TabsTrigger value="unread">Chưa đọc ({unreadCount})</TabsTrigger>
+            <TabsTrigger value="all">All ({items.length})</TabsTrigger>
+            <TabsTrigger value="unread">Unread ({unreadCount})</TabsTrigger>
           </TabsList>
         </Tabs>
 
         {readCount > 0 ? (
           <Button variant="outline" size="sm" onClick={handleClearRead} loading={pending}>
             {pending ? null : <Trash2 />}
-            Xoá đã đọc
+            Clear read
           </Button>
         ) : null}
       </div>
@@ -113,8 +113,8 @@ export function NotificationCenter({
       {visible.length === 0 ? (
         <EmptyState
           icon={Bell}
-          title="Không có thông báo chưa đọc"
-          description="Bạn đã xem hết mọi thứ."
+          title="No unread notifications"
+          description="You've seen everything."
         />
       ) : (
         <ul className="divide-y overflow-hidden rounded-xl border">
@@ -138,7 +138,7 @@ export function NotificationCenter({
                     </p>
                   ) : null}
                   <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span>{NOTIFICATION_META[item.type]?.label ?? "Thông báo"}</span>
+                    <span>{NOTIFICATION_META[item.type]?.label ?? "Notifications"}</span>
                     <span aria-hidden>·</span>
                     <time dateTime={item.createdAt}>{fromNow(item.createdAt)}</time>
                   </p>
@@ -147,7 +147,7 @@ export function NotificationCenter({
                 {!item.read ? (
                   <span
                     className="mt-2 size-2 shrink-0 rounded-full bg-primary"
-                    aria-label="Chưa đọc"
+                    aria-label="Unread"
                   />
                 ) : null}
               </>
@@ -172,7 +172,7 @@ export function NotificationCenter({
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label="Xoá thông báo"
+                  aria-label="Delete notification"
                   className="absolute right-2 top-2 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
                   onClick={() => handleDelete(item.id)}
                 >

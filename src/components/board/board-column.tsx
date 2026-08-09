@@ -71,7 +71,7 @@ export function BoardColumn({
         {canEdit ? (
           <button
             className="cursor-grab text-muted-foreground/50 transition-colors hover:text-muted-foreground active:cursor-grabbing"
-            aria-label={`Kéo cột ${column.name}`}
+            aria-label={`Drag column ${column.name}`}
             {...attributes}
             {...listeners}
           >
@@ -87,7 +87,7 @@ export function BoardColumn({
             "shrink-0 rounded-full px-1.5 py-0.5 text-[11px] font-medium tabular-nums",
             overLimit ? "bg-destructive/15 text-destructive" : "bg-background text-muted-foreground",
           )}
-          title={column.wipLimit > 0 ? `Giới hạn WIP: ${column.wipLimit}` : undefined}
+          title={column.wipLimit > 0 ? `WIP limit: ${column.wipLimit}` : undefined}
         >
           {tasks.length}
           {column.wipLimit > 0 ? `/${column.wipLimit}` : ""}
@@ -99,20 +99,20 @@ export function BoardColumn({
                 This one matters most: with one trigger per column, an id drift
                 here cascades into a mismatch for every column after it. */}
             <DropdownMenuTrigger asChild id={`column-options-trigger-${column.id}`}>
-              <Button variant="ghost" size="icon-sm" aria-label="Tuỳ chọn cột">
+              <Button variant="ghost" size="icon-sm" aria-label="Column options">
                 <MoreHorizontal className="size-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => onAddTask(column.id)}>
-                <Plus /> Thêm công việc
+                <Plus /> Add task
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onEditColumn(column)}>
-                <Pencil /> Sửa cột
+                <Pencil /> Edit column
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onClick={() => onDeleteColumn(column)}>
-                <Trash2 /> Xoá cột
+                <Trash2 /> Delete column
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -121,7 +121,7 @@ export function BoardColumn({
 
       {overLimit ? (
         <p className="mx-3 mb-2 rounded-md bg-destructive/10 px-2 py-1 text-[11px] text-destructive">
-          Vượt giới hạn WIP ({column.wipLimit}). Hãy hoàn thành bớt việc đang làm.
+          Over the WIP limit ({column.wipLimit}). Finish some work in progress.
         </p>
       ) : null}
 
@@ -146,7 +146,7 @@ export function BoardColumn({
 
         {tasks.length === 0 ? (
           <p className="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground">
-            Kéo thẻ vào đây
+            Drop cards here
           </p>
         ) : null}
 
@@ -157,7 +157,7 @@ export function BoardColumn({
             className="mt-1 w-full justify-start text-muted-foreground"
             onClick={() => onAddTask(column.id)}
           >
-            <Plus className="size-4" /> Thêm công việc
+            <Plus className="size-4" /> Add task
           </Button>
         ) : null}
       </div>

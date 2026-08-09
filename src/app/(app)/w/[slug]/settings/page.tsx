@@ -10,7 +10,7 @@ import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ROLE_LABEL } from "@/lib/permissions";
 
-export const metadata: Metadata = { title: "Cài đặt" };
+export const metadata: Metadata = { title: "Settings" };
 
 export default async function WorkspaceSettingsPage({
   params,
@@ -40,16 +40,16 @@ export default async function WorkspaceSettingsPage({
   return (
     <div className="flex flex-col">
       <PageHeader
-        title="Cài đặt không gian làm việc"
-        description={`Bạn đang ở vai trò ${ROLE_LABEL[role]}.`}
+        title="Workspace settings"
+        description={`Your role: ${ROLE_LABEL[role]}.`}
       />
 
       <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6">
         <Card>
           <CardHeader>
-            <CardTitle>Thông tin chung</CardTitle>
+            <CardTitle>General</CardTitle>
             <CardDescription>
-              Tên, mô tả và màu nhận diện hiển thị khắp ứng dụng.
+              The name, description and accent colour shown across the app.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -68,9 +68,9 @@ export default async function WorkspaceSettingsPage({
 
         <Card>
           <CardHeader>
-            <CardTitle>Nhãn</CardTitle>
+            <CardTitle>Labels</CardTitle>
             <CardDescription>
-              Nhãn dùng chung cho mọi dự án trong không gian làm việc này.
+              Labels are shared across every project in this workspace.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -89,16 +89,16 @@ export default async function WorkspaceSettingsPage({
 
         <Card>
           <CardHeader>
-            <CardTitle>Tổng quan</CardTitle>
+            <CardTitle>Overview</CardTitle>
           </CardHeader>
           <CardContent>
             <dl className="grid gap-4 sm:grid-cols-2">
               <div>
-                <dt className="text-xs text-muted-foreground">Định danh (slug)</dt>
+                <dt className="text-xs text-muted-foreground">Identifier (slug)</dt>
                 <dd className="mt-0.5 font-mono text-sm">{workspace.slug}</dd>
               </div>
               <div>
-                <dt className="text-xs text-muted-foreground">Chủ sở hữu</dt>
+                <dt className="text-xs text-muted-foreground">Owner</dt>
                 <dd className="mt-0.5 truncate text-sm">
                   {owner?.name ?? "—"}
                   {owner?.email ? (
@@ -107,11 +107,11 @@ export default async function WorkspaceSettingsPage({
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-muted-foreground">Thành viên</dt>
+                <dt className="text-xs text-muted-foreground">Members</dt>
                 <dd className="mt-0.5 text-sm">{memberCount}</dd>
               </div>
               <div>
-                <dt className="text-xs text-muted-foreground">Dự án</dt>
+                <dt className="text-xs text-muted-foreground">Projects</dt>
                 <dd className="mt-0.5 text-sm">{projectCount}</dd>
               </div>
             </dl>

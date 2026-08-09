@@ -13,7 +13,7 @@ import { requireWorkspace } from "@/lib/auth";
 import { formatDate } from "@/lib/date";
 import { getProjectSummaries } from "@/lib/queries";
 
-export const metadata: Metadata = { title: "Dự án" };
+export const metadata: Metadata = { title: "Projects" };
 
 export default async function ProjectsPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -26,8 +26,8 @@ export default async function ProjectsPage({ params }: { params: Promise<{ slug:
   return (
     <div>
       <PageHeader
-        title="Dự án"
-        description={`${active.length} dự án đang hoạt động trong ${workspace.name}`}
+        title="Projects"
+        description={`${active.length} active projects in ${workspace.name}`}
         actions={
           can("project:create") ? (
             <NewProjectButton workspaceId={workspace.id} workspaceSlug={slug} />
@@ -39,14 +39,14 @@ export default async function ProjectsPage({ params }: { params: Promise<{ slug:
         {active.length === 0 ? (
           <EmptyState
             icon={FolderKanban}
-            title="Chưa có dự án nào"
-            description="Dự án là nơi chứa bảng Kanban, công việc và tiến độ của nhóm."
+            title="No projects yet"
+            description="A project holds your Kanban board, its tasks and the team's progress."
             action={
               can("project:create") ? (
                 <NewProjectButton
                   workspaceId={workspace.id}
                   workspaceSlug={slug}
-                  label="Tạo dự án đầu tiên"
+                  label="Create the first project"
                 />
               ) : null
             }
@@ -74,13 +74,13 @@ export default async function ProjectsPage({ params }: { params: Promise<{ slug:
                 </div>
 
                 <p className="line-clamp-2 min-h-10 text-sm text-muted-foreground">
-                  {project.description || "Chưa có mô tả."}
+                  {project.description || "No description."}
                 </p>
 
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">
-                      {project.doneCount}/{project._count.tasks} hoàn thành
+                      {project.doneCount}/{project._count.tasks} done
                     </span>
                     <span className="font-medium">{project.progress}%</span>
                   </div>
@@ -91,11 +91,11 @@ export default async function ProjectsPage({ params }: { params: Promise<{ slug:
                   <AvatarStack users={project.members.map((m) => m.user)} max={4} size="size-6" />
                   <span className="text-xs text-muted-foreground">
                     {project.overdueCount > 0 ? (
-                      <span className="text-destructive">{project.overdueCount} quá hạn</span>
+                      <span className="text-destructive">{project.overdueCount} overdue</span>
                     ) : project.dueDate ? (
-                      `Hạn ${formatDate(project.dueDate, "dd/MM")}`
+                      `Due ${formatDate(project.dueDate, "dd/MM")}`
                     ) : (
-                      `${project._count.members} thành viên`
+                      `${project._count.members} members`
                     )}
                   </span>
                 </div>
@@ -107,7 +107,7 @@ export default async function ProjectsPage({ params }: { params: Promise<{ slug:
         {archived.length > 0 ? (
           <section className="space-y-3">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-              <Archive className="size-4" /> Đã lưu trữ ({archived.length})
+              <Archive className="size-4" /> Archived ({archived.length})
             </h2>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {archived.map((project) => (
@@ -119,7 +119,7 @@ export default async function ProjectsPage({ params }: { params: Promise<{ slug:
                   <ProjectIcon name={project.icon} color={project.color} />
                   <span className="min-w-0 flex-1 truncate text-sm">{project.name}</span>
                   <span className="text-xs text-muted-foreground">
-                    {project._count.tasks} việc
+                    {project._count.tasks} tasks
                   </span>
                 </Link>
               ))}

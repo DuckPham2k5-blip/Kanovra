@@ -6,7 +6,7 @@ import { monthRangeFromKey, resolveMonth } from "@/lib/date";
 import { loadProjectView } from "@/lib/project-view";
 import { getTasksInRange } from "@/lib/queries";
 
-export const metadata: Metadata = { title: "Lịch dự án" };
+export const metadata: Metadata = { title: "Project calendar" };
 
 export default async function ProjectCalendarPage({
   params,

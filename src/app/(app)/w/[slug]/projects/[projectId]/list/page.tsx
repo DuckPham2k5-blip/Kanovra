@@ -6,7 +6,7 @@ import { toTaskCardDTO } from "@/lib/dto";
 import { loadProjectView } from "@/lib/project-view";
 import { getBoardData } from "@/lib/queries";
 
-export const metadata: Metadata = { title: "Danh sách công việc" };
+export const metadata: Metadata = { title: "Task list" };
 
 export default async function ProjectListPage({
   params,
@@ -35,7 +35,7 @@ export default async function ProjectListPage({
         projectId={project.id}
         projectKey={project.key}
         canEdit={can("task:update")}
-        emptyHint="Chưa có công việc nào trong dự án này."
+        emptyHint="No tasks in this project yet."
       />
 
       {openTask ? (

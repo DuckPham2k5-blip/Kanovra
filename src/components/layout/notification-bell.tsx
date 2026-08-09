@@ -62,6 +62,12 @@ export function NotificationBell({
     let timer: ReturnType<typeof setInterval> | undefined;
 
     function start() {
+      // Idempotent on purpose. `visibilitychange` can fire "visible" more than
+      // once without an intervening "hidden" (alt-tab, restore from minimise),
+      // and starting a second interval would orphan the first — `timer` would
+      // only track the newest one, so `stop()` could never clear the rest.
+      // Each leak adds another poller hitting the API forever.
+      if (timer) return;
       void load();
       timer = setInterval(() => void load(), POLL_MS);
     }
@@ -111,7 +117,7 @@ export function NotificationBell({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative" aria-label="Thông báo">
+        <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
           <Bell className="size-4" />
           {unread > 0 ? (
             <span className="absolute right-1 top-1 flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-semibold leading-4 text-destructive-foreground">
@@ -123,7 +129,7 @@ export function NotificationBell({
 
       <PopoverContent align="end" className="w-[22rem] p-0">
         <div className="flex items-center justify-between border-b px-3 py-2">
-          <span className="text-sm font-medium">Thông báo</span>
+          <span className="text-sm font-medium">Notifications</span>
           <Button
             variant="ghost"
             size="sm"
@@ -131,14 +137,14 @@ export function NotificationBell({
             onClick={handleMarkAll}
             disabled={unread === 0 || loading}
           >
-            <CheckCheck className="size-3.5" /> Đọc hết
+            <CheckCheck className="size-3.5" /> Mark all read
           </Button>
         </div>
 
         <div className="max-h-[22rem] overflow-y-auto">
           {items.length === 0 ? (
             <p className="px-3 py-10 text-center text-sm text-muted-foreground">
-              Chưa có thông báo nào.
+              No notifications yet.
             </p>
           ) : (
             items.map((item) => {
@@ -191,7 +197,7 @@ export function NotificationBell({
 
         <div className="border-t p-2">
           <Button variant="ghost" size="sm" className="w-full" asChild onClick={() => setOpen(false)}>
-            <Link href={`/w/${workspaceSlug}/notifications`}>Xem tất cả</Link>
+            <Link href={`/w/${workspaceSlug}/notifications`}>View all</Link>
           </Button>
         </div>
       </PopoverContent>

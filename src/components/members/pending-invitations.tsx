@@ -36,7 +36,7 @@ export function PendingInvitations({ invitations }: { invitations: Invitation[] 
         toast.error(result.error);
         return;
       }
-      toast.success(`Đã thu hồi lời mời gửi tới ${invitation.email}.`);
+      toast.success(`Revoked the invitation to ${invitation.email}.`);
       router.refresh();
     } finally {
       setRevoking(null);
@@ -48,20 +48,20 @@ export function PendingInvitations({ invitations }: { invitations: Invitation[] 
     try {
       await navigator.clipboard.writeText(url);
       setCopiedId(invitation.id);
-      toast.success("Đã sao chép đường dẫn mời.");
+      toast.success("Invite link copied.");
       setTimeout(() => setCopiedId((id) => (id === invitation.id ? null : id)), 2000);
     } catch {
-      toast.error("Không sao chép được, hãy thử lại.");
+      toast.error("Couldn't copy — try again.");
     }
   }
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Lời mời đang chờ</CardTitle>
+        <CardTitle className="text-base">Pending invitations</CardTitle>
         <CardDescription>
-          {invitations.length} lời mời chưa được chấp nhận. Nếu email mời không tới nơi (có thể bị
-          chặn spam), dùng nút sao chép để tự gửi đường dẫn.
+          {invitations.length} invitations not yet accepted. If the invite email doesn&apos;t arrive (it may be
+          caught by spam), use the copy button to share the link yourself.
         </CardDescription>
       </CardHeader>
 
@@ -78,7 +78,7 @@ export function PendingInvitations({ invitations }: { invitations: Invitation[] 
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{invitation.email}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {invitation.invitedBy} đã mời · {formatDate(invitation.createdAt)}
+                  {invitation.invitedBy} invited · {formatDate(invitation.createdAt)}
                 </p>
               </div>
 
@@ -94,13 +94,13 @@ export function PendingInvitations({ invitations }: { invitations: Invitation[] 
                 }
               >
                 <Clock className="size-3" />
-                {expired ? "Đã hết hạn" : `Hết hạn ${formatDate(invitation.expiresAt)}`}
+                {expired ? "Expired" : `Expires ${formatDate(invitation.expiresAt)}`}
               </span>
 
               <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-label={`Sao chép đường dẫn mời ${invitation.email}`}
+                aria-label={`Copy invite link for ${invitation.email}`}
                 onClick={() => void handleCopyLink(invitation)}
               >
                 {copied ? <Check className="size-4 text-emerald-500" /> : <Copy className="size-4" />}
@@ -109,7 +109,7 @@ export function PendingInvitations({ invitations }: { invitations: Invitation[] 
               <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-label={`Thu hồi lời mời tới ${invitation.email}`}
+                aria-label={`Revoke the invitation to ${invitation.email}`}
                 loading={revoking === invitation.id}
                 onClick={() => void handleRevoke(invitation)}
               >

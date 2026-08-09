@@ -14,7 +14,7 @@ import { can, type Permission } from "@/lib/permissions";
  * bubble so the nearest error boundary renders.
  */
 export class ForbiddenError extends Error {
-  constructor(message = "Bạn không có quyền thực hiện thao tác này.") {
+  constructor(message = "You don't have permission to do that.") {
     super(message);
     this.name = "ForbiddenError";
   }

@@ -76,7 +76,7 @@ export function MembersTable({
       toast.error(result.error);
       return;
     }
-    toast.success(`${member.name} giờ là ${ROLE_LABEL[role]}.`);
+    toast.success(`${member.name} is now ${ROLE_LABEL[role]}.`);
     router.refresh();
   }
 
@@ -87,7 +87,7 @@ export function MembersTable({
       toast.error(result.error);
       return;
     }
-    toast.success(`Đã xoá ${pendingRemove.name} khỏi không gian làm việc.`);
+    toast.success(`Removed ${pendingRemove.name} from the workspace.`);
     router.refresh();
   }
 
@@ -98,7 +98,7 @@ export function MembersTable({
       toast.error(result.error);
       return;
     }
-    toast.success(`${pendingTransfer.name} giờ là chủ sở hữu.`);
+    toast.success(`${pendingTransfer.name} is now the owner.`);
     router.refresh();
   }
 
@@ -107,7 +107,7 @@ export function MembersTable({
       <Input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Tìm theo tên hoặc email…"
+        placeholder="Search by name or email…"
         className="max-w-sm"
       />
 
@@ -116,9 +116,9 @@ export function MembersTable({
           <table className="w-full min-w-[36rem] text-sm">
             <thead className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-4 py-2.5 font-medium">Thành viên</th>
-                <th className="px-4 py-2.5 font-medium">Vai trò</th>
-                <th className="px-4 py-2.5 font-medium">Việc đang mở</th>
+                <th className="px-4 py-2.5 font-medium">Members</th>
+                <th className="px-4 py-2.5 font-medium">Role</th>
+                <th className="px-4 py-2.5 font-medium">Open tasks</th>
                 <th className="px-4 py-2.5 font-medium">Tham gia</th>
                 <th className="w-12 px-4 py-2.5" />
               </tr>
@@ -127,7 +127,7 @@ export function MembersTable({
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
-                    Không tìm thấy thành viên nào.
+                    No members found.
                   </td>
                 </tr>
               ) : (
@@ -147,7 +147,7 @@ export function MembersTable({
                               {member.name}
                               {isSelf ? (
                                 <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                                  (bạn)
+                                  (you)
                                 </span>
                               ) : null}
                             </p>
@@ -179,13 +179,13 @@ export function MembersTable({
                               <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label={`Tuỳ chọn cho ${member.name}`}
+                                aria-label={`Options for ${member.name}`}
                               >
                                 <MoreHorizontal className="size-4" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-52">
-                              <DropdownMenuLabel>Đổi vai trò</DropdownMenuLabel>
+                              <DropdownMenuLabel>Change role</DropdownMenuLabel>
                               {roleOptions.map((role) => (
                                 <DropdownMenuItem
                                   key={role}
@@ -204,7 +204,7 @@ export function MembersTable({
                                     onSelect={() => setPendingTransfer(member)}
                                   >
                                     <Crown />
-                                    Chuyển quyền sở hữu
+                                    Transfer ownership
                                   </DropdownMenuItem>
                                 </>
                               ) : null}
@@ -215,7 +215,7 @@ export function MembersTable({
                                 onSelect={() => setPendingRemove(member)}
                               >
                                 <UserMinus />
-                                Xoá khỏi workspace
+                                Remove from workspace
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -233,9 +233,9 @@ export function MembersTable({
       <ConfirmDialog
         open={Boolean(pendingRemove)}
         onOpenChange={(open) => (open ? null : setPendingRemove(null))}
-        title={`Xoá ${pendingRemove?.name}?`}
-        description="Người này sẽ mất quyền truy cập ngay lập tức. Công việc đã giao cho họ vẫn giữ nguyên nhưng sẽ không còn người phụ trách."
-        confirmLabel="Xoá thành viên"
+        title={`Delete ${pendingRemove?.name}?`}
+        description="They lose access immediately. Tasks assigned to them stay, but become unassigned."
+        confirmLabel="Remove member"
         destructive
         onConfirm={handleRemove}
       />
@@ -243,9 +243,9 @@ export function MembersTable({
       <ConfirmDialog
         open={Boolean(pendingTransfer)}
         onOpenChange={(open) => (open ? null : setPendingTransfer(null))}
-        title={`Chuyển quyền sở hữu cho ${pendingTransfer?.name}?`}
-        description="Bạn sẽ trở thành Quản trị viên và không còn quyền xoá không gian làm việc này."
-        confirmLabel="Chuyển quyền"
+        title={`Transfer ownership to ${pendingTransfer?.name}?`}
+        description="You become an Admin and lose the right to delete this workspace."
+        confirmLabel="Transfer"
         destructive
         onConfirm={handleTransfer}
       />

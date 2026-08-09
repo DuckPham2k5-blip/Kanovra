@@ -7,7 +7,7 @@ import { loadProjectView } from "@/lib/project-view";
 import { getBoardData } from "@/lib/queries";
 import type { ColumnDTO } from "@/types";
 
-export const metadata: Metadata = { title: "Bảng Kanban" };
+export const metadata: Metadata = { title: "Kanban board" };
 
 export default async function BoardPage({
   params,

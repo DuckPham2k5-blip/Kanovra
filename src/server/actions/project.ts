@@ -68,7 +68,7 @@ export async function createProject(input: unknown): Promise<ActionResult<{ id: 
         projectId: project.id,
         actorId: user.id,
         type: "PROJECT_CREATED",
-        message: `${user.name} đã tạo dự án ${project.name}`,
+        message: `${user.name} created the project ${project.name}`,
       }),
       notifyMany(
         workspace.members.map((m) => m.userId),
@@ -76,8 +76,8 @@ export async function createProject(input: unknown): Promise<ActionResult<{ id: 
           workspaceId: workspace.id,
           actorId: user.id,
           type: "PROJECT_UPDATED",
-          title: `Dự án mới: ${project.name}`,
-          body: `${user.name} vừa tạo một dự án trong ${workspace.name}`,
+          title: `New project: ${project.name}`,
+          body: `${user.name} just created a project in ${workspace.name}`,
           link: `/w/${workspace.slug}/projects/${project.id}/board`,
         },
       ),
@@ -115,7 +115,7 @@ export async function updateProject(input: unknown): Promise<ActionResult> {
       projectId: project.id,
       actorId: user.id,
       type: "PROJECT_UPDATED",
-      message: `${user.name} đã cập nhật dự án ${project.name}`,
+      message: `${user.name} updated the project ${project.name}`,
     });
 
     revalidatePath(`/w/${ctx.workspace.slug}`, "layout");
@@ -143,7 +143,7 @@ export async function setProjectArchived(
       projectId,
       actorId: user.id,
       type: "PROJECT_UPDATED",
-      message: `${user.name} đã ${archived ? "lưu trữ" : "khôi phục"} dự án ${ctx.project.name}`,
+      message: `${user.name} ${archived ? "archived" : "restored"} the project ${ctx.project.name}`,
     });
 
     revalidatePath(`/w/${ctx.workspace.slug}`, "layout");
@@ -178,7 +178,7 @@ export async function toggleProjectMember(
     if (!can(ctx.role, "project:update")) throw new ForbiddenError();
 
     const target = await getMembership(userId, ctx.workspace.id);
-    if (!target) return fail("Người này chưa thuộc không gian làm việc.");
+    if (!target) return fail("They are not a member of this workspace yet.");
 
     const existing = await prisma.projectMember.findUnique({
       where: { projectId_userId: { projectId, userId } },

@@ -39,7 +39,7 @@ export function WorkspaceDangerZone({
       toast.error(result.error);
       return;
     }
-    toast.success("Đã xoá không gian làm việc.");
+    toast.success("Workspace deleted.");
     router.push("/onboarding");
     router.refresh();
   }
@@ -50,7 +50,7 @@ export function WorkspaceDangerZone({
       toast.error(result.error);
       return;
     }
-    toast.success("Bạn đã rời khỏi không gian làm việc.");
+    toast.success("You left the workspace.");
     router.push("/onboarding");
     router.refresh();
   }
@@ -58,17 +58,17 @@ export function WorkspaceDangerZone({
   return (
     <Card className="border-destructive/40">
       <CardHeader>
-        <CardTitle className="text-destructive">Vùng nguy hiểm</CardTitle>
-        <CardDescription>Các thao tác dưới đây không thể hoàn tác.</CardDescription>
+        <CardTitle className="text-destructive">Danger zone</CardTitle>
+        <CardDescription>The actions below cannot be undone.</CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-6">
         {!isOwner ? (
           <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <p className="text-sm font-medium">Rời khỏi không gian làm việc</p>
+              <p className="text-sm font-medium">Leave workspace</p>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                Bạn sẽ mất quyền truy cập cho đến khi được mời lại.
+                You lose access until someone invites you back.
               </p>
             </div>
             <Button
@@ -77,7 +77,7 @@ export function WorkspaceDangerZone({
               onClick={() => setLeaveOpen(true)}
             >
               <LogOut />
-              Rời đi
+              Leave
             </Button>
           </div>
         ) : null}
@@ -85,15 +85,15 @@ export function WorkspaceDangerZone({
         {canDelete ? (
           <div className="space-y-3 rounded-lg border border-destructive/40 p-4">
             <div>
-              <p className="text-sm font-medium">Xoá không gian làm việc</p>
+              <p className="text-sm font-medium">Delete workspace</p>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                Toàn bộ dự án, công việc, bình luận và lịch sử hoạt động sẽ bị xoá vĩnh viễn.
+                Every project, task, comment and activity record is deleted permanently.
               </p>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="confirm-name">
-                Nhập <span className="font-semibold">{workspaceName}</span> để xác nhận
+                Type <span className="font-semibold">{workspaceName}</span> to confirm
               </Label>
               <Input
                 id="confirm-name"
@@ -110,12 +110,12 @@ export function WorkspaceDangerZone({
               onClick={() => setDeleteOpen(true)}
             >
               <Trash2 />
-              Xoá vĩnh viễn
+              Delete permanently
             </Button>
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Chỉ chủ sở hữu mới xoá được không gian làm việc này.
+            Only the owner can delete this workspace.
           </p>
         )}
       </CardContent>
@@ -123,9 +123,9 @@ export function WorkspaceDangerZone({
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title={`Xoá "${workspaceName}"?`}
-        description="Mọi dữ liệu sẽ bị xoá vĩnh viễn và không thể khôi phục."
-        confirmLabel="Tôi hiểu, xoá ngay"
+        title={`Delete "${workspaceName}"?`}
+        description="All data is permanently deleted and cannot be recovered."
+        confirmLabel="I understand, delete it"
         destructive
         onConfirm={handleDelete}
       />
@@ -133,9 +133,9 @@ export function WorkspaceDangerZone({
       <ConfirmDialog
         open={leaveOpen}
         onOpenChange={setLeaveOpen}
-        title={`Rời khỏi "${workspaceName}"?`}
-        description="Bạn sẽ không còn thấy các dự án và công việc trong không gian này."
-        confirmLabel="Rời đi"
+        title={`Leave "${workspaceName}"?`}
+        description="You will no longer see the projects and tasks in this workspace."
+        confirmLabel="Leave"
         destructive
         onConfirm={handleLeave}
       />

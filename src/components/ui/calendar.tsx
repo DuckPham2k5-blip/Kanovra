@@ -1,6 +1,6 @@
 "use client";
 
-import { vi } from "date-fns/locale";
+import { enUS } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
@@ -9,11 +9,11 @@ import { cn } from "@/lib/utils";
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>;
 
-/** Date picker used by the due-date fields. Vietnamese locale, Monday first. */
+/** Date picker used by the due-date fields. Monday-first week. */
 function Calendar({ className, classNames, showOutsideDays = true, ...props }: CalendarProps) {
   return (
     <DayPicker
-      locale={vi}
+      locale={enUS}
       showOutsideDays={showOutsideDays}
       weekStartsOn={1}
       className={cn("p-3", className)}

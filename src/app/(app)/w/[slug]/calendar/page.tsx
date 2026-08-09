@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { getTaskDetail, getTasksInRange, getWorkspaceMembers } from "@/lib/queries";
 import type { LabelDTO, MemberDTO } from "@/types";
 
-export const metadata: Metadata = { title: "Lịch" };
+export const metadata: Metadata = { title: "Calendar" };
 
 export default async function CalendarPage({
   params,
@@ -58,8 +58,8 @@ export default async function CalendarPage({
   return (
     <div>
       <PageHeader
-        title="Lịch"
-        description="Toàn bộ công việc có hạn hoàn thành trong tháng."
+        title="Calendar"
+        description="Every task with a due date this month."
         actions={
           <CalendarFilters
             projects={projects}

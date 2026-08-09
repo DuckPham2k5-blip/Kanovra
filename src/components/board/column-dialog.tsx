@@ -67,7 +67,7 @@ export function ColumnDialog({
         toast.error(result.error);
         return;
       }
-      toast.success(column ? "Đã cập nhật cột." : "Đã thêm cột mới.");
+      toast.success(column ? "Column updated." : "Column added.");
       onOpenChange(false);
       router.refresh();
     } finally {
@@ -79,20 +79,20 @@ export function ColumnDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{column ? "Sửa cột" : "Thêm cột mới"}</DialogTitle>
+          <DialogTitle>{column ? "Edit column" : "New column"}</DialogTitle>
           <DialogDescription>
-            Thẻ được thả vào cột này sẽ tự động nhận trạng thái tương ứng.
+            Cards dropped into this column pick up the matching status automatically.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="col-name">Tên cột</Label>
+            <Label htmlFor="col-name">Column name</Label>
             <Input
               id="col-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="VD: Đang kiểm thử"
+              placeholder="e.g. In testing"
               required
               autoFocus
             />
@@ -100,7 +100,7 @@ export function ColumnDialog({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Trạng thái tương ứng</Label>
+              <Label>Mapped status</Label>
               <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -116,7 +116,7 @@ export function ColumnDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="col-wip">Giới hạn WIP</Label>
+              <Label htmlFor="col-wip">WIP limit</Label>
               <Input
                 id="col-wip"
                 type="number"
@@ -125,21 +125,21 @@ export function ColumnDialog({
                 value={wipLimit}
                 onChange={(e) => setWipLimit(e.target.value)}
               />
-              <p className="text-[11px] text-muted-foreground">0 = không giới hạn</p>
+              <p className="text-[11px] text-muted-foreground">0 = no limit</p>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label>Màu</Label>
+            <Label>Colour</Label>
             <ColorPicker value={color} onChange={setColor} />
           </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Huỷ
+              Cancel
             </Button>
             <Button type="submit" loading={pending}>
-              {column ? "Lưu" : "Thêm cột"}
+              {column ? "Save" : "Add column"}
             </Button>
           </DialogFooter>
         </form>

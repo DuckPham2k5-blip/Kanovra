@@ -16,7 +16,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       defaultTheme="system"
       enableSystem
       disableTransitionOnChange
-      storageKey="taskforge-theme"
+      storageKey="kanovra-theme"
     >
       <TooltipProvider delayDuration={200} skipDelayDuration={300}>
         {children}

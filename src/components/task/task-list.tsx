@@ -36,7 +36,7 @@ export type ListTask = TaskCardDTO & {
 
 /**
  * Filterable, sortable task table. Shared by the project list view and the
- * "Việc của tôi" page; `showProject` switches the project column on.
+ * "My tasks" page; `showProject` switches the project column on.
  */
 export function TaskList({
   tasks,
@@ -144,7 +144,7 @@ export function TaskList({
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Tìm công việc…"
+            placeholder="Search tasks…"
             className="pl-8"
           />
         </div>
@@ -155,7 +155,7 @@ export function TaskList({
           onClick={() => setShowFilters((v) => !v)}
         >
           <Filter className="size-4" />
-          Bộ lọc
+          Filters
           {activeFilters > 0 ? (
             <Badge className="ml-1 size-5 justify-center p-0 text-[10px]">{activeFilters}</Badge>
           ) : null}
@@ -167,11 +167,11 @@ export function TaskList({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="manual">Thứ tự bảng</SelectItem>
-            <SelectItem value="due">Hạn gần nhất</SelectItem>
-            <SelectItem value="priority">Ưu tiên cao nhất</SelectItem>
-            <SelectItem value="status">Trạng thái</SelectItem>
-            <SelectItem value="title">Tên A→Z</SelectItem>
+            <SelectItem value="manual">Board order</SelectItem>
+            <SelectItem value="due">Due soonest</SelectItem>
+            <SelectItem value="priority">Highest priority</SelectItem>
+            <SelectItem value="status">Status</SelectItem>
+            <SelectItem value="title">Name A→Z</SelectItem>
           </SelectContent>
         </Select>
 
@@ -182,7 +182,7 @@ export function TaskList({
         {canEdit && projectId ? (
           <Button size="sm" onClick={() => setCreateOpen(true)}>
             <Plus className="size-4" />
-            <span className="hidden sm:inline">Công việc mới</span>
+            <span className="hidden sm:inline">New task</span>
           </Button>
         ) : null}
       </div>
@@ -191,10 +191,10 @@ export function TaskList({
         <div className="grid gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-2 lg:grid-cols-4">
           <Select value={status} onValueChange={setStatus}>
             <SelectTrigger>
-              <SelectValue placeholder="Trạng thái" />
+              <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL}>Mọi trạng thái</SelectItem>
+              <SelectItem value={ALL}>Any status</SelectItem>
               {TASK_STATUS_ORDER.map((s) => (
                 <SelectItem key={s} value={s}>
                   {TASK_STATUS_META[s].label}
@@ -205,10 +205,10 @@ export function TaskList({
 
           <Select value={priority} onValueChange={setPriority}>
             <SelectTrigger>
-              <SelectValue placeholder="Ưu tiên" />
+              <SelectValue placeholder="Priority" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL}>Mọi mức ưu tiên</SelectItem>
+              <SelectItem value={ALL}>Any priority</SelectItem>
               {PRIORITY_ORDER.map((p) => (
                 <SelectItem key={p} value={p}>
                   {PRIORITY_META[p].label}
@@ -219,11 +219,11 @@ export function TaskList({
 
           <Select value={assignee} onValueChange={setAssignee}>
             <SelectTrigger>
-              <SelectValue placeholder="Người phụ trách" />
+              <SelectValue placeholder="Assignee" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL}>Mọi người</SelectItem>
-              <SelectItem value="unassigned">Chưa giao</SelectItem>
+              <SelectItem value={ALL}>Everyone</SelectItem>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
               {members.map((m) => (
                 <SelectItem key={m.id} value={m.id}>
                   {m.name}
@@ -235,10 +235,10 @@ export function TaskList({
           <div className="flex gap-2">
             <Select value={labelId} onValueChange={setLabelId}>
               <SelectTrigger>
-                <SelectValue placeholder="Nhãn" />
+                <SelectValue placeholder="Labels" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL}>Mọi nhãn</SelectItem>
+                <SelectItem value={ALL}>Any label</SelectItem>
                 {labels.map((l) => (
                   <SelectItem key={l.id} value={l.id}>
                     {l.name}
@@ -247,7 +247,7 @@ export function TaskList({
               </SelectContent>
             </Select>
             {activeFilters > 0 ? (
-              <Button variant="ghost" size="icon" onClick={resetFilters} aria-label="Xoá bộ lọc">
+              <Button variant="ghost" size="icon" onClick={resetFilters} aria-label="Clear filters">
                 <X className="size-4" />
               </Button>
             ) : null}
@@ -259,11 +259,11 @@ export function TaskList({
       {filtered.length === 0 ? (
         <EmptyState
           icon={Search}
-          title="Không có công việc nào"
+          title="No tasks"
           description={
             tasks.length > 0
-              ? "Thử nới lỏng bộ lọc hoặc từ khoá tìm kiếm."
-              : (emptyHint ?? "Tạo công việc đầu tiên để bắt đầu.")
+              ? "Try loosening the filters or the search term."
+              : (emptyHint ?? "Create your first task to get started.")
           }
         />
       ) : (
@@ -282,7 +282,7 @@ export function TaskList({
                   checked={done}
                   disabled={!canEdit}
                   onCheckedChange={() => void handleToggleDone(task.id)}
-                  aria-label={`Hoàn thành ${task.title}`}
+                  aria-label={`Completed ${task.title}`}
                 />
 
                 <button

@@ -48,11 +48,11 @@ export function AnalyticsFilters({
         value={projectId ?? ALL_PROJECTS}
         onValueChange={(v) => setParam("project", v === ALL_PROJECTS ? null : v)}
       >
-        <SelectTrigger className="w-[10.5rem]" aria-label="Lọc theo dự án">
+        <SelectTrigger className="w-[10.5rem]" aria-label="Filter by project">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ALL_PROJECTS}>Tất cả dự án</SelectItem>
+          <SelectItem value={ALL_PROJECTS}>All projects</SelectItem>
           {projects.map((project) => (
             <SelectItem key={project.id} value={project.id}>
               <span className="flex items-center gap-2">
@@ -70,13 +70,13 @@ export function AnalyticsFilters({
       </Select>
 
       <Select value={String(days)} onValueChange={(v) => setParam("days", v)}>
-        <SelectTrigger className="w-[7.5rem]" aria-label="Khoảng thời gian">
+        <SelectTrigger className="w-[7.5rem]" aria-label="Time range">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           {ranges.map((range) => (
             <SelectItem key={range} value={String(range)}>
-              {range} ngày
+              {range} days
             </SelectItem>
           ))}
         </SelectContent>

@@ -30,7 +30,7 @@ export function PriorityBadge({
     return (
       <span
         className={cn("flex size-5 items-center justify-center rounded", meta.className, className)}
-        title={`Ưu tiên: ${meta.label}`}
+        title={`Priority: ${meta.label}`}
       >
         <Icon className="size-3" />
       </span>

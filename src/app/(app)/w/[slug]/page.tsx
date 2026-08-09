@@ -30,7 +30,7 @@ import {
   getWorkspaceStats,
 } from "@/lib/queries";
 
-export const metadata: Metadata = { title: "Tổng quan" };
+export const metadata: Metadata = { title: "Overview" };
 
 export default async function DashboardPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -50,8 +50,8 @@ export default async function DashboardPage({ params }: { params: Promise<{ slug
   return (
     <div>
       <PageHeader
-        title={`Chào ${firstName} 👋`}
-        description={`Đây là toàn cảnh của ${workspace.name} hôm nay.`}
+        title={`Hi ${firstName} 👋`}
+        description={`Here's the state of ${workspace.name} today.`}
         actions={
           can("project:create") ? (
             <NewProjectButton workspaceId={workspace.id} workspaceSlug={slug} />
@@ -63,31 +63,31 @@ export default async function DashboardPage({ params }: { params: Promise<{ slug
         {/* KPIs */}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
-            label="Tổng công việc"
+            label="Total tasks"
             value={stats.total}
             icon={ListChecks}
-            hint={`${stats.projects} dự án · ${stats.members} thành viên`}
+            hint={`${stats.projects} projects · ${stats.members} members`}
           />
           <StatCard
-            label="Đã hoàn thành"
+            label="Completed"
             value={`${stats.completionRate}%`}
             icon={CheckCircle2}
             tone="success"
             progress={stats.completionRate}
-            hint={`${stats.done}/${stats.total} công việc · +${stats.completedThisWeek} tuần này`}
+            hint={`${stats.done}/${stats.total} tasks · +${stats.completedThisWeek} this week`}
           />
           <StatCard
-            label="Đang thực hiện"
+            label="In progress"
             value={stats.inProgress}
             icon={Timer}
-            hint={`${stats.mine} việc đang giao cho bạn`}
+            hint={`${stats.mine} tasks assigned to you`}
           />
           <StatCard
-            label="Quá hạn"
+            label="Overdue"
             value={stats.overdue}
             icon={AlertTriangle}
             tone={stats.overdue > 0 ? "danger" : "success"}
-            hint={`${stats.dueSoon} việc đến hạn trong 48 giờ`}
+            hint={`${stats.dueSoon} due within 48 hours`}
           />
         </div>
 
@@ -95,10 +95,10 @@ export default async function DashboardPage({ params }: { params: Promise<{ slug
           {/* Projects */}
           <section className="space-y-3 xl:col-span-2">
             <div className="flex items-center justify-between">
-              <h2 className="font-semibold">Dự án</h2>
+              <h2 className="font-semibold">Projects</h2>
               <Button variant="ghost" size="sm" asChild>
                 <Link href={`/w/${slug}/projects`}>
-                  Tất cả <ArrowRight className="size-4" />
+                  All <ArrowRight className="size-4" />
                 </Link>
               </Button>
             </div>
@@ -106,8 +106,8 @@ export default async function DashboardPage({ params }: { params: Promise<{ slug
             {activeProjects.length === 0 ? (
               <EmptyState
                 icon={FolderKanban}
-                title="Chưa có dự án nào"
-                description="Tạo dự án đầu tiên để bắt đầu quản lý công việc của nhóm."
+                title="No projects yet"
+                description="Create your first project to start organising the team's work."
                 action={
                   can("project:create") ? (
                     <NewProjectButton workspaceId={workspace.id} workspaceSlug={slug} />
@@ -132,7 +132,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ slug
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">{project.name}</p>
                         <p className="truncate text-xs text-muted-foreground">
-                          {project._count.tasks} công việc · {project.doneCount} xong
+                          {project._count.tasks} tasks · {project.doneCount} done
                         </p>
                       </div>
                       <ProjectStatusBadge status={project.status} />
@@ -149,7 +149,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ slug
                       <span className="text-xs text-muted-foreground">
                         {project.overdueCount > 0 ? (
                           <span className="text-destructive">
-                            {project.overdueCount} quá hạn
+                            {project.overdueCount} overdue
                           </span>
                         ) : (
                           `${project.progress}%`
@@ -164,11 +164,11 @@ export default async function DashboardPage({ params }: { params: Promise<{ slug
 
           {/* Activity */}
           <section className="space-y-3">
-            <h2 className="font-semibold">Hoạt động gần đây</h2>
+            <h2 className="font-semibold">Recent activity</h2>
             <div className="tf-card divide-y">
               {activity.length === 0 ? (
                 <p className="p-6 text-center text-sm text-muted-foreground">
-                  Chưa có hoạt động nào.
+                  No activity yet.
                 </p>
               ) : (
                 activity.map((item) => (
@@ -191,10 +191,10 @@ export default async function DashboardPage({ params }: { params: Promise<{ slug
         {/* My tasks */}
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold">Việc của tôi</h2>
+            <h2 className="font-semibold">My tasks</h2>
             <Button variant="ghost" size="sm" asChild>
               <Link href={`/w/${slug}/my-tasks`}>
-                Xem tất cả <ArrowRight className="size-4" />
+                View all <ArrowRight className="size-4" />
               </Link>
             </Button>
           </div>
@@ -202,8 +202,8 @@ export default async function DashboardPage({ params }: { params: Promise<{ slug
           {upcoming.length === 0 ? (
             <EmptyState
               icon={CheckCircle2}
-              title="Bạn đã xong hết việc 🎉"
-              description="Không còn công việc nào đang chờ bạn xử lý."
+              title="You're all caught up 🎉"
+              description="Nothing is waiting on you."
             />
           ) : (
             <div className="overflow-hidden rounded-lg border">
@@ -234,21 +234,21 @@ export default async function DashboardPage({ params }: { params: Promise<{ slug
             <Users className="size-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="font-medium">{stats.members} thành viên trong nhóm</p>
+            <p className="font-medium">{stats.members} people on the team</p>
             <p className="text-sm text-muted-foreground">
-              Quản lý vai trò, mời thêm người và theo dõi khối lượng công việc.
+              Manage roles, invite people and keep an eye on workload.
             </p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" asChild>
               <Link href={`/w/${slug}/analytics`}>
-                <Clock className="size-4" /> Phân tích
+                <Clock className="size-4" /> Analytics
               </Link>
             </Button>
             {can("workspace:manage_members") ? (
               <Button size="sm" asChild>
                 <Link href={`/w/${slug}/members`}>
-                  <Plus className="size-4" /> Mời thành viên
+                  <Plus className="size-4" /> Invite member
                 </Link>
               </Button>
             ) : null}

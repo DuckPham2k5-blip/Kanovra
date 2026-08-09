@@ -19,7 +19,7 @@ export function AcceptInviteButton({ token }: { token: string }) {
         toast.error(result.error);
         return;
       }
-      toast.success("Chào mừng bạn đến với nhóm!");
+      toast.success("Welcome to the team!");
       router.push(`/w/${result.data.slug}`);
     } finally {
       setPending(false);
@@ -28,7 +28,7 @@ export function AcceptInviteButton({ token }: { token: string }) {
 
   return (
     <Button className="w-full" onClick={handleAccept} loading={pending}>
-      Chấp nhận lời mời
+      Accept invitation
     </Button>
   );
 }

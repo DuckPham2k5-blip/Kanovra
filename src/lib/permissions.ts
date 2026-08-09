@@ -90,15 +90,15 @@ export function assignableRoles(actor: Role): Role[] {
 }
 
 export const ROLE_LABEL: Record<Role, string> = {
-  OWNER: "Chủ sở hữu",
-  ADMIN: "Quản trị viên",
-  MEMBER: "Thành viên",
-  VIEWER: "Người xem",
+  OWNER: "Owner",
+  ADMIN: "Admin",
+  MEMBER: "Member",
+  VIEWER: "Viewer",
 };
 
 export const ROLE_DESCRIPTION: Record<Role, string> = {
-  OWNER: "Toàn quyền, bao gồm xoá workspace và chuyển quyền sở hữu.",
-  ADMIN: "Quản lý dự án, thành viên và cấu hình workspace.",
-  MEMBER: "Tạo và chỉnh sửa dự án, công việc, bình luận.",
-  VIEWER: "Chỉ xem nội dung, không chỉnh sửa được.",
+  OWNER: "Full control, including deleting the workspace and transferring ownership.",
+  ADMIN: "Manage projects, members and workspace settings.",
+  MEMBER: "Create and edit projects, tasks and comments.",
+  VIEWER: "Read-only access — cannot make changes.",
 };

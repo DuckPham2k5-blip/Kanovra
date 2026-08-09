@@ -32,8 +32,8 @@ export function ConfirmDialog({
   onOpenChange,
   title,
   description,
-  confirmLabel = "Xác nhận",
-  cancelLabel = "Huỷ",
+  confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
   destructive,
   onConfirm,
 }: ConfirmDialogProps) {

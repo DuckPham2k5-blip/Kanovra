@@ -15,7 +15,7 @@ import { format, lastNDays } from "@/lib/date";
 import { prisma } from "@/lib/prisma";
 import { getAnalytics } from "@/lib/queries";
 
-export const metadata: Metadata = { title: "Phân tích" };
+export const metadata: Metadata = { title: "Analytics" };
 
 const RANGES = [7, 14, 30, 90];
 
@@ -86,38 +86,38 @@ export default async function AnalyticsPage({
   return (
     <div>
       <PageHeader
-        title="Phân tích"
-        description={`Số liệu ${days} ngày gần nhất của ${workspace.name}.`}
+        title="Analytics"
+        description={`Last ${days} days in ${workspace.name}.`}
         actions={<AnalyticsFilters days={days} ranges={RANGES} projects={projects} projectId={query.project} />}
       />
 
       <div className="space-y-4 p-4 sm:p-6">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
-            label="Tạo mới"
+            label="New"
             value={totalCreated}
             icon={TrendingUp}
-            hint={`Trong ${days} ngày qua`}
+            hint={`Trong ${days} days`}
           />
           <StatCard
-            label="Hoàn thành"
+            label="Done"
             value={totalCompleted}
             icon={CheckCircle2}
             tone="success"
-            hint={`Trung bình ${(totalCompleted / days).toFixed(1)} việc/ngày`}
+            hint={`Average ${(totalCompleted / days).toFixed(1)} tasks/days`}
           />
           <StatCard
-            label="Tỉ lệ hoàn thành"
+            label="Completion rate"
             value={`${completionRate}%`}
             icon={Gauge}
             progress={completionRate}
-            hint={`${doneTotal}/${totalTasks} công việc`}
+            hint={`${doneTotal}/${totalTasks} tasks`}
           />
           <StatCard
-            label="Thời gian xử lý TB"
-            value={`${data.avgCycleTime.toFixed(1)} ngày`}
+            label="Avg. cycle time"
+            value={`${data.avgCycleTime.toFixed(1)} days`}
             icon={Timer}
-            hint="Từ lúc tạo đến khi hoàn thành"
+            hint="From created to done"
           />
         </div>
 

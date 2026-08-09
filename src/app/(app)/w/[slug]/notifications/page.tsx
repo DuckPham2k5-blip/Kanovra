@@ -6,7 +6,7 @@ import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getNotifications } from "@/lib/queries";
 
-export const metadata: Metadata = { title: "Thông báo" };
+export const metadata: Metadata = { title: "Notifications" };
 
 export default async function NotificationsPage({
   params,
@@ -31,12 +31,12 @@ export default async function NotificationsPage({
   return (
     <div className="flex flex-col">
       <PageHeader
-        title="Thông báo"
+        title="Notifications"
         description={
           notifications.length === 0
-            ? "Bạn chưa có thông báo nào."
-            : `${notifications.length} thông báo gần đây${
-                unreadIds.length ? ` · ${unreadIds.length} mới` : ""
+            ? "You have no notifications."
+            : `${notifications.length} recent notifications${
+                unreadIds.length ? ` · ${unreadIds.length} new` : ""
               }`
         }
       />

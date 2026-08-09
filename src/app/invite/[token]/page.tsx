@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ROLE_LABEL } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
-export const metadata: Metadata = { title: "Lời mời tham gia" };
+export const metadata: Metadata = { title: "Invitation" };
 
 export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -43,15 +43,15 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
           {invalid ? (
             <>
               <CardHeader>
-                <CardTitle>Lời mời không còn hiệu lực</CardTitle>
+                <CardTitle>This invitation is no longer valid</CardTitle>
                 <CardDescription>
-                  Lời mời này đã được sử dụng, bị thu hồi hoặc đã hết hạn. Hãy liên hệ người quản trị
-                  để nhận lời mời mới.
+                  This invitation was already used, revoked, or has expired. Ask an admin
+                  for a new one.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Button variant="outline" className="w-full" asChild>
-                  <Link href="/">Về trang chủ</Link>
+                  <Link href="/">Back to home</Link>
                 </Button>
               </CardContent>
             </>
@@ -66,7 +66,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
                 </span>
                 <CardTitle>Tham gia {invitation.workspace.name}</CardTitle>
                 <CardDescription>
-                  {invitation.invitedBy.name} đã mời bạn với vai trò{" "}
+                  {invitation.invitedBy.name} invited you as{" "}
                   <strong>{ROLE_LABEL[invitation.role]}</strong>.
                 </CardDescription>
               </CardHeader>
@@ -82,12 +82,12 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
                   <div className="space-y-2">
                     <Button className="w-full" asChild>
                       <Link href={`/sign-up?redirect_url=/invite/${token}`}>
-                        Đăng ký để tham gia
+                        Sign up to join
                       </Link>
                     </Button>
                     <Button variant="outline" className="w-full" asChild>
                       <Link href={`/sign-in?redirect_url=/invite/${token}`}>
-                        Tôi đã có tài khoản
+                        I already have an account
                       </Link>
                     </Button>
                   </div>

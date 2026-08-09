@@ -59,7 +59,7 @@ export async function createComment(input: unknown): Promise<ActionResult<{ id: 
       taskId: ctx.task.id,
       actorId: user.id,
       type: "COMMENT_CREATED",
-      message: `${user.name} đã bình luận trong ${ref}`,
+      message: `${user.name} commented on ${ref}`,
     });
 
     // Mentioned people get the stronger notification; everyone else watching
@@ -68,7 +68,7 @@ export async function createComment(input: unknown): Promise<ActionResult<{ id: 
       workspaceId: ctx.workspace.id,
       actorId: user.id,
       type: "COMMENT_MENTION",
-      title: `${user.name} đã nhắc đến bạn trong ${ref}`,
+      title: `${user.name} mentioned you in ${ref}`,
       body: preview,
       link,
     });
@@ -78,7 +78,7 @@ export async function createComment(input: unknown): Promise<ActionResult<{ id: 
       workspaceId: ctx.workspace.id,
       actorId: user.id,
       type: "COMMENT_CREATED",
-      title: `Bình luận mới trong ${ref}`,
+      title: `New comment on ${ref}`,
       body: preview,
       link,
     });

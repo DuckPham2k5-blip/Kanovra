@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 export function DatePicker({
   value,
   onChange,
-  placeholder = "Chọn ngày",
+  placeholder = "Pick a date",
   disabled,
   className,
 }: {
@@ -44,7 +44,7 @@ export function DatePicker({
             <span
               role="button"
               tabIndex={-1}
-              aria-label="Xoá ngày"
+              aria-label="Clear date"
               className="ml-auto rounded p-0.5 opacity-60 hover:bg-muted hover:opacity-100"
               onClick={(e) => {
                 e.stopPropagation();

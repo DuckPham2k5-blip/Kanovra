@@ -48,7 +48,7 @@ export function ProjectMembersDialog({
         toast.error(result.error);
         return;
       }
-      toast.success(result.data.added ? "Đã thêm vào dự án." : "Đã gỡ khỏi dự án.");
+      toast.success(result.data.added ? "Added to the project." : "Removed from the project.");
       router.refresh();
     } finally {
       setPendingId(null);
@@ -59,9 +59,9 @@ export function ProjectMembersDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Thành viên dự án</DialogTitle>
+          <DialogTitle>Project members</DialogTitle>
           <DialogDescription>
-            Chọn những người trong không gian làm việc tham gia dự án này.
+            Pick which workspace members belong to this project.
           </DialogDescription>
         </DialogHeader>
 
@@ -99,7 +99,7 @@ export function ProjectMembersDialog({
         </ul>
 
         <Button variant="outline" onClick={() => onOpenChange(false)}>
-          Đóng
+          Close
         </Button>
       </DialogContent>
     </Dialog>

@@ -58,7 +58,7 @@ export function WorkspaceForm({
         return;
       }
 
-      toast.success(workspaceId ? "Đã cập nhật không gian làm việc." : "Đã tạo không gian làm việc.");
+      toast.success(workspaceId ? "Workspace updated." : "Workspace created.");
       onDone?.();
 
       if (!workspaceId && "slug" in result.data) {
@@ -73,10 +73,10 @@ export function WorkspaceForm({
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
       <div className="space-y-2">
-        <Label htmlFor="ws-name">Tên không gian làm việc</Label>
+        <Label htmlFor="ws-name">Workspace name</Label>
         <Input
           id="ws-name"
-          placeholder="VD: Đội sản phẩm Acme"
+          placeholder="e.g. Acme Product Team"
           autoFocus
           {...form.register("name")}
         />
@@ -86,22 +86,22 @@ export function WorkspaceForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="ws-desc">Mô tả ngắn</Label>
+        <Label htmlFor="ws-desc">Short description</Label>
         <Textarea
           id="ws-desc"
           rows={3}
-          placeholder="Không gian này dùng để làm gì?"
+          placeholder="What is this workspace for?"
           {...form.register("description")}
         />
       </div>
 
       <div className="space-y-2">
-        <Label>Màu nhận diện</Label>
+        <Label>Accent colour</Label>
         <ColorPicker value={color} onChange={(c) => form.setValue("color", c)} />
       </div>
 
       <Button type="submit" loading={pending} className="w-full">
-        {submitLabel ?? (workspaceId ? "Lưu thay đổi" : "Tạo không gian làm việc")}
+        {submitLabel ?? (workspaceId ? "Save changes" : "Create workspace")}
       </Button>
     </form>
   );

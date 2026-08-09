@@ -13,9 +13,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const OPTIONS = [
-  { value: "light", label: "Sáng", icon: Sun },
-  { value: "dark", label: "Tối", icon: Moon },
-  { value: "system", label: "Theo hệ thống", icon: Monitor },
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "system", label: "System", icon: Monitor },
 ] as const;
 
 export function ThemeToggle({ className }: { className?: string }) {
@@ -30,7 +30,7 @@ export function ThemeToggle({ className }: { className?: string }) {
     <DropdownMenu>
       {/* Explicit id — see the comment in sidebar.tsx's workspace switcher. */}
       <DropdownMenuTrigger asChild id="theme-toggle-trigger">
-        <Button variant="ghost" size="icon" className={className} aria-label="Đổi giao diện">
+        <Button variant="ghost" size="icon" className={className} aria-label="Toggle theme">
           <Sun className="size-4 rotate-0 scale-100 transition-transform dark:-rotate-90 dark:scale-0" />
           <Moon className="absolute size-4 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
         </Button>

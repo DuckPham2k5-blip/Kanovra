@@ -1,5 +1,5 @@
 import { ClerkProvider } from "@clerk/nextjs";
-import { viVN } from "@clerk/localizations";
+import { enUS } from "@clerk/localizations";
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 
@@ -9,7 +9,7 @@ import { APP_DESCRIPTION, APP_NAME, APP_TAGLINE } from "@/lib/constants";
 import "./globals.css";
 
 const sans = Inter({
-  subsets: ["latin", "vietnamese"],
+  subsets: ["latin"],
   variable: "--font-sans",
   display: "swap",
 });
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     title: `${APP_NAME} — ${APP_TAGLINE}`,
     description: APP_DESCRIPTION,
     type: "website",
-    locale: "vi_VN",
+    locale: "en_US",
   },
   robots: { index: true, follow: true },
 };
@@ -48,8 +48,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider localization={viVN}>
-      <html lang="vi" suppressHydrationWarning className={`${sans.variable} ${mono.variable}`}>
+    <ClerkProvider localization={enUS}>
+      <html lang="en" suppressHydrationWarning className={`${sans.variable} ${mono.variable}`}>
         <body>
           <Providers>{children}</Providers>
         </body>

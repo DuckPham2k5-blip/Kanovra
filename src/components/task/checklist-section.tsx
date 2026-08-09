@@ -115,7 +115,7 @@ export function ChecklistSection({
                 size="icon-sm"
                 className="opacity-0 transition-opacity group-hover:opacity-100"
                 onClick={() => void handleDelete(item.id)}
-                aria-label="Xoá mục"
+                aria-label="Delete item"
               >
                 <Trash2 className="size-3.5" />
               </Button>
@@ -129,17 +129,17 @@ export function ChecklistSection({
           <Input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Thêm một mục…"
+            placeholder="Add an item…"
             className="h-8"
           />
-          <Button type="submit" size="icon-sm" loading={adding} disabled={!draft.trim()} aria-label="Thêm">
+          <Button type="submit" size="icon-sm" loading={adding} disabled={!draft.trim()} aria-label="Add">
             <Plus className="size-4" />
           </Button>
         </form>
       ) : null}
 
       {optimistic.length === 0 && !canEdit ? (
-        <p className="text-sm text-muted-foreground">Chưa có mục nào.</p>
+        <p className="text-sm text-muted-foreground">Nothing here yet.</p>
       ) : null}
     </section>
   );

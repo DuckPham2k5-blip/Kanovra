@@ -24,7 +24,7 @@ Command.displayName = CommandPrimitive.displayName;
 
 function CommandDialog({
   children,
-  title = "Tìm kiếm",
+  title = "Search",
   ...props
 }: React.ComponentProps<typeof Dialog> & { title?: string }) {
   return (

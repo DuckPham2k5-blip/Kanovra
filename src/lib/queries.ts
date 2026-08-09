@@ -297,7 +297,7 @@ export async function getAnalytics(workspaceId: string, days = 30, projectId?: s
     workload: byAssignee
       .map((a) => ({
         userId: a.assigneeId!,
-        name: userById.get(a.assigneeId!)?.name ?? "Không rõ",
+        name: userById.get(a.assigneeId!)?.name ?? "Unknown",
         imageUrl: userById.get(a.assigneeId!)?.imageUrl ?? null,
         total: a._count._all,
         done: doneCountByAssignee.get(a.assigneeId!) ?? 0,

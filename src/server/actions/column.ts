@@ -91,7 +91,7 @@ export async function deleteColumn(columnId: string): Promise<ActionResult> {
       where: { projectId: column.projectId, id: { not: columnId } },
       orderBy: { order: "asc" },
     });
-    if (siblings.length === 0) return fail("Bảng phải có ít nhất một cột.");
+    if (siblings.length === 0) return fail("A board must keep at least one column.");
 
     const fallback = siblings[0];
 
@@ -124,7 +124,7 @@ export async function reorderColumns(input: unknown): Promise<ActionResult> {
       select: { id: true },
     });
     const ownedIds = new Set(owned.map((c) => c.id));
-    if (data.orderedIds.some((id) => !ownedIds.has(id))) return fail("Danh sách cột không hợp lệ.");
+    if (data.orderedIds.some((id) => !ownedIds.has(id))) return fail("That column list is not valid.");
 
     await prisma.$transaction(
       data.orderedIds.map((id, index) =>

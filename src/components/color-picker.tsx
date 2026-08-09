@@ -26,7 +26,7 @@ export function ColorPicker({
             key={color}
             type="button"
             onClick={() => onChange(color)}
-            aria-label={`Chọn màu ${color}`}
+            aria-label={`Pick colour ${color}`}
             aria-pressed={active}
             className={cn(
               "flex size-7 items-center justify-center rounded-full ring-offset-2 ring-offset-background transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",

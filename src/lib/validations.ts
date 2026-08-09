@@ -8,7 +8,7 @@ import { z } from "zod";
 
 const hexColor = z
   .string()
-  .regex(/^#[0-9a-fA-F]{6}$/, "Màu không hợp lệ")
+  .regex(/^#[0-9a-fA-F]{6}$/, "Invalid colour")
   .default("#6366f1");
 
 const optionalDate = z.coerce.date().nullish();
@@ -16,7 +16,7 @@ const optionalDate = z.coerce.date().nullish();
 // --- Workspace -------------------------------------------------------------
 
 export const workspaceCreateSchema = z.object({
-  name: z.string().trim().min(2, "Tên tối thiểu 2 ký tự").max(60),
+  name: z.string().trim().min(2, "Name must be at least 2 characters").max(60),
   description: z.string().trim().max(280).optional().or(z.literal("")),
   color: hexColor,
 });
@@ -27,7 +27,7 @@ export const workspaceUpdateSchema = workspaceCreateSchema.partial().extend({
 
 export const inviteMemberSchema = z.object({
   workspaceId: z.string().min(1),
-  email: z.string().trim().email("Email không hợp lệ"),
+  email: z.string().trim().email("Invalid email address"),
   role: z.nativeEnum(Role).default(Role.MEMBER),
 });
 
@@ -41,12 +41,12 @@ export const updateMemberRoleSchema = z.object({
 
 export const projectCreateSchema = z.object({
   workspaceId: z.string().min(1),
-  name: z.string().trim().min(2, "Tên tối thiểu 2 ký tự").max(60),
+  name: z.string().trim().min(2, "Name must be at least 2 characters").max(60),
   key: z
     .string()
     .trim()
     .toUpperCase()
-    .regex(/^[A-Z0-9]{2,6}$/, "Mã dự án gồm 2–6 chữ hoa hoặc số")
+    .regex(/^[A-Z0-9]{2,6}$/, "Project key must be 2–6 uppercase letters or digits")
     .optional()
     .or(z.literal("")),
   description: z.string().trim().max(500).optional().or(z.literal("")),
@@ -66,7 +66,7 @@ export const projectUpdateSchema = projectCreateSchema
 
 export const columnCreateSchema = z.object({
   projectId: z.string().min(1),
-  name: z.string().trim().min(1, "Nhập tên cột").max(40),
+  name: z.string().trim().min(1, "Enter a column name").max(40),
   color: hexColor.default("#94a3b8"),
   status: z.nativeEnum(TaskStatus).default(TaskStatus.TODO),
   wipLimit: z.coerce.number().int().min(0).max(99).default(0),
@@ -89,7 +89,7 @@ export const taskCreateSchema = z.object({
   projectId: z.string().min(1),
   columnId: z.string().min(1).nullish(),
   parentId: z.string().min(1).nullish(),
-  title: z.string().trim().min(1, "Nhập tiêu đề công việc").max(200),
+  title: z.string().trim().min(1, "Enter a task title").max(200),
   description: z.string().trim().max(10_000).optional().or(z.literal("")),
   priority: z.nativeEnum(Priority).default(Priority.NONE),
   assigneeId: z.string().min(1).nullish(),
@@ -126,7 +126,7 @@ export const taskDeleteSchema = z.object({ taskId: z.string().min(1) });
 
 export const checklistCreateSchema = z.object({
   taskId: z.string().min(1),
-  title: z.string().trim().min(1, "Nhập nội dung").max(200),
+  title: z.string().trim().min(1, "Enter some content").max(200),
 });
 
 export const checklistToggleSchema = z.object({
@@ -138,14 +138,14 @@ export const checklistDeleteSchema = z.object({ itemId: z.string().min(1) });
 
 export const commentCreateSchema = z.object({
   taskId: z.string().min(1),
-  content: z.string().trim().min(1, "Nhập nội dung bình luận").max(5_000),
+  content: z.string().trim().min(1, "Enter a comment").max(5_000),
 });
 
 export const commentDeleteSchema = z.object({ commentId: z.string().min(1) });
 
 export const labelCreateSchema = z.object({
   workspaceId: z.string().min(1),
-  name: z.string().trim().min(1, "Nhập tên nhãn").max(30),
+  name: z.string().trim().min(1, "Enter a label name").max(30),
   color: hexColor,
 });
 

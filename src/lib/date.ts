@@ -12,21 +12,21 @@ import {
   startOfMonth,
   startOfWeek,
 } from "date-fns";
-import { vi } from "date-fns/locale";
+import { enUS } from "date-fns/locale";
 
-const OPTS = { locale: vi } as const;
+const OPTS = { locale: enUS } as const;
 
-export function formatDate(date: Date | string | null | undefined, pattern = "dd/MM/yyyy") {
+export function formatDate(date: Date | string | null | undefined, pattern = "MMM d, yyyy") {
   if (!date) return "—";
   return format(new Date(date), pattern, OPTS);
 }
 
 export function formatDateTime(date: Date | string | null | undefined) {
   if (!date) return "—";
-  return format(new Date(date), "HH:mm dd/MM/yyyy", OPTS);
+  return format(new Date(date), "MMM d, yyyy 'at' h:mm a", OPTS);
 }
 
-/** `2 giờ trước` — used by the activity feed and comment list. */
+/** `2 hours ago` — used by the activity feed and comment list. */
 export function fromNow(date: Date | string) {
   return formatDistanceToNowStrict(new Date(date), { addSuffix: true, ...OPTS });
 }
@@ -45,12 +45,13 @@ export function dueLabel(date: Date | string | null | undefined): {
   const days = differenceInCalendarDays(d, new Date());
 
   if (days < 0) {
-    return { text: `Quá hạn ${Math.abs(days)} ngày`, overdue: true, soon: false };
+    const n = Math.abs(days);
+    return { text: `${n} day${n === 1 ? "" : "s"} overdue`, overdue: true, soon: false };
   }
-  if (isToday(d)) return { text: "Hôm nay", overdue: false, soon: true };
-  if (isTomorrow(d)) return { text: "Ngày mai", overdue: false, soon: true };
+  if (isToday(d)) return { text: "Today", overdue: false, soon: true };
+  if (isTomorrow(d)) return { text: "Tomorrow", overdue: false, soon: true };
   if (days <= 7) return { text: format(d, "EEEE", OPTS), overdue: false, soon: days <= 3 };
-  return { text: format(d, "dd/MM", OPTS), overdue: false, soon: false };
+  return { text: format(d, "MMM d", OPTS), overdue: false, soon: false };
 }
 
 /** Inclusive day range covering the month grid shown by the calendar view. */
@@ -85,7 +86,7 @@ export function eachDay(from: Date, to: Date) {
 }
 
 /** Column headers for the month grid, Monday first. */
-export const WEEKDAY_LABELS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
+export const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /** Validates a `?month=YYYY-MM` param, falling back to the current month. */
 export function resolveMonth(param?: string) {

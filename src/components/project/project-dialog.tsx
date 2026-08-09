@@ -110,7 +110,7 @@ export function ProjectDialog({
         return;
       }
 
-      toast.success(isEdit ? "Đã cập nhật dự án." : "Đã tạo dự án.");
+      toast.success(isEdit ? "Project updated." : "Project created.");
       onOpenChange(false);
 
       if (!isEdit && result.data && "id" in result.data) {
@@ -126,18 +126,18 @@ export function ProjectDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Chỉnh sửa dự án" : "Tạo dự án mới"}</DialogTitle>
+          <DialogTitle>{isEdit ? "Edit project" : "New project"}</DialogTitle>
           <DialogDescription>
             {isEdit
-              ? "Cập nhật thông tin hiển thị và trạng thái của dự án."
-              : "Dự án mới sẽ có sẵn 5 cột Kanban mặc định."}
+              ? "Update how the project appears and where it stands."
+              : "New projects start with five default Kanban columns."}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="p-name">Tên dự án</Label>
-            <Input id="p-name" placeholder="VD: Nền tảng Web" autoFocus {...form.register("name")} />
+            <Label htmlFor="p-name">Project name</Label>
+            <Input id="p-name" placeholder="e.g. Web Platform" autoFocus {...form.register("name")} />
             {form.formState.errors.name ? (
               <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
             ) : null}
@@ -146,7 +146,7 @@ export function ProjectDialog({
           {!isEdit ? (
             <div className="space-y-2">
               <Label htmlFor="p-key">
-                Mã dự án <span className="font-normal text-muted-foreground">(tuỳ chọn)</span>
+                Project key <span className="font-normal text-muted-foreground">(optional)</span>
               </Label>
               <Input
                 id="p-key"
@@ -156,8 +156,8 @@ export function ProjectDialog({
                 {...form.register("key")}
               />
               <p className="text-xs text-muted-foreground">
-                Dùng để đánh số công việc, ví dụ <span className="font-mono">WEB-42</span>. Bỏ trống
-                để hệ thống tự tạo.
+                Used to number tasks, e.g. <span className="font-mono">WEB-42</span>. Leave blank
+                and one is generated.
               </p>
               {form.formState.errors.key ? (
                 <p className="text-xs text-destructive">{form.formState.errors.key.message}</p>
@@ -166,13 +166,13 @@ export function ProjectDialog({
           ) : null}
 
           <div className="space-y-2">
-            <Label htmlFor="p-desc">Mô tả</Label>
-            <Textarea id="p-desc" rows={3} placeholder="Dự án này giải quyết điều gì?" {...form.register("description")} />
+            <Label htmlFor="p-desc">Description</Label>
+            <Textarea id="p-desc" rows={3} placeholder="What problem does this project solve?" {...form.register("description")} />
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Trạng thái</Label>
+              <Label>Status</Label>
               <Select
                 value={status}
                 onValueChange={(v) => form.setValue("status", v as ProjectStatus)}
@@ -191,7 +191,7 @@ export function ProjectDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="p-due">Hạn hoàn thành</Label>
+              <Label htmlFor="p-due">Due date</Label>
               <Input
                 id="p-due"
                 type="date"
@@ -208,21 +208,21 @@ export function ProjectDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Màu</Label>
+            <Label>Colour</Label>
             <ColorPicker value={color} onChange={(c) => form.setValue("color", c)} />
           </div>
 
           <div className="space-y-2">
-            <Label>Biểu tượng</Label>
+            <Label>Icon</Label>
             <IconPicker value={icon} onChange={(i) => form.setValue("icon", i)} />
           </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Huỷ
+              Cancel
             </Button>
             <Button type="submit" loading={pending}>
-              {isEdit ? "Lưu thay đổi" : "Tạo dự án"}
+              {isEdit ? "Save changes" : "New project"}
             </Button>
           </DialogFooter>
         </form>

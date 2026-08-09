@@ -94,7 +94,7 @@ export function CommentSection({
 
   return (
     <section className="space-y-4">
-      <h3 className="text-sm font-semibold">Bình luận ({comments.length})</h3>
+      <h3 className="text-sm font-semibold">Comments ({comments.length})</h3>
 
       <ul className="space-y-4">
         {comments.map((comment) => (
@@ -112,7 +112,7 @@ export function CommentSection({
                     size="icon-sm"
                     className="ml-auto opacity-0 transition-opacity group-hover:opacity-100"
                     onClick={() => void handleDelete(comment.id)}
-                    aria-label="Xoá bình luận"
+                    aria-label="Delete comment"
                   >
                     <Trash2 className="size-3.5" />
                   </Button>
@@ -126,7 +126,7 @@ export function CommentSection({
         ))}
 
         {comments.length === 0 ? (
-          <li className="text-sm text-muted-foreground">Chưa có bình luận nào.</li>
+          <li className="text-sm text-muted-foreground">No comments yet.</li>
         ) : null}
       </ul>
 
@@ -141,18 +141,18 @@ export function CommentSection({
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void handleSubmit();
             }}
             rows={3}
-            placeholder="Viết bình luận… dùng @ để nhắc đến ai đó"
+            placeholder="Write a comment… use @ to mention someone"
           />
           <div className="flex items-center gap-2">
             <DropdownMenu>
               {/* Explicit id — see the comment in sidebar.tsx's workspace switcher. */}
               <DropdownMenuTrigger asChild id="comment-mention-trigger">
                 <Button type="button" variant="outline" size="sm">
-                  <AtSign className="size-4" /> Nhắc đến
+                  <AtSign className="size-4" /> Mention
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
-                <DropdownMenuLabel>Thành viên</DropdownMenuLabel>
+                <DropdownMenuLabel>Members</DropdownMenuLabel>
                 {members.map((member) => (
                   <DropdownMenuItem
                     key={member.id}
@@ -172,7 +172,7 @@ export function CommentSection({
               loading={pending}
               disabled={!content.trim()}
             >
-              <Send className="size-4" /> Gửi
+              <Send className="size-4" /> Send
             </Button>
           </div>
         </form>

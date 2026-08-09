@@ -67,10 +67,10 @@ export function InviteMemberDialog({
         return;
       }
 
-      // An existing TaskForge user is added straight away — there is no link to
+      // An existing Kanovra user is added straight away — there is no link to
       // share. Anyone else gets an invitation URL to pass along.
       if (result.data.added) {
-        toast.success("Đã thêm thành viên vào workspace.");
+        toast.success("Member added to the workspace.");
         setOpen(false);
         reset();
       } else {
@@ -78,7 +78,7 @@ export function InviteMemberDialog({
         // unset in development — fall back to the current origin.
         const url = result.data.inviteUrl ?? "";
         setInviteUrl(url.startsWith("http") ? url : `${window.location.origin}${url}`);
-        toast.success("Đã tạo lời mời và gửi email thông báo.");
+        toast.success("Invitation created and email sent.");
       }
       router.refresh();
     });
@@ -91,7 +91,7 @@ export function InviteMemberDialog({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Không sao chép được, hãy chọn và copy thủ công.");
+      toast.error("Couldn't copy — please select and copy it manually.");
     }
   }
 
@@ -106,22 +106,22 @@ export function InviteMemberDialog({
       <DialogTrigger asChild>
         <Button>
           <UserPlus />
-          Mời thành viên
+          Invite member
         </Button>
       </DialogTrigger>
 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Mời thành viên</DialogTitle>
+          <DialogTitle>Invite member</DialogTitle>
           <DialogDescription>
-            Tạo lời mời rồi gửi đường dẫn cho người bạn muốn thêm vào workspace.
+            Create an invitation, then send the link to whoever you want to add.
           </DialogDescription>
         </DialogHeader>
 
         {inviteUrl ? (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="invite-url">Đường dẫn lời mời</Label>
+              <Label htmlFor="invite-url">Invitation link</Label>
               <div className="flex gap-2">
                 <Input id="invite-url" value={inviteUrl} readOnly className="font-mono text-xs" />
                 <Button
@@ -129,22 +129,22 @@ export function InviteMemberDialog({
                   variant="outline"
                   size="icon"
                   onClick={handleCopy}
-                  aria-label="Sao chép đường dẫn"
+                  aria-label="Copy link"
                 >
                   {copied ? <Check className="text-emerald-500" /> : <Copy />}
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Email mời đã được gửi tới địa chỉ trên. Nếu không thấy, kiểm tra thư mục Spam hoặc gửi
-                trực tiếp đường dẫn này. Lời mời có hiệu lực trong 14 ngày và chỉ dùng được một lần.
+                An invite email was sent to that address. If it doesn&apos;t arrive, check Spam or send
+                this link directly. Invitations last 14 days and can be used once.
               </p>
             </div>
 
             <DialogFooter>
               <Button variant="outline" onClick={reset}>
-                Mời người khác
+                Invite someone else
               </Button>
-              <Button onClick={() => setOpen(false)}>Xong</Button>
+              <Button onClick={() => setOpen(false)}>Done</Button>
             </DialogFooter>
           </div>
         ) : (
@@ -163,7 +163,7 @@ export function InviteMemberDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="invite-role">Vai trò</Label>
+              <Label htmlFor="invite-role">Role</Label>
               <Select value={role} onValueChange={(v) => setRole(v as Role)}>
                 <SelectTrigger id="invite-role">
                   <SelectValue />
@@ -181,10 +181,10 @@ export function InviteMemberDialog({
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Huỷ
+                Cancel
               </Button>
               <Button type="submit" loading={pending}>
-                Tạo lời mời
+                Create invitation
               </Button>
             </DialogFooter>
           </form>
