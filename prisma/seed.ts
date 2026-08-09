@@ -22,7 +22,7 @@ function daysFromNow(days: number) {
 }
 
 async function main() {
-  console.log("→ Seeding TaskForge demo data…");
+  console.log("→ Seeding Kanovra demo data…");
 
   // 1. Owner — prefer a real user synced from Clerk.
   let owner = await prisma.user.findFirst({ orderBy: { createdAt: "asc" } });
@@ -30,7 +30,7 @@ async function main() {
     owner = await prisma.user.create({
       data: {
         clerkId: `seed_${randomUUID()}`,
-        email: "demo.owner@taskforge.app",
+        email: "demo.owner@kanovra.app",
         name: "Demo Owner",
         imageUrl: null,
       },
@@ -42,10 +42,10 @@ async function main() {
 
   // 2. Teammates.
   const teammateSeeds = [
-    { email: "linh.tran@taskforge.app", name: "Trần Mỹ Linh" },
-    { email: "hoang.pham@taskforge.app", name: "Phạm Việt Hoàng" },
-    { email: "an.nguyen@taskforge.app", name: "Nguyễn Hải An" },
-    { email: "mai.le@taskforge.app", name: "Lê Thanh Mai" },
+    { email: "linh.tran@kanovra.app", name: "Trần Mỹ Linh" },
+    { email: "hoang.pham@kanovra.app", name: "Phạm Việt Hoàng" },
+    { email: "an.nguyen@kanovra.app", name: "Nguyễn Hải An" },
+    { email: "mai.le@kanovra.app", name: "Lê Thanh Mai" },
   ];
   const extra = (process.env.SEED_DEMO_EMAILS ?? "")
     .split(",")

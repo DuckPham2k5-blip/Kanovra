@@ -10,9 +10,9 @@
 module.exports = {
   apps: [
     {
-      name: "taskforge",
+      name: "kanovra",
       script: ".next/standalone/server.js",
-      cwd: "/var/www/taskforge",
+      cwd: "/var/www/kanovra",
       // `cluster` lets PM2 reload with zero downtime; one worker per core, but
       // capped so a small VPS is not starved of memory.
       exec_mode: "cluster",
@@ -22,8 +22,8 @@ module.exports = {
       watch: false,
       time: true,
       merge_logs: true,
-      error_file: "/var/log/taskforge/error.log",
-      out_file: "/var/log/taskforge/out.log",
+      error_file: "/var/log/kanovra/error.log",
+      out_file: "/var/log/kanovra/out.log",
       env: {
         NODE_ENV: "production",
         PORT: 3000,

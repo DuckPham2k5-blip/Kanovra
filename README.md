@@ -1,4 +1,4 @@
-# TaskForge
+# Kanovra
 
 Nền tảng quản lý công việc nhóm: bảng Kanban kéo thả, dashboard, analytics và lịch — tất cả trong một.
 
@@ -74,8 +74,8 @@ src/
 ### 1. Cài đặt
 
 ```bash
-git clone https://github.com/<user>/taskforge.git
-cd taskforge
+git clone https://github.com/<user>/kanovra.git
+cd kanovra
 npm install
 ```
 
@@ -178,8 +178,8 @@ Tóm tắt nhanh cho VPS:
 
 ```bash
 ssh user@your-vps
-git clone https://github.com/<user>/taskforge.git /var/www/taskforge
-cd /var/www/taskforge
+git clone https://github.com/<user>/kanovra.git /var/www/kanovra
+cd /var/www/kanovra
 cp .env.example .env && nano .env
 chmod +x deploy/deploy.sh
 ./deploy/deploy.sh
@@ -194,8 +194,8 @@ Repo chưa được khởi tạo Git. Khi bạn sẵn sàng:
 ```bash
 git init -b main
 git add .
-git commit -m "feat: initial TaskForge implementation"
-git remote add origin https://github.com/<user>/taskforge.git
+git commit -m "feat: initial Kanovra implementation"
+git remote add origin https://github.com/<user>/kanovra.git
 git push -u origin main
 ```
 

@@ -1,6 +1,6 @@
-# Triển khai TaskForge
+# Triển khai Kanovra
 
-Hướng dẫn đưa TaskForge lên production. Có ba con đường; chọn một.
+Hướng dẫn đưa Kanovra lên production. Có ba con đường; chọn một.
 
 | Cách | Phù hợp khi | Độ khó |
 | --- | --- | --- |
@@ -58,16 +58,16 @@ node -v && npm -v
 
 ```bash
 sudo -u postgres psql <<'SQL'
-CREATE USER taskforge WITH PASSWORD 'mat-khau-that-manh';
-CREATE DATABASE taskforge OWNER taskforge;
-GRANT ALL PRIVILEGES ON DATABASE taskforge TO taskforge;
+CREATE USER kanovra WITH PASSWORD 'mat-khau-that-manh';
+CREATE DATABASE kanovra OWNER kanovra;
+GRANT ALL PRIVILEGES ON DATABASE kanovra TO kanovra;
 SQL
 ```
 
 Kiểm tra:
 
 ```bash
-psql "postgresql://taskforge:mat-khau-that-manh@localhost:5432/taskforge" -c '\conninfo'
+psql "postgresql://kanovra:mat-khau-that-manh@localhost:5432/kanovra" -c '\conninfo'
 ```
 
 ### 1.3. Tạo user chạy ứng dụng
@@ -75,17 +75,17 @@ psql "postgresql://taskforge:mat-khau-that-manh@localhost:5432/taskforge" -c '\c
 Không chạy ứng dụng bằng `root`:
 
 ```bash
-adduser --system --group --home /var/www/taskforge deploy
-mkdir -p /var/log/taskforge
-chown -R deploy:deploy /var/www/taskforge /var/log/taskforge
+adduser --system --group --home /var/www/kanovra deploy
+mkdir -p /var/log/kanovra
+chown -R deploy:deploy /var/www/kanovra /var/log/kanovra
 ```
 
 ### 1.4. Lấy mã nguồn
 
 ```bash
 su - deploy -s /bin/bash
-git clone https://github.com/<user>/taskforge.git /var/www/taskforge
-cd /var/www/taskforge
+git clone https://github.com/<user>/kanovra.git /var/www/kanovra
+cd /var/www/kanovra
 ```
 
 ### 1.5. Biến môi trường
@@ -96,14 +96,14 @@ nano .env
 ```
 
 ```env
-DATABASE_URL="postgresql://taskforge:mat-khau-that-manh@localhost:5432/taskforge?schema=public"
-DIRECT_URL="postgresql://taskforge:mat-khau-that-manh@localhost:5432/taskforge?schema=public"
+DATABASE_URL="postgresql://kanovra:mat-khau-that-manh@localhost:5432/kanovra?schema=public"
+DIRECT_URL="postgresql://kanovra:mat-khau-that-manh@localhost:5432/kanovra?schema=public"
 
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_live_..."
 CLERK_SECRET_KEY="sk_live_..."
 CLERK_WEBHOOK_SECRET="whsec_..."
 
-NEXT_PUBLIC_APP_URL="https://taskforge.example.com"
+NEXT_PUBLIC_APP_URL="https://kanovra.example.com"
 ```
 
 Khoá quyền đọc file này:
@@ -133,7 +133,7 @@ Bật PM2 khởi động cùng hệ thống (chạy bằng `root`):
 
 ```bash
 exit                                   # trở lại root
-pm2 startup systemd -u deploy --hp /var/www/taskforge
+pm2 startup systemd -u deploy --hp /var/www/kanovra
 # chạy lệnh mà pm2 in ra
 ```
 
@@ -147,9 +147,9 @@ curl http://127.0.0.1:3000/api/health
 ### 1.7. Nginx + HTTPS
 
 ```bash
-cp /var/www/taskforge/deploy/nginx.conf /etc/nginx/sites-available/taskforge
-nano /etc/nginx/sites-available/taskforge     # đổi server_name thành domain của bạn
-ln -sf /etc/nginx/sites-available/taskforge /etc/nginx/sites-enabled/taskforge
+cp /var/www/kanovra/deploy/nginx.conf /etc/nginx/sites-available/kanovra
+nano /etc/nginx/sites-available/kanovra     # đổi server_name thành domain của bạn
+ln -sf /etc/nginx/sites-available/kanovra /etc/nginx/sites-enabled/kanovra
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 ```
@@ -157,7 +157,7 @@ nginx -t && systemctl reload nginx
 Cấp chứng chỉ Let's Encrypt:
 
 ```bash
-certbot --nginx -d taskforge.example.com -d www.taskforge.example.com
+certbot --nginx -d kanovra.example.com -d www.kanovra.example.com
 systemctl status certbot.timer      # tự động gia hạn
 ```
 
@@ -187,7 +187,7 @@ PostgreSQL chỉ nghe trên `localhost` theo mặc định — đừng mở cổ
 
 ```bash
 ssh deploy@<ip-vps>
-cd /var/www/taskforge
+cd /var/www/kanovra
 ./deploy/deploy.sh
 ```
 
@@ -247,17 +247,17 @@ Repository → **Settings** → **Secrets and variables** → **Actions**:
 
 | Tên | Giá trị |
 | --- | --- |
-| `APP_URL` | `https://taskforge.example.com` |
-| `APP_DIR` | `/var/www/taskforge` |
+| `APP_URL` | `https://kanovra.example.com` |
+| `APP_DIR` | `/var/www/kanovra` |
 
 ### Tạo cặp khoá SSH cho CI
 
 Trên máy cục bộ:
 
 ```bash
-ssh-keygen -t ed25519 -C "github-actions-taskforge" -f ~/.ssh/taskforge_deploy -N ""
-ssh-copy-id -i ~/.ssh/taskforge_deploy.pub deploy@<ip-vps>
-cat ~/.ssh/taskforge_deploy       # dán vào secret SSH_PRIVATE_KEY
+ssh-keygen -t ed25519 -C "github-actions-kanovra" -f ~/.ssh/kanovra_deploy -N ""
+ssh-copy-id -i ~/.ssh/kanovra_deploy.pub deploy@<ip-vps>
+cat ~/.ssh/kanovra_deploy       # dán vào secret SSH_PRIVATE_KEY
 ```
 
 ### Luồng hoạt động
@@ -273,41 +273,41 @@ cat ~/.ssh/taskforge_deploy       # dán vào secret SSH_PRIVATE_KEY
 ### Xem log
 
 ```bash
-pm2 logs taskforge              # log ứng dụng, realtime
+pm2 logs kanovra              # log ứng dụng, realtime
 pm2 monit                       # CPU / RAM
-tail -f /var/log/nginx/taskforge.error.log
+tail -f /var/log/nginx/kanovra.error.log
 ```
 
 ### Sao lưu database
 
-Tạo `/etc/cron.daily/taskforge-backup`:
+Tạo `/etc/cron.daily/kanovra-backup`:
 
 ```bash
 #!/bin/sh
 set -e
-BACKUP_DIR=/var/backups/taskforge
+BACKUP_DIR=/var/backups/kanovra
 mkdir -p "$BACKUP_DIR"
-FILE="$BACKUP_DIR/taskforge-$(date +%F).sql.gz"
-sudo -u postgres pg_dump taskforge | gzip > "$FILE"
+FILE="$BACKUP_DIR/kanovra-$(date +%F).sql.gz"
+sudo -u postgres pg_dump kanovra | gzip > "$FILE"
 # Giữ 14 ngày gần nhất
-find "$BACKUP_DIR" -name 'taskforge-*.sql.gz' -mtime +14 -delete
+find "$BACKUP_DIR" -name 'kanovra-*.sql.gz' -mtime +14 -delete
 ```
 
 ```bash
-chmod +x /etc/cron.daily/taskforge-backup
+chmod +x /etc/cron.daily/kanovra-backup
 ```
 
 Khôi phục:
 
 ```bash
-gunzip -c /var/backups/taskforge/taskforge-2026-08-07.sql.gz | sudo -u postgres psql taskforge
+gunzip -c /var/backups/kanovra/kanovra-2026-08-07.sql.gz | sudo -u postgres psql kanovra
 ```
 
 ### Khắc phục sự cố
 
 | Triệu chứng | Nguyên nhân thường gặp |
 | --- | --- |
-| `502 Bad Gateway` | Tiến trình Node chết — `pm2 logs taskforge` |
+| `502 Bad Gateway` | Tiến trình Node chết — `pm2 logs kanovra` |
 | `/api/health` trả 503 | Sai `DATABASE_URL`, hoặc PostgreSQL chưa chạy |
 | Đăng nhập chuyển hướng vòng lặp | `NEXT_PUBLIC_APP_URL` không khớp domain thật, hoặc domain chưa thêm vào Clerk |
 | Tên/ảnh user không cập nhật | Webhook Clerk sai URL hoặc sai `CLERK_WEBHOOK_SECRET` |

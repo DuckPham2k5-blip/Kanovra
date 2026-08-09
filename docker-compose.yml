@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: taskforge-db
+    container_name: kanovra-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: taskforge
@@ -29,7 +29,7 @@ services:
       args:
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
-    container_name: taskforge-app
+    container_name: kanovra-app
     restart: unless-stopped
     depends_on:
       postgres:
@@ -42,8 +42,17 @@ services:
       CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET}
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      # Attachments live on a named volume: the container filesystem is
+      # replaced on every redeploy, so anything written inside the image is
+      # lost the first time you ship a change.
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - kanovra-uploads:/data/uploads
     ports:
       - "3000:3000"
 
 volumes:
+  # Kept as taskforge-pgdata on purpose — renaming it would point Postgres at
+  # a fresh empty volume and orphan the existing database.
   taskforge-pgdata:
+  kanovra-uploads:

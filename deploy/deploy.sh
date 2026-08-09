@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 #
-# TaskForge — zero-downtime deploy for a Hostinger VPS.
+# Kanovra — zero-downtime deploy for a Hostinger VPS.
 #
 # Run on the server, from the app directory:
-#   cd /var/www/taskforge && ./deploy/deploy.sh
+#   cd /var/www/kanovra && ./deploy/deploy.sh
 #
 # Assumes: git remote configured, Node 20+, npm, pm2 and postgres available,
 # and a populated .env file alongside this repo.
 
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-/var/www/taskforge}"
+APP_DIR="${APP_DIR:-/var/www/kanovra}"
 BRANCH="${BRANCH:-main}"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:3000/api/health}"
-PM2_APP="${PM2_APP:-taskforge}"
+PM2_APP="${PM2_APP:-kanovra}"
 
 log()  { printf '\033[1;34m→ %s\033[0m\n' "$*"; }
 ok()   { printf '\033[1;32m✔ %s\033[0m\n' "$*"; }

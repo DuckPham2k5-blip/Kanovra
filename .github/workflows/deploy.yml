@@ -39,7 +39,7 @@ jobs:
           command_timeout: 15m
           script: |
             set -euo pipefail
-            cd ${{ vars.APP_DIR || '/var/www/taskforge' }}
+            cd ${{ vars.APP_DIR || '/var/www/kanovra' }}
             ./deploy/deploy.sh
 
       - name: Verify the site is up
