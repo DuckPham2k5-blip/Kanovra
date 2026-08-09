@@ -1,5 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+
+import { consumeToken, WRITE_LIMIT } from "@/lib/rate-limit";
 
 /**
  * Everything is private by default. Only the marketing page, the auth screens,
@@ -20,9 +22,41 @@ const isPublicRoute = createRouteMatcher([
   "/api/health",
 ]);
 
+/**
+ * Server Actions are POSTs to the page's own URL, not to `/api/`, so the
+ * Nginx rate limit on that prefix never saw them — every write path in the app
+ * was uncapped. They are identifiable by the `Next-Action` header, which makes
+ * middleware the one place that can cover all of them at once; the alternative
+ * was a guard in 26 action bodies, and missing one leaves a hole.
+ */
+function isServerAction(req: NextRequest) {
+  return req.method === "POST" && req.headers.has("next-action");
+}
+
 export default clerkMiddleware(async (auth, req) => {
   if (isPublicRoute(req)) return NextResponse.next();
-  await auth.protect();
+
+  const { userId } = await auth.protect();
+
+  if (isServerAction(req)) {
+    // Keyed by user rather than by IP: a whole office behind one NAT address
+    // would otherwise share a single allowance.
+    const verdict = consumeToken(`action:${userId}`, WRITE_LIMIT);
+    if (!verdict.ok) {
+      return NextResponse.json(
+        { error: "Too many requests. Please slow down and try again shortly." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(verdict.retryAfterSeconds),
+            "X-RateLimit-Limit": String(WRITE_LIMIT.limit),
+            "X-RateLimit-Remaining": "0",
+          },
+        },
+      );
+    }
+  }
+
   return NextResponse.next();
 });
 
