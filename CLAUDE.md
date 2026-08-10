@@ -179,9 +179,28 @@ accounts** (the teammate was simulated at the bus, so the membership check in
 **the multi-worker case** that motivates the whole design — dev is a single
 process, so cross-*worker* delivery has not been seen; and the Nginx config.
 
-**Not verified by anyone yet** — built but never seen running, because the
-assistant cannot sign in as the user: attachment upload/download, the sidebar
-Log out button, and the centred background glyph.
+**Attachments, Log out and the page glyph: verified the same day**, with the
+owner signed in and the assistant driving a browser against that session.
+
+- Two files uploaded through the UI landed in `uploads/` under generated
+  UUIDs, never the uploader's filename, and nothing appeared under `public/`.
+- The stored-XSS guard holds. An `.svg` carrying a `<script>` came back as
+  `application/octet-stream` with `Content-Disposition: attachment`, so the
+  browser cannot execute it on our origin; a `.png` came back `image/png`
+  inline. Bogus ids and both spellings of a path-traversal id answered 404.
+- Remove deletes the row **and** the file on disk — the silent failure here
+  is a UI that forgets the bytes, and it does not happen.
+- Log out calls `Clerk.signOut`, clears the session and its cookie, returns
+  to `/`, and a protected URL then bounces to `/sign-in`.
+- The glyph is genuinely painted, not just present in the DOM: photographed
+  on Notifications, and above the shell background at 361 of 361 sampled
+  points, so the `-z-10` bug has not come back. Under the reduced-motion
+  preference it still draws, lines complete, breathe stretched to 9s. How
+  much of it shows is a function of page density — 94% on Notifications, 25%
+  on a full board — which is the design working, not a fault.
+
+The membership re-check in `/api/attachments/[id]` remains unproven for the
+same reason as the realtime one: no second account has ever signed in.
 
 **Only the owner can do these:**
 
