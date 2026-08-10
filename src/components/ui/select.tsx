@@ -17,7 +17,13 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 [&>span]:text-left",
+      // Opaque, not transparent. A control has to look like a control wherever
+      // it lands, and these sit on the page header, which now carries a moving
+      // aurora behind it — through a transparent trigger the light showed
+      // straight through and the button stopped reading as a button. Neutral
+      // rather than tinted on purpose: the header's hue changes per route, so
+      // any fixed colour would clash on some page or other.
+      "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 [&>span]:text-left",
       className,
     )}
     {...props}
