@@ -24,12 +24,30 @@ import { logError, logWarn } from "@/lib/logger";
 
 const CHANNEL = "kanovra_changes";
 
+/**
+ * Names the browser, not the person. Set by the client on first paint and read
+ * back on the server for every mutation, which is how a change can be traced to
+ * the one browser that already refreshed itself. Readable by script on purpose
+ * — the client has to compare it against incoming events — and therefore never
+ * used for anything that requires trust.
+ */
+export const ORIGIN_COOKIE = "tf_origin";
+
 export type ChangeEvent = {
   workspaceId: string;
   /** Coarse hint so a client can ignore changes it does not render. */
   scope: "task" | "project" | "comment" | "member" | "notification" | "workspace";
-  /** The actor, so a client can skip echoing a change back to whoever made it. */
+  /** Who made the change. Carried for display and debugging, not for filtering. */
   actorId?: string;
+  /**
+   * Which *browser* made the change, from the `tf_origin` cookie.
+   *
+   * This is what a client skips its own echo on. Filtering on `actorId` looked
+   * equivalent and is not: one person signed in on a laptop and a phone is one
+   * actor with two screens, so every change they made on one silently failed to
+   * reach the other. The browser is the thing that already refreshed.
+   */
+  originId?: string;
 };
 
 /**

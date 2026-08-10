@@ -135,12 +135,13 @@ stack.
   with the file-writing tool, not by piping through a shell.
 - Docker Desktop on this machine can take several minutes to start and may need
   launching from the Start menu by hand.
-- **Two browser windows signed in as the same account cannot demonstrate live
-  updates.** The client deliberately drops events it caused itself
-  (`realtime-sync.tsx`), because the acting page has already refreshed. The
-  second window receives the event and ignores it, which looks exactly like a
-  broken feature. Use two different accounts, or publish a change with someone
-  else's `actorId`.
+- **Two tabs of the same browser still cannot demonstrate live updates**, though
+  two different browsers now can. The client skips its own echo, and "its own"
+  is the browser, keyed on the `tf_origin` cookie (`realtime-sync.tsx`). Cookies
+  are per browser, not per tab, so a second tab still discards what the first
+  one did. A laptop and a phone, or Edge and Chrome, do update each other.
+  This used to be keyed on `actorId`, which made one person's two devices
+  invisible to each other — see the note in `ChangeEvent`.
 - **`publishChange` logs nothing on success**, so a silent server log is not
   evidence either way. To watch the bus, open a separate `LISTEN
   kanovra_changes` connection and read the payloads directly; to check the app

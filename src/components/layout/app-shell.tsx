@@ -79,7 +79,7 @@ export function AppShell({
   return (
     <PageAccentScope className="relative flex h-dvh overflow-hidden bg-background">
       <AmbientBackdrop />
-      <RealtimeSync workspaceSlug={workspace.slug} currentUserId={user.id} />
+      <RealtimeSync workspaceSlug={workspace.slug} />
 
       {/* `relative z-10` on the chrome and the content column is what keeps
           them above the decorative layers. Those layers cannot use a negative

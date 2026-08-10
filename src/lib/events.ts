@@ -1,10 +1,11 @@
 import "server-only";
 
 import type { ActivityType, NotificationType, Prisma } from "@prisma/client";
+import { cookies } from "next/headers";
 
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
-import { publishChange, type ChangeEvent } from "@/lib/realtime";
+import { ORIGIN_COOKIE, publishChange, type ChangeEvent } from "@/lib/realtime";
 
 /**
  * Activity + notification writes. Both are fire-and-forget from the caller's
@@ -37,6 +38,21 @@ function scopeForActivity(type: ActivityType): ChangeEvent["scope"] {
   return "workspace";
 }
 
+/**
+ * The calling browser's id, or undefined when there is no request to read it
+ * from — a webhook, a script, a seed. `cookies()` throws outside a request
+ * scope rather than returning empty, so the throw is the signal, not an error.
+ * An absent id simply means nobody claims authorship and every client refreshes.
+ */
+async function currentOriginId(): Promise<string | undefined> {
+  try {
+    const store = await cookies();
+    return store.get(ORIGIN_COOKIE)?.value;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function logActivity(input: ActivityInput) {
   try {
     await prisma.activity.create({
@@ -61,6 +77,7 @@ export async function logActivity(input: ActivityInput) {
     workspaceId: input.workspaceId,
     scope: scopeForActivity(input.type),
     actorId: input.actorId,
+    originId: await currentOriginId(),
   });
 }
 
