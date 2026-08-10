@@ -135,6 +135,21 @@ stack.
   with the file-writing tool, not by piping through a shell.
 - Docker Desktop on this machine can take several minutes to start and may need
   launching from the Start menu by hand.
+- **Two browser windows signed in as the same account cannot demonstrate live
+  updates.** The client deliberately drops events it caused itself
+  (`realtime-sync.tsx`), because the acting page has already refreshed. The
+  second window receives the event and ignores it, which looks exactly like a
+  broken feature. Use two different accounts, or publish a change with someone
+  else's `actorId`.
+- **`publishChange` logs nothing on success**, so a silent server log is not
+  evidence either way. To watch the bus, open a separate `LISTEN
+  kanovra_changes` connection and read the payloads directly; to check the app
+  is subscribed, look for `query ilike 'listen%'` in `pg_stat_activity`. That
+  subscription is lazy — nothing listens until an SSE stream opens.
+- When testing anything by changing the database underneath a running page,
+  change the data *first* without notifying and confirm the screen has **not**
+  moved. Otherwise a stray reload — or Fast Refresh after a recompile — gets
+  mistaken for the feature working.
 
 ---
 
@@ -143,10 +158,30 @@ stack.
 All application work asked for so far is committed to `main` and green:
 typecheck, lint, 40 tests, production build.
 
-**Not verified by anyone yet** — these were built but never seen running,
-because the assistant cannot sign in as the user: live updates across two
-browser windows, attachment upload/download, the sidebar Log out button, and
-the centred background glyph.
+**Live updates: verified end to end on 2026-08-10**, in dev, with the owner
+driving the browser. What the run actually established:
+
+- A drag published a notification. Two `TASK_MOVED` activities produced two
+  `pg_notify` calls whose timestamps matched the activity rows to the second.
+- The notification left the app process. A separate Node process holding its
+  own `LISTEN kanovra_changes` connection received both — which is precisely
+  what an in-process `EventEmitter` cannot do, and the reason this design was
+  chosen.
+- The delivery half works. Publishing a change with a *different* `actorId`
+  while a task title had been altered directly in the database made the board
+  redraw with the new title, no reload, roughly half a second later.
+- `EventSource` reconnects after a stream ends. One SSE request closed at
+  395s; delivery still worked on that page half an hour after it loaded.
+
+Still unverified, and worth saying plainly: **two genuinely different signed-in
+accounts** (the teammate was simulated at the bus, so the membership check in
+`/api/realtime/[slug]` has only ever run for the owner's own session);
+**the multi-worker case** that motivates the whole design — dev is a single
+process, so cross-*worker* delivery has not been seen; and the Nginx config.
+
+**Not verified by anyone yet** — built but never seen running, because the
+assistant cannot sign in as the user: attachment upload/download, the sidebar
+Log out button, and the centred background glyph.
 
 **Only the owner can do these:**
 
