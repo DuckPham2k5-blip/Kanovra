@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { ForbiddenError, getMembership, requireUser } from "@/lib/auth";
 import { sendEmail, workspaceInviteEmail } from "@/lib/email";
 import { logActivity, notify } from "@/lib/events";
+import { invitationIsFor } from "@/lib/invitations";
 import { can, canManageRole, ROLE_LABEL } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { inviteMemberSchema, updateMemberRoleSchema } from "@/lib/validations";
@@ -150,6 +151,13 @@ export async function acceptInvitation(token: string): Promise<ActionResult<{ sl
 
     if (!invitation) return fail("That invitation does not exist.");
     if (invitation.status !== InvitationStatus.PENDING) return fail("That invitation was already used or revoked.");
+
+    // Holding the link is not the same as being the person it was sent to.
+    // Same wording as the missing case on purpose: someone who forwarded
+    // themselves a link learns nothing about who it was really for.
+    if (!invitationIsFor(invitation.email, user.email)) {
+      return fail("That invitation was sent to a different email address.");
+    }
     if (invitation.expiresAt < new Date()) {
       await prisma.invitation.update({
         where: { id: invitation.id },
