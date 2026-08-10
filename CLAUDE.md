@@ -173,11 +173,23 @@ driving the browser. What the run actually established:
 - `EventSource` reconnects after a stream ends. One SSE request closed at
   395s; delivery still worked on that page half an hour after it loaded.
 
-Still unverified, and worth saying plainly: **two genuinely different signed-in
-accounts** (the teammate was simulated at the bus, so the membership check in
-`/api/realtime/[slug]` has only ever run for the owner's own session);
-**the multi-worker case** that motivates the whole design — dev is a single
-process, so cross-*worker* delivery has not been seen; and the Nginx config.
+The authorization half was closed the same day, without a second account. A
+workspace the owner is *not* a member of, holding a project, a task and an
+attachment, exercises exactly the branch that was unproven — the check asks
+whether the caller is a member, and does not care which account calls. From
+the owner's own signed-in session, `/api/realtime/outsider-test` answered
+`Not found` while `/api/realtime/acme-product` opened a real stream in the
+next tab, and `/api/attachments/<id in that workspace>` answered `Not found`
+while an attachment in the owner's own workspace rendered inline. One route,
+one session, opposite answers — which is what rules out "the route is simply
+broken". The fixture was deleted afterwards. That run also showed the 25s
+`: keep-alive` heartbeat arriving, which nothing had confirmed before.
+
+Still unverified: **two genuinely different signed-in sessions** exchanging
+updates (the teammate has only ever been simulated — either at the bus or by
+a fixture, never by a second Clerk account); **the multi-worker case** that
+motivates the whole design — dev is a single process, so cross-*worker*
+delivery has not been seen; and the Nginx config.
 
 **Attachments, Log out and the page glyph: verified the same day**, with the
 owner signed in and the assistant driving a browser against that session.
@@ -199,8 +211,8 @@ owner signed in and the assistant driving a browser against that session.
   much of it shows is a function of page density — 94% on Notifications, 25%
   on a full board — which is the design working, not a fault.
 
-The membership re-check in `/api/attachments/[id]` remains unproven for the
-same reason as the realtime one: no second account has ever signed in.
+The membership re-check in `/api/attachments/[id]` was proven the same way as
+the realtime one, with a workspace the owner does not belong to — see above.
 
 **Only the owner can do these:**
 
