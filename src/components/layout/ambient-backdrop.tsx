@@ -25,6 +25,14 @@ export function AmbientBackdrop({
       {/* Radial bloom — the main colour wash. */}
       <div className="tf-ambient-bloom" />
 
+      {/* Aurora ribbons. They sit above the bloom and below the arcs so the
+          hairlines stay legible over them. */}
+      <div className="tf-aurora">
+        <div className="tf-aurora-band tf-aurora-band-a" />
+        <div className="tf-aurora-band tf-aurora-band-b" />
+        <div className="tf-aurora-band tf-aurora-band-c" />
+      </div>
+
       {/* Concentric arcs. Rendered as SVG so the strokes stay hairline-thin at
           any zoom level, unlike a border-radius trick. */}
       <svg

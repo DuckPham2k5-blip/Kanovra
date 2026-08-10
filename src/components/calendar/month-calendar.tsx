@@ -118,8 +118,12 @@ export function MonthCalendar({
       </div>
 
       {/* Desktop grid */}
-      <div className="hidden overflow-hidden rounded-lg border md:block">
-        <div className="grid grid-cols-7 border-b bg-muted/40">
+      {/* Translucent on purpose — see `.tf-calendar-surface`. The drawing behind
+          shows through the empty parts of the grid, while every chip below is
+          composited against this same colour and stays opaque, so no label ever
+          has the glyph running through it. */}
+      <div className="tf-calendar-surface hidden overflow-hidden rounded-lg border shadow-sm md:block">
+        <div className="grid grid-cols-7 border-b bg-muted">
           {WEEKDAY_LABELS.map((label) => (
             <div
               key={label}
@@ -171,11 +175,13 @@ export function MonthCalendar({
                     <button
                       key={task.id}
                       onClick={() => openTask(task.id)}
-                      className="block w-full truncate rounded px-1.5 py-1 text-left text-[11px] leading-tight transition-colors hover:brightness-95"
-                      style={{
-                        backgroundColor: `${task.project.color}1a`,
-                        color: task.project.color,
-                      }}
+                      className="tf-calendar-chip block w-full truncate rounded px-1.5 py-1 text-left text-[11px] leading-tight transition-colors hover:brightness-95"
+                      style={
+                        {
+                          "--tf-chip-color": task.project.color,
+                          color: task.project.color,
+                        } as React.CSSProperties
+                      }
                       title={task.title}
                     >
                       <span

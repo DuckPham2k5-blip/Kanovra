@@ -152,6 +152,35 @@
     overflow-x: auto;
   }
 
+  /* ---------------------------------------------------------------------
+     Calendar surface
+
+     Two opposing requirements, resolved by treating the empty parts of the
+     grid differently from the parts carrying text. The surface is translucent,
+     so the glyph behind it stays readable as a drawing — detail and all —
+     while every task chip is composited against that same surface colour and
+     is therefore fully opaque. Nothing shows through a label; everything shows
+     through the gaps.
+
+     `--tf-cal-base` is declared here and consumed by the chips, so the two can
+     never drift apart: change the surface and the chips follow.
+     --------------------------------------------------------------------- */
+  .tf-calendar-surface {
+    --tf-cal-base: hsl(var(--card));
+    background-color: color-mix(in srgb, var(--tf-cal-base) 80%, transparent);
+  }
+  .dark .tf-calendar-surface {
+    --tf-cal-base: hsl(var(--background));
+    background-color: color-mix(in srgb, var(--tf-cal-base) 62%, transparent);
+  }
+
+  .tf-calendar-chip {
+    background-color: color-mix(in srgb, var(--tf-chip-color) 16%, var(--tf-cal-base));
+  }
+  .dark .tf-calendar-chip {
+    background-color: color-mix(in srgb, var(--tf-chip-color) 22%, var(--tf-cal-base));
+  }
+
   /* Dotted backdrop for the marketing hero and empty states. */
   .tf-dots {
     background-image: radial-gradient(circle at 1px 1px, hsl(var(--border)) 1px, transparent 0);
@@ -199,6 +228,217 @@
       color-mix(in srgb, var(--page-accent) 17%, transparent) 45%,
       transparent 72%
     );
+  }
+
+  /* ---------------------------------------------------------------------
+     Aurora — slow ribbons of the page's own accent, drifting behind
+     everything. It reads `--page-accent` like the bloom does, so a route
+     change carries the aurora with it instead of introducing a second,
+     competing palette.
+
+     Only `transform` is animated. The blur is expensive to compute and
+     cheap to move: rasterised once, then shifted by the compositor, so a
+     permanently running loop costs no repaints. Animating the gradient or
+     the filter instead would re-rasterise a full-screen blurred layer on
+     every frame, which is exactly the kind of thing that makes a page feel
+     heavy.
+     --------------------------------------------------------------------- */
+
+  /* Base opacity lives on the wrapper, not on the bands — the same trick the
+     glyph uses, and for the same reason. A keyframe that touches `opacity`
+     *replaces* the property rather than scaling it, so a band carrying its own
+     base value would jump to the keyframe's number the moment the reduced-motion
+     animation took over. Nested opacities multiply, so the wrapper keeps the
+     overall strength no matter what the bands are doing. */
+  .tf-aurora {
+    @apply pointer-events-none absolute inset-x-0 top-0 overflow-hidden;
+    height: 42rem;
+    opacity: 0.3;
+  }
+  .dark .tf-aurora {
+    opacity: 0.45;
+  }
+
+  .tf-aurora-band {
+    @apply absolute;
+    filter: blur(72px);
+    will-change: transform;
+  }
+
+  /* ---------------------------------------------------------------------
+     Header aurora — the same idea confined to the page title bar, sweeping
+     left to right. Base opacity on the wrapper for the reason given above.
+     --------------------------------------------------------------------- */
+
+  /* Strength lives here so the three layers below keep their relative balance
+     when it is turned up or down. Light mode runs weaker on purpose: the same
+     wash that reads as luminous behind white text washes out dark text. */
+  .tf-header-aurora {
+    @apply pointer-events-none absolute inset-0 z-0 overflow-hidden;
+    opacity: 0.38;
+  }
+  .dark .tf-header-aurora {
+    opacity: 0.85;
+  }
+
+  /* Crests, not clouds. Each band is a narrow strip whose gradient carries a
+     bright hairline at its centre with a short halo either side, so what
+     travels reads as a moving edge of light rather than a glowing blob. The
+     blur is 2px — just enough to take the aliasing off the line while leaving
+     it a line.
+
+     Tilted a little off vertical: a perfectly upright line scans like a
+     progress bar, while a slanted one reads as the crest of something passing
+     through. It is over-height so the slanted ends are clipped by the header
+     rather than stopping inside it. */
+  /* Layer 1 — the colour body. Wide, soft and slow; this is what gives the bar
+     its hue at a glance. Blurred far past its own edges so it never presents a
+     boundary. */
+  .tf-aurora-cloud {
+    @apply absolute rounded-full;
+    top: -120%;
+    height: 340%;
+    filter: blur(46px);
+    will-change: transform;
+  }
+  .tf-aurora-cloud-a {
+    left: 4%;
+    width: 58%;
+    background: radial-gradient(
+      closest-side,
+      color-mix(in srgb, var(--page-accent) 78%, transparent) 0%,
+      color-mix(in srgb, var(--page-accent) 30%, transparent) 55%,
+      transparent 100%
+    );
+    animation: tf-aurora-swim-a 43s ease-in-out infinite;
+  }
+  .tf-aurora-cloud-b {
+    right: 2%;
+    width: 46%;
+    background: radial-gradient(
+      closest-side,
+      color-mix(in srgb, var(--page-accent) 60%, white) 0%,
+      color-mix(in srgb, var(--page-accent) 45%, transparent) 50%,
+      transparent 100%
+    );
+    animation: tf-aurora-swim-b 57s ease-in-out infinite;
+  }
+
+  /* Layer 2 — the hot core. Small, bright, nearly white at the centre. */
+  .tf-aurora-core {
+    @apply absolute rounded-full;
+    top: -60%;
+    left: 46%;
+    height: 220%;
+    width: 26%;
+    filter: blur(26px);
+    background: radial-gradient(
+      closest-side,
+      color-mix(in srgb, var(--page-accent) 25%, white) 0%,
+      color-mix(in srgb, var(--page-accent) 70%, transparent) 45%,
+      transparent 100%
+    );
+    will-change: transform;
+    animation: tf-aurora-core-drift 37s ease-in-out infinite;
+  }
+
+  /* Layer 3 — filaments. */
+  .tf-header-waves {
+    @apply absolute inset-0 h-full w-full;
+  }
+
+  .tf-wave-bloom {
+    stroke: url(#tf-wave-fade);
+    stroke-width: 7;
+    stroke-linecap: round;
+    filter: blur(5px);
+    opacity: 0.55;
+  }
+
+  .tf-wave-line {
+    stroke: url(#tf-wave-fade);
+    stroke-width: 1.1;
+    stroke-linecap: round;
+  }
+
+  /* Each row travels exactly one viewBox width per cycle, so the seam lands on
+     an identical crest and never shows. Speeds are deliberately unrelated and
+     some rows run the other way: matched speeds read as one sheet sliding,
+     which is the thing that stops looking like light moving through light. */
+  .tf-wave-row {
+    will-change: transform;
+    animation: tf-wave-travel 24s linear infinite;
+  }
+  .tf-wave-row-a {
+    animation-duration: 29s;
+    opacity: 0.9;
+  }
+  .tf-wave-row-b {
+    animation-name: tf-wave-travel-back;
+    animation-duration: 41s;
+    opacity: 0.7;
+  }
+  .tf-wave-row-c {
+    animation-duration: 34s;
+    opacity: 0.8;
+  }
+  .tf-wave-row-d {
+    animation-name: tf-wave-travel-back;
+    animation-duration: 53s;
+    opacity: 0.55;
+  }
+  .tf-wave-row-e {
+    animation-duration: 47s;
+    opacity: 0.45;
+  }
+
+  /* Three ribbons at different widths, speeds and directions. Prime-ish
+     durations keep them from lining up into a visible pulse. */
+  .tf-aurora-band-a {
+    left: -15%;
+    top: -6rem;
+    width: 75%;
+    height: 22rem;
+    border-radius: 50%;
+    background: linear-gradient(
+      104deg,
+      transparent 0%,
+      color-mix(in srgb, var(--page-accent) 60%, transparent) 35%,
+      color-mix(in srgb, var(--page-accent) 30%, transparent) 65%,
+      transparent 100%
+    );
+    animation: tf-aurora-a 41s ease-in-out infinite;
+  }
+
+  .tf-aurora-band-b {
+    right: -20%;
+    top: 1rem;
+    width: 65%;
+    height: 26rem;
+    border-radius: 50%;
+    background: linear-gradient(
+      76deg,
+      transparent 0%,
+      color-mix(in srgb, var(--page-accent) 45%, transparent) 40%,
+      color-mix(in srgb, var(--page-accent) 22%, transparent) 72%,
+      transparent 100%
+    );
+    animation: tf-aurora-b 53s ease-in-out infinite;
+  }
+
+  .tf-aurora-band-c {
+    left: 20%;
+    top: -10rem;
+    width: 55%;
+    height: 20rem;
+    border-radius: 50%;
+    background: linear-gradient(
+      92deg,
+      transparent 0%,
+      color-mix(in srgb, var(--page-accent) 34%, transparent) 50%,
+      transparent 100%
+    );
+    animation: tf-aurora-c 67s ease-in-out infinite;
   }
 
   /* A tinted band down the top of the content column. The bloom alone reads as
@@ -372,6 +612,110 @@
   }
 }
 
+/* Aurora drift. Deliberately small amplitudes over very long durations: the
+   ribbons are 70px-blurred and mostly off-screen at the edges, so a few percent
+   of travel is enough to read as movement without anything appearing to slide
+   past. `translate3d` keeps each band on its own compositor layer. */
+@keyframes tf-aurora-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(6%, 2.5%, 0) scale(1.12);
+  }
+}
+
+@keyframes tf-aurora-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.05);
+  }
+  50% {
+    transform: translate3d(-7%, -3%, 0) scale(1);
+  }
+}
+
+@keyframes tf-aurora-c {
+  0%,
+  100% {
+    transform: translate3d(-3%, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(4%, 3%, 0) scale(1.08);
+  }
+}
+
+/* A wave rolling left to right: it swells in as it enters, crests around the
+   middle of the bar, then thins and fades on the way out. The fade at both ends
+   is what makes each pass read as a separate wave rather than one endless band
+   — without it, a band re-entering from the left is visible as a hard reset.
+   `scaleY` does the swelling; both properties here are composited, so nothing
+   repaints while a wave crosses. */
+/* One viewBox width of travel — 1200 user units — which is exactly one full
+   repeat of the path, so the loop restarts on an identical crest. */
+@keyframes tf-wave-travel {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-1200px);
+  }
+}
+
+@keyframes tf-wave-travel-back {
+  from {
+    transform: translateX(-1200px);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* The clouds and the core wander rather than march: they return to where they
+   started, so nothing ever appears to enter or leave the bar. */
+@keyframes tf-aurora-swim-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(14%, 4%, 0) scale(1.18);
+  }
+}
+
+@keyframes tf-aurora-swim-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.1);
+  }
+  50% {
+    transform: translate3d(-18%, -5%, 0) scale(0.95);
+  }
+}
+
+@keyframes tf-aurora-core-drift {
+  0%,
+  100% {
+    transform: translate3d(-12%, 0, 0) scale(0.92);
+  }
+  50% {
+    transform: translate3d(16%, 0, 0) scale(1.14);
+  }
+}
+
+/* Under reduced motion the bands stop travelling and only brighten and dim.
+   See the note in the media query below for why they are not simply removed. */
+@keyframes tf-aurora-still {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 @keyframes tf-glyph-breathe {
   0%,
   100% {
@@ -428,6 +772,49 @@
   .tf-glyph-node {
     animation: none;
     opacity: 0.75;
+  }
+
+  /* The aurora keeps its colour and its slow brightening, and loses only the
+     drift — travel across the screen is the part the preference is actually
+     about. Switching the bands off entirely would leave the owner's own
+     machine, where reduced motion is enabled, showing none of an effect that
+     was asked for by name; that has already happened once in this project. */
+  .tf-aurora-band {
+    animation-name: tf-aurora-still;
+    animation-duration: 14s;
+    transform: none;
+  }
+
+  /* The header sweep keeps travelling, slowed by roughly half. This one is a
+     deliberate exception, taken with the owner's knowledge rather than
+     silently: the effect was asked for by name *as* a left-to-right movement,
+     it is a soft 34px-blurred wash confined to a 5rem bar rather than anything
+     crossing the viewport, and the owner's own machine has the preference on —
+     switching it off here would mean the person who requested it is the one
+     person who never sees it. Halving the speed is the compromise. */
+  .tf-wave-row-a {
+    animation-duration: 58s;
+  }
+  .tf-wave-row-b {
+    animation-duration: 82s;
+  }
+  .tf-wave-row-c {
+    animation-duration: 68s;
+  }
+  .tf-wave-row-d {
+    animation-duration: 106s;
+  }
+  .tf-wave-row-e {
+    animation-duration: 94s;
+  }
+  .tf-aurora-cloud-a {
+    animation-duration: 86s;
+  }
+  .tf-aurora-cloud-b {
+    animation-duration: 114s;
+  }
+  .tf-aurora-core {
+    animation-duration: 74s;
   }
 }
 
