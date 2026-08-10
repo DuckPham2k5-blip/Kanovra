@@ -32,14 +32,41 @@ export type ChangeEvent = {
   actorId?: string;
 };
 
-/** Local fan-out to the SSE streams held by *this* process. */
-const local = new EventEmitter();
-// One process can hold many open streams; the default cap of 10 would start
-// printing spurious leak warnings on the eleventh visitor.
-local.setMaxListeners(0);
+/**
+ * Local fan-out to the SSE streams held by *this* process, together with the
+ * handle to the LISTEN connection that feeds it.
+ *
+ * Parked on `globalThis` for the same reason `prisma` is: in development HMR
+ * builds a fresh instance of this module on every edit, and module-scope state
+ * would start over at `null`. The new instance then opens a second LISTEN
+ * connection while the first stays open, idle and referenced by nobody, until
+ * the dev server exits — measured at one leaked connection per recompile,
+ * which walks a long session toward `max_connections`.
+ *
+ * The emitter has to be shared as well, not just the client. Sharing only the
+ * client would leave a reloaded module reusing it while its `notification`
+ * handler still published into the *previous* emitter; new streams subscribe
+ * to the new one and receive nothing at all, with no error logged anywhere. A
+ * leaked connection is visible in `pg_stat_activity`; that failure is silent,
+ * and worse.
+ *
+ * In production the module is evaluated once per worker, so this is simply one
+ * object created once — the same shape either way, rather than a code path
+ * that only runs in development.
+ */
+const globalForRealtime = globalThis as unknown as {
+  realtime:
+    | { local: EventEmitter; listener: Client | null; connecting: Promise<void> | null }
+    | undefined;
+};
 
-let listener: Client | null = null;
-let connecting: Promise<void> | null = null;
+const state = (globalForRealtime.realtime ??= {
+  // One process can hold many open streams; the default cap of 10 would start
+  // printing spurious leak warnings on the eleventh visitor.
+  local: new EventEmitter().setMaxListeners(0),
+  listener: null,
+  connecting: null,
+});
 
 /**
  * Opens the dedicated LISTEN connection. It cannot be borrowed from Prisma's
@@ -47,10 +74,10 @@ let connecting: Promise<void> | null = null;
  * it to a pool would silently drop the subscription.
  */
 async function ensureListening() {
-  if (listener) return;
-  if (connecting) return connecting;
+  if (state.listener) return;
+  if (state.connecting) return state.connecting;
 
-  connecting = (async () => {
+  state.connecting = (async () => {
     const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
     if (!connectionString) {
       logWarn("realtime", "No database URL; live updates are disabled.");
@@ -62,7 +89,7 @@ async function ensureListening() {
     client.on("notification", (message) => {
       if (!message.payload) return;
       try {
-        local.emit("change", JSON.parse(message.payload) as ChangeEvent);
+        state.local.emit("change", JSON.parse(message.payload) as ChangeEvent);
       } catch (error) {
         logError("realtime.parse", error, { payload: message.payload.slice(0, 200) });
       }
@@ -72,20 +99,20 @@ async function ensureListening() {
       logError("realtime.connection", error);
       // Drop the handle so the next subscriber reconnects rather than
       // attaching to a socket that is already dead.
-      listener = null;
-      connecting = null;
+      state.listener = null;
+      state.connecting = null;
       client.end().catch(() => {});
     });
 
     await client.connect();
     await client.query(`LISTEN ${CHANNEL}`);
-    listener = client;
+    state.listener = client;
   })().catch((error) => {
     logError("realtime.listen", error);
-    connecting = null;
+    state.connecting = null;
   });
 
-  return connecting;
+  return state.connecting;
 }
 
 /**
@@ -116,6 +143,6 @@ export async function subscribeToWorkspace(
     if (event.workspaceId === workspaceId) onChange(event);
   };
 
-  local.on("change", handler);
-  return () => local.off("change", handler);
+  state.local.on("change", handler);
+  return () => state.local.off("change", handler);
 }
