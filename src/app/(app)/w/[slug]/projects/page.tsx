@@ -30,7 +30,13 @@ export default async function ProjectsPage({ params }: { params: Promise<{ slug:
         description={`${active.length} active projects in ${workspace.name}`}
         actions={
           can("project:create") ? (
-            <NewProjectButton workspaceId={workspace.id} workspaceSlug={slug} />
+            // Same treatment as the Overview bar — see the note there.
+            <NewProjectButton
+              workspaceId={workspace.id}
+              workspaceSlug={slug}
+              variant="outline"
+              className="tf-bar-control"
+            />
           ) : null
         }
       />
@@ -88,7 +94,12 @@ export default async function ProjectsPage({ params }: { params: Promise<{ slug:
                 </div>
 
                 <div className="mt-auto flex items-center justify-between border-t pt-3">
-                  <AvatarStack users={project.members.map((m) => m.user)} max={4} size="size-6" />
+                  <AvatarStack
+                    users={project.members.map((m) => m.user)}
+                    max={4}
+                    size="size-6"
+                    showPresence
+                  />
                   <span className="text-xs text-muted-foreground">
                     {project.overdueCount > 0 ? (
                       <span className="text-destructive">{project.overdueCount} overdue</span>

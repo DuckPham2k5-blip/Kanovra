@@ -92,7 +92,8 @@ export function AvatarStack({
   }, [users, lit]);
 
   const visible = ordered.slice(0, max);
-  const overflow = ordered.length - visible.length;
+  const hidden = ordered.slice(max);
+  const overflow = hidden.length;
 
   // Only people this page can actually show are worth announcing. Both cues
   // ride the same poll that moves the ring, so the sound and the change on
@@ -132,6 +133,21 @@ export function AvatarStack({
     return () => clearTimeout(timer);
   }, [leftHere]);
 
+  /**
+   * The `+N` chip lights when somebody online is folded inside it.
+   *
+   * Because online people are sorted to the front, that can only happen once
+   * more of them are here than there are slots to show them in — so the ring
+   * on the chip means "some of the people you cannot see are here right now",
+   * and its absence means the hidden ones are all away. Its colour is the
+   * route accent rather than any one person's, since it stands for several at
+   * once.
+   */
+  const hiddenOnline = hidden.filter((u) => lit.has(u.id));
+  const chipLit = hiddenOnline.length > 0;
+  const chipArriving = chipLit && hidden.some((u) => arrived.has(u.id));
+  const chipLeaving = !chipLit && hidden.some((u) => leaving.has(u.id));
+
   return (
     <div className={cn("flex -space-x-2", className)}>
       {visible.map((user) => {
@@ -161,16 +177,34 @@ export function AvatarStack({
         );
       })}
       {overflow > 0 ? (
-        <SimpleTooltip label={ordered.slice(max).map((u) => u.name).join(", ")}>
-          <span
-            className={cn(
-              size,
-              "flex items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground ring-2 ring-background",
-            )}
+        <span
+          className={cn("relative inline-flex", (chipLit || chipLeaving) && "tf-newcomer")}
+          data-arriving={chipArriving ? "" : undefined}
+          data-leaving={chipLeaving ? "" : undefined}
+        >
+          {chipLit || chipLeaving ? (
+            <span className="tf-newcomer-halo" aria-hidden="true" />
+          ) : null}
+          <SimpleTooltip
+            label={hidden
+              .map((u) => (lit.has(u.id) ? `${u.name} (online)` : u.name))
+              .join(", ")}
           >
-            +{overflow}
-          </span>
-        </SimpleTooltip>
+            <span
+              className={cn(
+                size,
+                "flex items-center justify-center rounded-full text-[10px] font-semibold ring-2 ring-background",
+                // Lit, the chip stops being a grey remainder and becomes a
+                // count of people who are actually here.
+                chipLit
+                  ? "bg-accent text-foreground"
+                  : "bg-muted text-muted-foreground",
+              )}
+            >
+              +{overflow}
+            </span>
+          </SimpleTooltip>
+        </span>
       ) : null}
     </div>
   );

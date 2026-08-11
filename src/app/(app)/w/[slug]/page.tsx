@@ -54,7 +54,15 @@ export default async function DashboardPage({ params }: { params: Promise<{ slug
         description={`Here's the state of ${workspace.name} today.`}
         actions={
           can("project:create") ? (
-            <NewProjectButton workspaceId={workspace.id} workspaceSlug={slug} />
+            // Matches the filter controls on the analytics and calendar bars:
+            // on a header carrying an aurora, a control should take the
+            // route's accent rather than stand apart in solid primary.
+            <NewProjectButton
+              workspaceId={workspace.id}
+              workspaceSlug={slug}
+              variant="outline"
+              className="tf-bar-control"
+            />
           ) : null
         }
       />
@@ -145,6 +153,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ slug
                         users={project.members.map((m) => m.user)}
                         max={3}
                         size="size-6"
+                        showPresence
                       />
                       <span className="text-xs text-muted-foreground">
                         {project.overdueCount > 0 ? (

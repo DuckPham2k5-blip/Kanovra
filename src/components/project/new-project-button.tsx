@@ -13,18 +13,21 @@ export function NewProjectButton({
   variant = "default",
   size = "sm",
   label = "New project",
+  className,
 }: {
   workspaceId: string;
   workspaceSlug: string;
   variant?: "default" | "outline" | "ghost" | "secondary";
   size?: "default" | "sm" | "lg";
   label?: string;
+  /** Lets a caller on a decorated bar reach for `tf-bar-control`. */
+  className?: string;
 }) {
   const [open, setOpen] = React.useState(false);
 
   return (
     <>
-      <Button variant={variant} size={size} onClick={() => setOpen(true)}>
+      <Button variant={variant} size={size} className={className} onClick={() => setOpen(true)}>
         <Plus className="size-4" />
         {label}
       </Button>
