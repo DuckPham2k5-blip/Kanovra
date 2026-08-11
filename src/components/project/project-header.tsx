@@ -8,6 +8,7 @@ import {
   KanbanSquare,
   List,
   MoreHorizontal,
+  ImagePlus,
   Pencil,
   Trash2,
   UserPlus,
@@ -19,6 +20,7 @@ import { toast } from "sonner";
 
 import { AiProjectSummary } from "@/components/ai/ai-project-summary";
 import { ProjectIcon } from "@/components/icon-picker";
+import { ProjectBannerDialog } from "@/components/project/project-banner-dialog";
 import { ProjectDialog } from "@/components/project/project-dialog";
 import { ProjectMembersDialog } from "@/components/project/project-members-dialog";
 import { ProjectStatusBadge } from "@/components/shared/badges";
@@ -33,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { formatDate } from "@/lib/date";
+import { bannerPresetCss } from "@/lib/project-banners";
 import { cn } from "@/lib/utils";
 import { deleteProject, setProjectArchived } from "@/server/actions/project";
 import type { MemberDTO, UserDTO } from "@/types";
@@ -49,6 +52,10 @@ type ProjectInfo = {
   startDate: string | null;
   dueDate: string | null;
   taskCount: number;
+  bannerPreset: string | null;
+  bannerImageId: string | null;
+  bannerImageUrl: string | null;
+  bannerPositionY: number;
 };
 
 const TABS = [
@@ -81,6 +88,7 @@ export function ProjectHeader({
   const [editOpen, setEditOpen] = React.useState(false);
   const [membersOpen, setMembersOpen] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [bannerOpen, setBannerOpen] = React.useState(false);
 
   const base = `/w/${workspaceSlug}/projects/${project.id}`;
 
@@ -104,9 +112,39 @@ export function ProjectHeader({
     router.push(`/w/${workspaceSlug}/projects`);
   }
 
+  // Only one source is ever set — each mode clears the others — so this is a
+  // preference order for reading, not a contest.
+  const bannerImage = project.bannerImageId
+    ? `/api/project-banner/${project.id}`
+    : project.bannerImageUrl;
+  const bannerCss = bannerPresetCss(project.bannerPreset);
+  const hasBanner = Boolean(bannerImage || bannerCss);
+
   return (
-    <div className="shrink-0 border-b bg-background px-4 pt-4 sm:px-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div
+      className={cn(
+        "relative shrink-0 overflow-hidden border-b px-4 pt-4 sm:px-6",
+        hasBanner ? "tf-project-banner" : "bg-background",
+      )}
+      style={
+        bannerImage
+          ? ({
+              "--tf-banner": `url("${bannerImage}")`,
+              // Only meaningful for a picture: a gradient has no band to choose.
+              "--tf-banner-position": `center ${project.bannerPositionY}%`,
+            } as React.CSSProperties)
+          : bannerCss
+            ? ({ "--tf-banner": bannerCss } as React.CSSProperties)
+            : undefined
+      }
+    >
+      {/* A scrim, not a fade. An uploaded photograph can be any brightness, and
+          white text over an unknown picture is a coin toss; this puts a known
+          floor under it. Gradients are dark by construction and get the same
+          treatment for consistency rather than need. */}
+      {hasBanner ? <div className="tf-project-banner-scrim" aria-hidden="true" /> : null}
+
+      <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <span
             className="flex size-10 shrink-0 items-center justify-center rounded-lg"
@@ -173,6 +211,9 @@ export function ProjectHeader({
                 <DropdownMenuItem onClick={() => setEditOpen(true)}>
                   <Pencil /> Edit
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setBannerOpen(true)}>
+                  <ImagePlus /> Backdrop
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => void handleArchive()}>
                   {project.archived ? <ArchiveRestore /> : <Archive />}
                   {project.archived ? "Restore" : "Archive"}
@@ -193,12 +234,12 @@ export function ProjectHeader({
 
       {/* On-demand AI read of the board. Full width so the generated summary
           has room to breathe once it expands. */}
-      <div className="mt-3">
+      <div className="relative z-10 mt-3">
         <AiProjectSummary projectId={project.id} />
       </div>
 
       {/* View tabs */}
-      <nav className="mt-4 flex gap-1 overflow-x-auto">
+      <nav className="relative z-10 mt-4 flex gap-1 overflow-x-auto">
         {TABS.map((tab) => {
           const active = segment === tab.segment;
           const Icon = tab.icon;
@@ -235,6 +276,16 @@ export function ProjectHeader({
           startDate: project.startDate,
           dueDate: project.dueDate,
         }}
+      />
+
+      <ProjectBannerDialog
+        open={bannerOpen}
+        onOpenChange={setBannerOpen}
+        projectId={project.id}
+        currentPreset={project.bannerPreset}
+        hasImage={Boolean(bannerImage)}
+        imageUrl={bannerImage}
+        positionY={project.bannerPositionY}
       />
 
       <ProjectMembersDialog

@@ -206,6 +206,24 @@ model Project {
   startDate   DateTime?
   dueDate     DateTime?
   archived    Boolean       @default(false)
+  /// Name of a built-in gradient from `lib/project-banners.ts`, or null.
+  bannerPreset String?
+  /// Id of an uploaded picture on disk, stored the way attachments are: outside
+  /// the web root, served through a route that re-checks membership.
+  bannerImageId String?
+  /// The picture's type, kept because the serving route sends `nosniff`: with
+  /// sniffing off the browser will not guess, so an approximate content type
+  /// means the image simply does not render.
+  bannerImageMime String?
+  /// A picture linked from elsewhere rather than uploaded. Fetched by each
+  /// visitor's browser directly, so it is outside our membership check: the
+  /// host on the other end sees who is looking, and can change or remove the
+  /// picture whenever it likes. Only ever `https`.
+  bannerImageUrl String?
+  /// Vertical framing of a picture, 0 (top) to 100 (bottom). A header strip is
+  /// far wider than it is tall, so almost every picture is cropped top and
+  /// bottom and the only interesting question is which band to keep.
+  bannerPositionY Int @default(50)
   /// Monotonic counter used to allocate the numeric part of a task reference.
   taskCounter Int           @default(0)
   createdById String

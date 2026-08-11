@@ -3,10 +3,20 @@
 import { Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
+import { z } from "zod";
+
 import { ForbiddenError, getMembership, getProjectContext, requireUser } from "@/lib/auth";
 import { logActivity, notifyMany } from "@/lib/events";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import {
+  BANNER_MIME_TYPES,
+  bannerPresetCss,
+  MAX_BANNER_BYTES,
+  sanitiseBannerUrl,
+} from "@/lib/project-banners";
+import { verifyRemoteImage } from "@/lib/remote-image";
+import { deleteAttachment, saveAttachment } from "@/lib/storage";
 import { DEFAULT_COLUMNS, ORDER_STEP } from "@/lib/constants";
 import { projectKeyFromName } from "@/lib/utils";
 import { projectCreateSchema, projectUpdateSchema } from "@/lib/validations";
@@ -195,5 +205,153 @@ export async function toggleProjectMember(
     });
     revalidatePath(`/w/${ctx.workspace.slug}/projects/${projectId}`, "layout");
     return ok({ added: true });
+  });
+}
+
+/**
+ * Sets the project header's backdrop: a built-in gradient, an uploaded
+ * picture, or neither.
+ *
+ * Gated on `project:update` rather than a new permission — a banner is a
+ * property of the project like its colour or its icon, and inventing a
+ * parallel axis for decoration would mean two places to get wrong.
+ *
+ * Uploads reuse the attachment store, so the bytes land outside the web root
+ * under a generated id and are served by a route that re-checks membership.
+ * The previous picture is deleted once the new row is written, in that order:
+ * a row pointing at bytes that are gone shows a broken header, while bytes
+ * with no row are merely an orphan nobody sees.
+ */
+export async function setProjectBanner(formData: FormData): Promise<ActionResult> {
+  return withErrorHandling(async () => {
+    const user = await requireUser();
+
+    const projectId = parse(z.string().min(1), formData.get("projectId"));
+    const mode = parse(
+      z.enum(["preset", "upload", "clear", "position", "link"]),
+      formData.get("mode"),
+    );
+
+    const ctx = await getProjectContext(user.id, projectId);
+    if (!ctx) return fail(NOT_FOUND);
+    if (!can(ctx.role, "project:update")) throw new ForbiddenError();
+
+    const previousImageId = ctx.project.bannerImageId;
+
+    if (mode === "clear") {
+      await prisma.project.update({
+        where: { id: projectId },
+        data: {
+          bannerPreset: null,
+          bannerImageId: null,
+          bannerImageMime: null,
+          bannerImageUrl: null,
+        },
+      });
+      if (previousImageId) await deleteAttachment(previousImageId);
+    }
+
+    if (mode === "preset") {
+      const preset = parse(z.string().min(1), formData.get("preset"));
+      if (!bannerPresetCss(preset)) return fail("That backdrop does not exist.");
+
+      // The upload is dropped as well as unset. Keeping it would leave bytes on
+      // disk that nothing references and nobody can reach.
+      await prisma.project.update({
+        where: { id: projectId },
+        data: {
+          bannerPreset: preset,
+          bannerImageId: null,
+          bannerImageMime: null,
+          bannerImageUrl: null,
+        },
+      });
+      if (previousImageId) await deleteAttachment(previousImageId);
+    }
+
+    if (mode === "link") {
+      const url = sanitiseBannerUrl(parse(z.string().min(1), formData.get("url")));
+      if (!url) {
+        return fail("Use a full https:// link to a picture, with no username or password in it.");
+      }
+
+      // Fetched once here so the failure is reported now, with a reason, rather
+      // than as an empty header nobody can explain later.
+      const check = await verifyRemoteImage(url);
+      if (!check.ok) return fail(check.reason);
+
+      await prisma.project.update({
+        where: { id: projectId },
+        data: {
+          bannerImageUrl: url,
+          bannerImageId: null,
+          bannerImageMime: null,
+          bannerPreset: null,
+          // A different picture entirely, so the old framing means nothing.
+          bannerPositionY: 50,
+        },
+      });
+      if (previousImageId) await deleteAttachment(previousImageId);
+    }
+
+    // Framing only — no new bytes, no change of source. Kept as its own mode so
+    // dragging the slider does not re-upload the picture on every step.
+    if (mode === "position") {
+      const y = parse(z.coerce.number().int().min(0).max(100), formData.get("positionY"));
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { bannerPositionY: y },
+      });
+    }
+
+    if (mode === "upload") {
+      const file = formData.get("file");
+      if (!(file instanceof File) || file.size === 0) return fail("Choose a picture to upload.");
+      if (file.size > MAX_BANNER_BYTES) {
+        return fail(
+          `That picture is ${(file.size / 1024 / 1024).toFixed(1)} MB. The limit is ${MAX_BANNER_BYTES / 1024 / 1024} MB.`,
+        );
+      }
+      // The browser supplies this type and a browser can be lied to, which is
+      // why the serving route sends `nosniff` and never renders anything
+      // inline that is not on this list.
+      if (!BANNER_MIME_TYPES.has(file.type)) {
+        return fail("Use a PNG, JPEG or WebP picture.");
+      }
+
+      const id = crypto.randomUUID();
+      await saveAttachment(id, Buffer.from(await file.arrayBuffer()));
+
+      try {
+        await prisma.project.update({
+          where: { id: projectId },
+          // A fresh picture starts centred; the previous framing belonged to a
+          // different image and would crop this one at random.
+          data: {
+            bannerImageId: id,
+            bannerImageMime: file.type,
+            bannerPreset: null,
+            bannerImageUrl: null,
+            bannerPositionY: 50,
+          },
+        });
+      } catch (error) {
+        await deleteAttachment(id);
+        throw error;
+      }
+
+      if (previousImageId) await deleteAttachment(previousImageId);
+    }
+
+    await logActivity({
+      workspaceId: ctx.workspace.id,
+      projectId,
+      actorId: user.id,
+      type: "PROJECT_UPDATED",
+      message: `${user.name} changed the backdrop for ${ctx.project.name}`,
+    });
+
+    revalidatePath(`/w/${ctx.workspace.slug}/projects/${projectId}`, "layout");
+    return ok(undefined);
   });
 }

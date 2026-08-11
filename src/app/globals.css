@@ -300,6 +300,36 @@
     animation: tf-pop-collapse 520ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
+  /* ---------------------------------------------------------------------
+     Project banner
+
+     `--tf-banner` is set inline by the header and holds either a gradient or a
+     `url(...)`. One property covers both because `background-image` accepts
+     either, which keeps the two paths from needing two sets of rules that can
+     drift apart.
+     --------------------------------------------------------------------- */
+  .tf-project-banner {
+    background-color: hsl(var(--background));
+    background-image: var(--tf-banner);
+    background-size: cover;
+    /* Falls back to centre for gradients, which have no band worth choosing. */
+    background-position: var(--tf-banner-position, center);
+  }
+
+  /* The floor under the text. An uploaded photograph can be any brightness —
+     a white sky behind white type is unreadable — so rather than hope, this
+     puts a known dark layer over whatever was chosen. Heavier at the bottom,
+     where the tab row sits and contrast matters most. */
+  .tf-project-banner-scrim {
+    @apply pointer-events-none absolute inset-0 z-0;
+    background: linear-gradient(
+      to bottom,
+      hsl(var(--background) / 0.55) 0%,
+      hsl(var(--background) / 0.7) 55%,
+      hsl(var(--background) / 0.88) 100%
+    );
+  }
+
   /* Dotted backdrop for the marketing hero and empty states. */
   .tf-dots {
     background-image: radial-gradient(circle at 1px 1px, hsl(var(--border)) 1px, transparent 0);

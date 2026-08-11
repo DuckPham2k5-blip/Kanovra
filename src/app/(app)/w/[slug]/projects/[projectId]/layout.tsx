@@ -46,6 +46,10 @@ export default async function ProjectLayout({
           startDate: project.startDate?.toISOString() ?? null,
           dueDate: project.dueDate?.toISOString() ?? null,
           taskCount: project._count.tasks,
+          bannerPreset: project.bannerPreset,
+          bannerImageId: project.bannerImageId,
+          bannerImageUrl: project.bannerImageUrl,
+          bannerPositionY: project.bannerPositionY,
         }}
         members={project.members.map((m) => ({
           id: m.user.id,
