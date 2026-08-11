@@ -146,11 +146,16 @@ export function ProjectHeader({
             className={cn("rounded-full", canEditProject && "hover:opacity-80")}
             aria-label="Project members"
           >
-            <AvatarStack users={members} max={4} />
+            <AvatarStack users={members} max={4} showPresence />
           </button>
 
           {canEditProject ? (
-            <Button variant="outline" size="sm" onClick={() => setMembersOpen(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="tf-bar-control"
+              onClick={() => setMembersOpen(true)}
+            >
               <UserPlus className="size-4" />
               <span className="hidden sm:inline">Members</span>
             </Button>

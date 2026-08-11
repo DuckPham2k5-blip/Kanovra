@@ -2,7 +2,7 @@
 
 import type { NotificationType } from "@prisma/client";
 import * as Icons from "lucide-react";
-import { Bell, CheckCheck } from "lucide-react";
+import { Bell, CheckCheck, Volume2, VolumeX } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/popover";
 import { NOTIFICATION_META } from "@/lib/constants";
 import { fromNow } from "@/lib/date";
+import { isMuted, playNotificationPing, setMuted } from "@/lib/sound";
 import { cn, initials } from "@/lib/utils";
 import { markAllNotificationsRead, markNotificationRead } from "@/server/actions/notification";
 
@@ -45,11 +46,28 @@ export function NotificationBell({
   const [items, setItems] = React.useState<Item[]>([]);
   const [loading, setLoading] = React.useState(false);
 
+  // Read from localStorage after mount, never during render: the server has no
+  // localStorage, so consulting it while rendering would make the first client
+  // paint disagree with the markup that arrived.
+  const [muted, setMutedState] = React.useState(false);
+  React.useEffect(() => setMutedState(isMuted()), []);
+
+  // Compared against, never rendered from — a ref rather than state, so the
+  // sound decision cannot itself schedule a render and re-enter this.
+  const lastUnread = React.useRef(initialCount);
+
   const load = React.useCallback(async () => {
     try {
       const res = await fetch("/api/notifications?take=8", { cache: "no-store" });
       if (!res.ok) return;
       const data = (await res.json()) as { unread: number; items: Item[] };
+
+      // Only a rise counts. Marking things read lowers the number, and a cue
+      // for a count going *down* would fire while the visitor is clearing the
+      // list, which is the opposite of what a notification sound is for.
+      if (data.unread > lastUnread.current) playNotificationPing();
+      lastUnread.current = data.unread;
+
       setUnread(data.unread);
       setItems(data.items);
     } catch {
@@ -130,15 +148,30 @@ export function NotificationBell({
       <PopoverContent align="end" className="w-[22rem] p-0">
         <div className="flex items-center justify-between border-b px-3 py-2">
           <span className="text-sm font-medium">Notifications</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={handleMarkAll}
-            disabled={unread === 0 || loading}
-          >
-            <CheckCheck className="size-3.5" /> Mark all read
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => {
+                const next = !muted;
+                setMuted(next);
+                setMutedState(next);
+              }}
+              aria-label={muted ? "Turn notification sound on" : "Turn notification sound off"}
+              title={muted ? "Sound off" : "Sound on"}
+            >
+              {muted ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={handleMarkAll}
+              disabled={unread === 0 || loading}
+            >
+              <CheckCheck className="size-3.5" /> Mark all read
+            </Button>
+          </div>
         </div>
 
         <div className="max-h-[22rem] overflow-y-auto">

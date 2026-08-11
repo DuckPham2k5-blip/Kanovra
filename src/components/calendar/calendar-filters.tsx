@@ -39,7 +39,7 @@ export function CalendarFilters({
   return (
     <div className="flex flex-wrap gap-2">
       <Select value={projectId ?? ALL} onValueChange={(v) => setParam("project", v)}>
-        <SelectTrigger className="w-auto min-w-40">
+        <SelectTrigger className="tf-bar-control w-auto min-w-40">
           <SelectValue placeholder="All projects" />
         </SelectTrigger>
         <SelectContent>
@@ -53,7 +53,7 @@ export function CalendarFilters({
       </Select>
 
       <Select value={assigneeId ?? ALL} onValueChange={(v) => setParam("assignee", v)}>
-        <SelectTrigger className="w-auto min-w-40">
+        <SelectTrigger className="tf-bar-control w-auto min-w-40">
           <SelectValue placeholder="Everyone" />
         </SelectTrigger>
         <SelectContent>

@@ -48,7 +48,7 @@ export function AnalyticsFilters({
         value={projectId ?? ALL_PROJECTS}
         onValueChange={(v) => setParam("project", v === ALL_PROJECTS ? null : v)}
       >
-        <SelectTrigger className="w-[10.5rem]" aria-label="Filter by project">
+        <SelectTrigger className="tf-bar-control w-[10.5rem]" aria-label="Filter by project">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -70,7 +70,7 @@ export function AnalyticsFilters({
       </Select>
 
       <Select value={String(days)} onValueChange={(v) => setParam("days", v)}>
-        <SelectTrigger className="w-[7.5rem]" aria-label="Time range">
+        <SelectTrigger className="tf-bar-control w-[7.5rem]" aria-label="Time range">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

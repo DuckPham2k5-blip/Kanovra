@@ -36,7 +36,13 @@ export function AiProjectSummary({ projectId }: { projectId: string }) {
 
   if (!summary) {
     return (
-      <Button variant="outline" size="sm" onClick={() => void generate()} disabled={loading}>
+      <Button
+        variant="outline"
+        size="sm"
+        className="tf-bar-control"
+        onClick={() => void generate()}
+        disabled={loading}
+      >
         {loading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
         {loading ? "Reading the board…" : "AI summary"}
       </Button>

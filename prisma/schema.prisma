@@ -100,6 +100,11 @@ model User {
   email     String   @unique
   name      String
   imageUrl  String?
+  /// Last heartbeat from an open tab. Presence is derived from this rather than
+  /// stored as a boolean: a browser that crashes or loses its connection never
+  /// gets to say "I left", so a flag would stay stuck at online forever. A
+  /// timestamp that simply stops being refreshed decays on its own.
+  lastSeenAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

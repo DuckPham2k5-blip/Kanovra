@@ -181,6 +181,125 @@
     background-color: color-mix(in srgb, var(--tf-chip-color) 22%, var(--tf-cal-base));
   }
 
+  /* ---------------------------------------------------------------------
+     Controls sitting on a decorated bar
+
+     Opaque like every other control, but tinted with the route's own accent
+     instead of staying neutral, so a button on a violet header reads violet
+     and the same button on an amber one reads amber. Related to the bar
+     behind it, never the same as it: the fill is a few percent of accent over
+     the page background, which lands a step darker than the aurora, and the
+     border carries more accent than the fill so the edge stays legible where
+     the two are closest in value.
+
+     A fixed colour was the alternative and it cannot work here — the hue
+     changes per section, so any single choice clashes somewhere.
+     --------------------------------------------------------------------- */
+  .tf-bar-control {
+    background-color: color-mix(in srgb, var(--page-accent) 12%, hsl(var(--background)));
+    border-color: color-mix(in srgb, var(--page-accent) 34%, transparent);
+  }
+  .tf-bar-control:hover {
+    background-color: color-mix(in srgb, var(--page-accent) 20%, hsl(var(--background)));
+    border-color: color-mix(in srgb, var(--page-accent) 48%, transparent);
+  }
+  .dark .tf-bar-control {
+    background-color: color-mix(in srgb, var(--page-accent) 18%, hsl(var(--background)));
+    border-color: color-mix(in srgb, var(--page-accent) 42%, transparent);
+  }
+  .dark .tf-bar-control:hover {
+    background-color: color-mix(in srgb, var(--page-accent) 28%, hsl(var(--background)));
+    border-color: color-mix(in srgb, var(--page-accent) 58%, transparent);
+  }
+
+  /* ---------------------------------------------------------------------
+     Newly joined member
+
+     Three things at once, and they have different lifetimes on purpose. The
+     ring is permanent for the session — it is the part that answers "has
+     anyone joined since I opened this?" at a glance, so it must not fade. The
+     entrance pop and the sparks run once, on arrival only, and are driven by
+     `data-arriving`, which the component sets for a single update.
+     --------------------------------------------------------------------- */
+  /* `--tf-newcomer-color` is set per avatar from the person's own palette
+     entry; the route accent is only the fallback. One flat hue per ring — the
+     variety is across people, never within a single ring. */
+  .tf-newcomer {
+    --tf-ring: var(--tf-newcomer-color, var(--page-accent));
+  }
+
+  .tf-newcomer > :not(.tf-newcomer-halo) {
+    position: relative;
+    z-index: 1;
+    border-radius: 9999px;
+    /* The lit ring. Two shadows: a tight bright edge and a wider bloom, so it
+       reads as light coming off the avatar rather than as a coloured outline. */
+    box-shadow:
+      0 0 0 2px hsl(var(--background)),
+      0 0 0 3.5px color-mix(in srgb, var(--tf-ring) 85%, white),
+      0 0 12px 2px color-mix(in srgb, var(--tf-ring) 70%, transparent);
+  }
+
+  /* A slow breathe on the bloom keeps it alive without moving anything. */
+  .tf-newcomer-halo {
+    @apply pointer-events-none absolute -inset-1 rounded-full;
+    background: radial-gradient(
+      closest-side,
+      color-mix(in srgb, var(--tf-ring) 55%, transparent) 0%,
+      transparent 100%
+    );
+    animation: tf-newcomer-breathe 2.6s ease-in-out infinite;
+  }
+
+  /* ---------------------------------------------------------------------
+     Pop in, pop out
+
+     A bubble, not a fade. The two carry opposite meanings and are shaped to
+     match: arriving overshoots outward and settles, leaving swells once and
+     bursts. Both are short — 320ms in, 400ms out — because a pop that lingers
+     stops being a pop.
+
+     Duration is the thing that had to be tuned, not the trigger. Sound and
+     animation start on the same render either way; what made the old pair feel
+     misaligned was a 350ms chime against a 620ms movement. A 90ms transient
+     against a 320ms bubble reads as one event.
+     --------------------------------------------------------------------- */
+  .tf-newcomer[data-arriving] > :not(.tf-newcomer-halo) {
+    animation: tf-pop-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  /* The burst: one ring thrown outward as the avatar lands. */
+  .tf-newcomer[data-arriving] .tf-newcomer-halo::before {
+    content: "";
+    @apply absolute inset-0 rounded-full;
+    border: 1.5px solid color-mix(in srgb, var(--tf-ring) 80%, white);
+    animation: tf-pop-ring 460ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* Leaving. The avatar itself must stay — that person is still on the team —
+     so the departure has to be legible without removing anything.
+
+     Arriving fires three signals at once: the avatar springs, a ring flies
+     off, a pop sounds. Leaving was given one, a bloom fading out, and one
+     third of the signal is exactly as noticeable as it sounds — you had to be
+     watching the right avatar to catch it. It now gets three of its own: the
+     ring swells and snaps inward, the avatar dips dark for a moment as its
+     light goes out, and a ring collapses *inward* rather than flying out, so
+     the two directions read as opposites at a glance. Still no sound, which is
+     the one thing that was asked for by name. */
+  .tf-newcomer[data-leaving] > :not(.tf-newcomer-halo) {
+    animation: tf-pop-out 520ms cubic-bezier(0.36, 0, 0.66, -0.2) forwards;
+  }
+  .tf-newcomer[data-leaving] .tf-newcomer-halo {
+    animation: tf-pop-out-halo 520ms ease-out forwards;
+  }
+  .tf-newcomer[data-leaving] .tf-newcomer-halo::before {
+    content: "";
+    @apply absolute inset-0 rounded-full;
+    border: 2px solid color-mix(in srgb, var(--tf-ring) 85%, white);
+    animation: tf-pop-collapse 520ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
   /* Dotted backdrop for the marketing hero and empty states. */
   .tf-dots {
     background-image: radial-gradient(circle at 1px 1px, hsl(var(--border)) 1px, transparent 0);
@@ -716,6 +835,104 @@
   }
 }
 
+@keyframes tf-newcomer-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.12);
+  }
+}
+
+/* In: undershoot, overshoot, settle. The bounce past 1 is what separates a pop
+   from a zoom — without it the avatar merely grows. */
+@keyframes tf-pop-in {
+  0% {
+    transform: scale(0.4);
+  }
+  70% {
+    transform: scale(1.16);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* The ring thrown off at the moment of arrival. */
+@keyframes tf-pop-ring {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* Out: a small swell, then gone. The easing dips below zero on the way out, so
+   it accelerates away instead of easing politely to a stop — which is what a
+   bubble bursting does and a fade does not. The ring lands back at scale 1 so
+   the avatar it wraps is left exactly where it was. */
+/* Out: swell, snap inward, go dark for a beat, settle. The dip in opacity is
+   what carries the meaning — a light going out — and it is the part that reads
+   from the corner of the eye. Ending back at scale 1 with no shadow leaves the
+   avatar exactly where it was, because that person has not left the team. */
+@keyframes tf-pop-out {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  30% {
+    transform: scale(1.16);
+    opacity: 1;
+  }
+  58% {
+    transform: scale(0.88);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: none;
+  }
+}
+
+@keyframes tf-pop-out-halo {
+  0% {
+    transform: scale(1);
+    opacity: 0.95;
+  }
+  30% {
+    transform: scale(1.35);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+
+/* The mirror of the arrival ring: that one is thrown outward and fades, this
+   one closes in on the avatar and snuffs out. Same shape, opposite direction,
+   which is what makes the pair readable without a caption. */
+@keyframes tf-pop-collapse {
+  0% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(0.75);
+    opacity: 0;
+  }
+}
+
 @keyframes tf-glyph-breathe {
   0%,
   100% {
@@ -772,6 +989,26 @@
   .tf-glyph-node {
     animation: none;
     opacity: 0.75;
+  }
+
+  /* The newcomer ring stays lit — it carries information rather than
+     decoration, and dropping it would mean the one person who asked for a
+     "has anyone joined?" marker is the one who never gets it. Only the arrival
+     movement goes: the pop and the expanding sparks. The bloom breathes on,
+     slowed, the same way the glyph does. */
+  /* The pop is deliberately *not* reduced here.
+
+     This preference exists to stop movement that can unsettle the inner ear:
+     travel across a viewport, parallax, zoom, spin. A 28px circle springing
+     briefly past its own size, once, when a colleague appears is none of
+     those. A softened version was tried first and the owner — who has the
+     preference switched on — could not tell it was happening at all, which is
+     the failure mode this project has already hit three times: the person who
+     asks for an effect being the one person who never sees it.
+
+     The slow ambient breathe on the halo is still stretched, below. */
+  .tf-newcomer-halo {
+    animation-duration: 7s;
   }
 
   /* The aurora keeps its colour and its slow brightening, and loses only the
