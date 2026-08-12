@@ -141,9 +141,15 @@ export function mindMapCardBackground(type: MindMapType) {
  * `node` — the outline. Round for the three that compare and describe; boxes
  * for the ones that group; pills for the ones that run in a line.
  *
- * `ring` — a second outline inside the first. Only the circle map has it,
- * because a circle map *is* a circle within a circle: the thing in the middle
- * and everything known about it around the outside.
+ * `ring` — a second outline inside the first. Nothing has it any more, and the
+ * axis is kept because it is cheap and the next notation may want it.
+ *
+ * Circle and brace used to. Both were standing in for a mark the drawing did
+ * not have yet: a circle map *is* a circle within a circle, so every node wore a
+ * little ring of its own, and a brace map is a bracket, so every box wore a
+ * hint of one. `mind-map-notation.ts` draws the real enclosing circle and the
+ * real bracket now, and the per-node rings became decoration that competes with
+ * them — eight small rings inside one big one reads as a rendering fault.
  *
  * `edge` — how a connection is drawn. Dashed where the link is association
  * rather than structure, elbowed where it is hierarchy, arrowed where it is
@@ -156,8 +162,9 @@ export type MindMapStyle = {
 };
 
 const STYLES: Record<MindMapType, MindMapStyle> = {
-  // A thing, ringed by what is known about it.
-  [MindMapType.CIRCLE]: { node: "circle", ring: true, edge: "solid" },
+  // A thing, ringed by what is known about it — the ring being the enclosing
+  // circle the notation draws, not one per node.
+  [MindMapType.CIRCLE]: { node: "circle", ring: false, edge: "solid" },
   // Qualities float around a subject; the links are loose associations.
   [MindMapType.BUBBLE]: { node: "circle", ring: false, edge: "dashed" },
   // Two subjects, and the qualities each does or does not share.
@@ -168,8 +175,9 @@ const STYLES: Record<MindMapType, MindMapStyle> = {
   [MindMapType.FLOW]: { node: "pill", ring: false, edge: "arrow" },
   // Causes in, effects out — direction is the whole point.
   [MindMapType.MULTI_FLOW]: { node: "box", ring: false, edge: "arrow" },
-  // A whole divided into parts, which is a bracket, which is an elbow.
-  [MindMapType.BRACE]: { node: "box", ring: true, edge: "elbow" },
+  // A whole divided into parts, which is a bracket — an actual one, spanning
+  // each group, rather than an elbow per part.
+  [MindMapType.BRACE]: { node: "box", ring: false, edge: "elbow" },
   // Pairs strung along a line by one relating factor.
   [MindMapType.BRIDGE]: { node: "pill", ring: false, edge: "solid" },
 };

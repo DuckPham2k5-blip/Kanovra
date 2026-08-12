@@ -29,6 +29,7 @@ import {
   type Rect,
 } from "@/lib/mind-map-edges";
 import { isStructured, layoutNodes } from "@/lib/mind-map-layout";
+import { notationFor, replacesEdges } from "@/lib/mind-map-notation";
 import { mindMapColor, mindMapStyle } from "@/lib/mind-maps";
 import { cn } from "@/lib/utils";
 import { updateMindMapData } from "@/server/actions/mind-map";
@@ -131,7 +132,18 @@ export function MindMapCanvas({
    * instead of running under it — which is also what makes an arrowhead visible,
    * since one drawn at the target's centre is behind the target.
    */
+  /**
+   * The marks that make a type look like itself — a brace map's bracket, a
+   * bridge map's line, a circle map's ring and frame. For those three the mark
+   * *is* the connection, so the per-edge routes are not drawn at all: a bracket
+   * with lines through it reads as a mistake rather than as either notation.
+   */
+  const marks = React.useMemo(() => notationFor(type, nodes, rects), [type, nodes, rects]);
+  const markedOnly = replacesEdges(type);
+
   const routes = React.useMemo(() => {
+    if (markedOnly) return [];
+
     const all = [...rects.entries()];
     const out: { id: string; d: string; length: number }[] = [];
 
@@ -175,7 +187,7 @@ export function MindMapCanvas({
     }
 
     return out;
-  }, [nodes, rects, style.node, type]);
+  }, [markedOnly, nodes, rects, style.node, type]);
 
   // Put the origin — and so the centre node — in the middle of the view on
   // open. A blank sheet whose only node is off screen reads as broken.
@@ -400,6 +412,66 @@ export function MindMapCanvas({
                 <path d="M0 0 L10 5 L0 10 z" fill={mindMapColor(type, 0.75)} />
               </marker>
             </defs>
+
+            {/* Notation first, so a node always paints over its own mark rather
+                than a bracket cutting across the words it is bracketing. */}
+            {marks.map((mark) => {
+              if (mark.kind === "brace") {
+                return (
+                  <path
+                    key={mark.id}
+                    d={mark.d}
+                    fill="none"
+                    stroke={mindMapColor(type, 0.65)}
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                );
+              }
+              if (mark.kind === "line") {
+                return (
+                  <line
+                    key={mark.id}
+                    x1={mark.x0}
+                    y1={mark.y}
+                    x2={mark.x1}
+                    y2={mark.y}
+                    stroke={mindMapColor(type, 0.65)}
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                );
+              }
+              if (mark.kind === "circle") {
+                return (
+                  <circle
+                    key={mark.id}
+                    cx={mark.cx}
+                    cy={mark.cy}
+                    r={mark.r}
+                    fill="none"
+                    stroke={mindMapColor(type, 0.45)}
+                    strokeWidth="2"
+                  />
+                );
+              }
+              return (
+                // The frame of reference: dashed, because it is where you say
+                // how you know what you know rather than part of the subject.
+                <rect
+                  key={mark.id}
+                  x={mark.x}
+                  y={mark.y}
+                  width={mark.w}
+                  height={mark.h}
+                  rx="18"
+                  fill="none"
+                  stroke={mindMapColor(type, 0.28)}
+                  strokeWidth="2"
+                  strokeDasharray="10 8"
+                />
+              );
+            })}
 
             {routes.map((route) => (
               <path
