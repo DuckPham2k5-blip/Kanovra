@@ -46,6 +46,21 @@ export const canvasNodeSchema = z.object({
    * beyond it the scale factor overflows — not a design limit.
    */
   rank: z.number().int().min(-40).max(40).default(0),
+  /**
+   * A single glyph shown beside the text.
+   *
+   * Twelve characters, not one: a family emoji is eleven UTF-16 code units and a
+   * flag is two, so anything tighter silently rejects the ones people actually
+   * reach for. Wide enough to hold a short word too, which is cosmetic rather
+   * than a hazard — it is the author's own map, and it renders at glyph size.
+   */
+  emoji: z.string().trim().max(12).nullish(),
+  /**
+   * Border colour as a hue, matching how the rest of the app names a colour —
+   * saturation and lightness stay fixed so a node cannot be tinted into
+   * illegibility against its own backdrop. Null means the map's own accent.
+   */
+  hue: z.number().int().min(0).max(359).nullish(),
 });
 
 export const canvasSchema = z.object({
@@ -96,12 +111,22 @@ export function seedNodes(_type: MindMapType, title: string): CanvasNode[] {
  * them. Orphans — a node whose parent was deleted in a half-saved edit — are
  * reattached to the centre instead of vanishing, because a node nobody can see
  * is worse than one in the wrong place.
+ *
+ * **Nodes are validated one at a time, not as an array.** Validating the array
+ * meant a single bad value anywhere failed the whole parse, and the caller
+ * answers an empty canvas by seeding a fresh centre node — so "one node had a
+ * hue out of range" and "this map has been wiped" looked identical to whoever
+ * opened it. Losing one node loudly beats appearing to lose all of them.
  */
 export function parseCanvas(raw: unknown): CanvasData {
-  const result = canvasSchema.safeParse(raw ?? {});
+  const outer = z.object({ nodes: z.array(z.unknown()).max(200).default([]) });
+  const result = outer.safeParse(raw ?? {});
   if (!result.success) return { nodes: [] };
 
-  const nodes = result.data.nodes;
+  const nodes = result.data.nodes.flatMap((node) => {
+    const parsed = canvasNodeSchema.safeParse(node);
+    return parsed.success ? [parsed.data] : [];
+  });
   const ids = new Set(nodes.map((node) => node.id));
   const root = nodes.find((node) => node.parentId === null);
 

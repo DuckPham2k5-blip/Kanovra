@@ -1,7 +1,7 @@
 "use client";
 
 import { MindMapType } from "@prisma/client";
-import { ChevronDown, ChevronUp, Equal, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Equal, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -11,6 +11,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -30,7 +32,13 @@ import {
 } from "@/lib/mind-map-edges";
 import { isStructured, layoutNodes } from "@/lib/mind-map-layout";
 import { notationFor, replacesEdges } from "@/lib/mind-map-notation";
-import { mindMapColor, mindMapStyle } from "@/lib/mind-maps";
+import {
+  mindMapColor,
+  mindMapStyle,
+  nodeBorderColor,
+  NODE_EMOJI,
+  NODE_HUES,
+} from "@/lib/mind-maps";
 import { cn } from "@/lib/utils";
 import { updateMindMapData } from "@/server/actions/mind-map";
 
@@ -74,6 +82,12 @@ export function MindMapCanvas({
   );
   const [dirty, setDirty] = React.useState(initialNodes.length === 0);
   const [busy, setBusy] = React.useState(false);
+
+  // Gates the per-node menus. See the note at the trigger: Radix's `useId`
+  // counter drifts between the server render and hydration on a page with many
+  // triggers, and a canvas is nothing but many triggers.
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
 
   // Ids added since this page loaded. Only these animate in — re-running the
   // entrance for every node on each render would make the map twitch whenever
@@ -531,8 +545,12 @@ export function MindMapCanvas({
                   height: h,
                   fontSize: `${Math.max(0.68, shrink) * 100}%`,
                   background: mindMapColor(type, isCentre ? 0.24 : 0.12),
-                  borderColor: mindMapColor(type, isCentre ? 0.7 : 0.35),
-                  borderWidth: isCentre ? 2 : 1,
+                  // A node's own hue if it has been given one, otherwise the
+                  // map's. Only the border is tinted: colouring the fill as well
+                  // put nine differently-coloured washes on one backdrop and the
+                  // map stopped reading as a single drawing.
+                  borderColor: nodeBorderColor(type, node.hue, isCentre ? 0.7 : 0.35),
+                  borderWidth: node.hue !== null && node.hue !== undefined ? 2 : isCentre ? 2 : 1,
                 }}
               >
                 {style.ring ? (
@@ -546,6 +564,20 @@ export function MindMapCanvas({
                   />
                 ) : null}
 
+                {/* Above the text, not inline with it: an emoji in the flow
+                    reflows the words every time it changes, and on a round node
+                    that re-wraps the whole label. It rides on the border instead,
+                    where it also stays legible on a node shrunk several ranks
+                    down. */}
+                {node.emoji ? (
+                  <span
+                    className="pointer-events-none absolute -left-1 -top-2 select-none rounded-full bg-background/85 px-1 leading-tight shadow-sm backdrop-blur"
+                    style={{ fontSize: `${Math.max(0.8, shrink) * 90}%` }}
+                  >
+                    {node.emoji}
+                  </span>
+                ) : null}
+
                 {/* Fills the box rather than sizing itself, because the box is
                     now a fixed size the router relies on. Text past the bottom
                     scrolls; it does not stretch the node and quietly invalidate
@@ -553,6 +585,10 @@ export function MindMapCanvas({
                 <textarea
                   value={node.text}
                   readOnly={!canEdit}
+                  // The same 160 the schema enforces. Without it a long note
+                  // types in happily and fails on Save with a message about
+                  // lengths, by which point the author has no idea which node.
+                  maxLength={160}
                   placeholder={isCentre ? "Main title" : "…"}
                   onChange={(event) => update(node.id, { text: event.target.value })}
                   className={cn(
@@ -561,7 +597,15 @@ export function MindMapCanvas({
                   )}
                 />
 
-                {canEdit ? (
+                {/* Menus are mounted after hydration, never rendered on the
+                    server. Radix numbers them with `useId`, which React derives
+                    from position in the tree, so the ids only agree if the server
+                    and client build an identical tree — and a canvas of twenty
+                    nodes turns one drifting counter into twenty hydration
+                    warnings. An explicit id on the trigger does not help: Radix
+                    overwrites it with its own. Nothing is lost, because these
+                    appear on hover and nobody hovers during hydration. */}
+                {canEdit && mounted ? (
                   <div className="absolute -right-2 -top-2 flex gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -590,17 +634,92 @@ export function MindMapCanvas({
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    {!isCentre ? (
-                      <button
-                        type="button"
-                        aria-label="Remove this node"
-                        onClick={() => remove(node.id)}
-                        className="rounded-full border bg-background p-1 shadow-sm"
-                        style={{ borderColor: mindMapColor(type, 0.5) }}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    ) : null}
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label="More for this node"
+                          className="rounded-full border bg-background p-1 shadow-sm"
+                          style={{ borderColor: mindMapColor(type, 0.5) }}
+                        >
+                          <MoreHorizontal className="size-3.5" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-60">
+                        <DropdownMenuLabel>Emoji</DropdownMenuLabel>
+                        {/* A grid inside the menu rather than a submenu per
+                            emoji: twenty-four items as menu rows is a scroll,
+                            and marking a node is meant to be one glance and one
+                            click. */}
+                        <div className="grid grid-cols-8 gap-0.5 px-1.5 pb-1">
+                          {NODE_EMOJI.map((glyph) => (
+                            <button
+                              key={glyph}
+                              type="button"
+                              aria-label={`Mark with ${glyph}`}
+                              onClick={() =>
+                                update(node.id, {
+                                  emoji: node.emoji === glyph ? null : glyph,
+                                })
+                              }
+                              className={cn(
+                                "rounded p-1 text-base leading-none hover:bg-accent",
+                                node.emoji === glyph && "bg-accent",
+                              )}
+                            >
+                              {glyph}
+                            </button>
+                          ))}
+                        </div>
+
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>Border</DropdownMenuLabel>
+                        <div className="flex flex-wrap gap-1 px-1.5 pb-1">
+                          <button
+                            type="button"
+                            aria-label="Use the map's colour"
+                            title="Map colour"
+                            onClick={() => update(node.id, { hue: null })}
+                            className={cn(
+                              "size-5 rounded-full border-2",
+                              node.hue === null || node.hue === undefined
+                                ? "ring-2 ring-ring ring-offset-1 ring-offset-popover"
+                                : undefined,
+                            )}
+                            style={{ borderColor: mindMapColor(type, 0.9) }}
+                          />
+                          {NODE_HUES.map(({ hue, label }) => (
+                            <button
+                              key={hue}
+                              type="button"
+                              aria-label={label}
+                              title={label}
+                              onClick={() => update(node.id, { hue })}
+                              className={cn(
+                                "size-5 rounded-full border-2",
+                                node.hue === hue
+                                  ? "ring-2 ring-ring ring-offset-1 ring-offset-popover"
+                                  : undefined,
+                              )}
+                              style={{ borderColor: `hsl(${hue} 88% 60%)` }}
+                            />
+                          ))}
+                        </div>
+
+                        {!isCentre ? (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={() => remove(node.id)}
+                            >
+                              <Trash2 /> Remove this node
+                            </DropdownMenuItem>
+                          </>
+                        ) : null}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 ) : null}
               </div>

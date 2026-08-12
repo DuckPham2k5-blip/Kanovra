@@ -85,6 +85,68 @@ export const MIND_MAP_ORDER: MindMapType[] = [
   MindMapType.BRIDGE,
 ];
 
+/**
+ * Border colours offered for a single node.
+ *
+ * Hues at the app's fixed saturation and lightness, so a node picked out in
+ * red still belongs to the same drawing as one left on the map's own accent.
+ * Free-form colour was the alternative and it lets somebody choose a border
+ * indistinguishable from the backdrop, which reads as the border having
+ * vanished.
+ */
+export const NODE_HUES: { hue: number; label: string }[] = [
+  { hue: 0, label: "Red" },
+  { hue: 24, label: "Orange" },
+  { hue: 38, label: "Amber" },
+  { hue: 88, label: "Lime" },
+  { hue: 160, label: "Green" },
+  { hue: 190, label: "Cyan" },
+  { hue: 218, label: "Blue" },
+  { hue: 268, label: "Violet" },
+  { hue: 320, label: "Pink" },
+];
+
+/**
+ * The emoji offered on a node.
+ *
+ * A fixed set rather than a full picker: the point of an emoji on a node is to
+ * mark it — this one is a question, that one is done, this one is a risk — and a
+ * thousand choices makes marking slower than typing the word. Grouped so the
+ * marking vocabulary comes first and the objects afterwards.
+ */
+export const NODE_EMOJI = [
+  "⭐",
+  "❓",
+  "❗",
+  "✅",
+  "⚠️",
+  "🔥",
+  "💡",
+  "🎯",
+  "📌",
+  "🧩",
+  "🔒",
+  "🕒",
+  "📈",
+  "📉",
+  "💰",
+  "🐛",
+  "🧪",
+  "🚀",
+  "❤️",
+  "👍",
+  "👎",
+  "🙏",
+  "🌱",
+  "🌍",
+];
+
+/** A node's own border colour, or the map's accent when it has none. */
+export function nodeBorderColor(type: MindMapType, hue: number | null | undefined, alpha: number) {
+  if (hue === null || hue === undefined) return mindMapColor(type, alpha);
+  return `hsl(${hue} 88% 60% / ${alpha})`;
+}
+
 /** Full colour for a map's accent, matching `page-accent.ts`'s formula. */
 export function mindMapColor(type: MindMapType, alpha?: number) {
   const { hue } = MIND_MAP_META[type];
