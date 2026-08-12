@@ -117,6 +117,7 @@ model User {
   comments           Comment[]
   activities         Activity[]        @relation("ActivityActor")
   notifications      Notification[]    @relation("NotificationRecipient")
+  mindMaps           MindMap[]         @relation("MindMapAuthor")
   actedNotifications Notification[]    @relation("NotificationActor")
   invitationsSent    Invitation[]      @relation("InvitationInviter")
 
@@ -147,6 +148,7 @@ model Workspace {
   activities    Activity[]
   notifications Notification[]
   invitations   Invitation[]
+  mindMaps      MindMap[]
 
   @@index([ownerId])
   @@index([slug])
@@ -236,6 +238,7 @@ model Project {
   columns    BoardColumn[]
   tasks      Task[]
   activities Activity[]
+  mindMaps   MindMap[]
 
   @@unique([workspaceId, key])
   @@index([workspaceId])
@@ -448,4 +451,42 @@ model Notification {
 
   @@index([userId, read, createdAt])
   @@map("notifications")
+}
+
+
+/// The eight Thinking Maps. Each has its own structure, so the shape stored in
+/// `data` depends on this — see `lib/mind-maps.ts`, which is the one place
+/// that knows how to read and write each of them.
+enum MindMapType {
+  CIRCLE
+  BUBBLE
+  DOUBLE_BUBBLE
+  TREE
+  FLOW
+  MULTI_FLOW
+  BRACE
+  BRIDGE
+}
+
+model MindMap {
+  id          String      @id @default(cuid())
+  workspaceId String
+  /// Optional: a map can belong to one project, or sit loose in the workspace.
+  projectId   String?
+  type        MindMapType
+  title       String
+  /// The map's contents. Shape varies by `type`; validated on the way in by a
+  /// zod schema per type rather than trusted because it is JSON.
+  data        Json
+  createdById String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdBy User      @relation("MindMapAuthor", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([projectId])
+  @@map("mind_maps")
 }

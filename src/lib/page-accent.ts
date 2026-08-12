@@ -32,6 +32,7 @@ const ACCENTS = {
   calendar: accent(202, "calendar"), // sky
   analytics: accent(38, "analytics"), // amber
   notifications: accent(340, "notifications"), // rose
+  maps: accent(88, "maps"), // lime — the map section, distinct from every other
   members: accent(190, "members"), // cyan
   settings: accent(220, "settings"), // slate-blue
   marketing: accent(255, "marketing"), // deep violet for the landing page
@@ -58,6 +59,8 @@ export function accentForPath(pathname: string): PageAccent {
       return ACCENTS.overview;
     case "my-tasks":
       return ACCENTS.tasks;
+    case "maps":
+      return ACCENTS.maps;
     case "projects":
       return ACCENTS.projects;
     case "calendar":

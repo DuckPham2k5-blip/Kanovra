@@ -11,6 +11,7 @@ import {
   FolderKanban,
   LayoutDashboard,
   ListChecks,
+  Network,
   LogOut,
   Plus,
   Settings,
@@ -70,6 +71,7 @@ export function Sidebar({
     { href: `${base}/my-tasks`, label: "My tasks", icon: ListChecks },
     { href: `${base}/projects`, label: "Projects", icon: FolderKanban },
     { href: `${base}/calendar`, label: "Calendar", icon: CalendarDays },
+    { href: `${base}/maps`, label: "Maps", icon: Network },
     { href: `${base}/analytics`, label: "Analytics", icon: BarChart3 },
     { href: `${base}/notifications`, label: "Notifications", icon: Bell, badge: unreadCount },
   ];
