@@ -106,6 +106,29 @@ export function mindMapBackdrop(type: MindMapType) {
 }
 
 /**
+ * A card's background, as two separate properties rather than one shorthand.
+ *
+ * Split deliberately. Packing a colour and two gradients into `background`
+ * leaves the opaque layer at the mercy of how the whole declaration parses, and
+ * when that went wrong the symptom was not an error — it was the page's glyph
+ * showing straight through the cards, which reads as a design choice rather
+ * than a bug. `backgroundColor` on its own cannot be partially applied.
+ *
+ * The base is a deeply darkened version of the map's own hue, not the neutral
+ * card colour: it blocks what is behind *and* makes each of the eight legible
+ * as itself, instead of eight variations on one dark grey.
+ */
+export function mindMapCardBackground(type: MindMapType) {
+  const { hue } = MIND_MAP_META[type];
+  return {
+    backgroundColor: `hsl(${hue} 45% 9%)`,
+    backgroundImage:
+      `radial-gradient(130% 110% at 12% 0%, hsl(${hue} 60% 24%) 0%, transparent 60%), ` +
+      `radial-gradient(110% 130% at 100% 100%, hsl(${(hue + 40) % 360} 52% 20%) 0%, transparent 56%)`,
+  };
+}
+
+/**
  * How each map is drawn.
  *
  * Shape is not decoration here — it is the notation. A bubble map is bubbles:

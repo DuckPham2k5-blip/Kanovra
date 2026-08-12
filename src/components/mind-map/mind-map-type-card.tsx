@@ -13,7 +13,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MIND_MAP_META, mindMapBackdrop, mindMapColor } from "@/lib/mind-maps";
+import { MIND_MAP_META, mindMapCardBackground, mindMapColor } from "@/lib/mind-maps";
 import { cn } from "@/lib/utils";
 
 /**
@@ -38,6 +38,23 @@ export function MindMapTypeCard({
 }) {
   const meta = MIND_MAP_META[type];
 
+  /**
+   * The history menu is mounted after hydration, not rendered on the server.
+   *
+   * Radix numbers its menus with `useId`, which React derives from a
+   * component's position in the tree — so the ids only agree if the server and
+   * the client build an identical tree. On this page they did not, and eight
+   * menus turned one drifting counter into eight hydration warnings. An
+   * explicit id on the trigger does not help: Radix overwrites it with its own.
+   *
+   * Rendering nothing on the server removes the disagreement rather than
+   * arguing with it. The cost is that the `…` appears one frame after the
+   * page — and it is a menu of things you made earlier, not something anyone
+   * reaches for in that frame.
+   */
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+
   return (
     /*
      * A div, not a button. The card is clickable and also *contains* a menu
@@ -59,11 +76,11 @@ export function MindMapTypeCard({
         disabled && "pointer-events-none opacity-60",
       )}
       style={{
-        background: mindMapBackdrop(type),
-        borderColor: mindMapColor(type, 0.28),
+        ...mindMapCardBackground(type),
+        borderColor: mindMapColor(type, 0.35),
       }}
     >
-      {existing.length > 0 ? (
+      {mounted && existing.length > 0 ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button

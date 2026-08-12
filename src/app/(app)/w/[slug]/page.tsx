@@ -14,15 +14,15 @@ import Link from "next/link";
 
 import { ProjectIcon } from "@/components/icon-picker";
 import { DueBadge, PriorityBadge, ProjectStatusBadge } from "@/components/shared/badges";
+import { ActivityFeed } from "@/components/shared/activity-feed";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
-import { AvatarStack, UserAvatar } from "@/components/shared/user-avatar";
+import { AvatarStack } from "@/components/shared/user-avatar";
 import { NewProjectButton } from "@/components/project/new-project-button";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Progress } from "@/components/ui/progress";
 import { requireWorkspace } from "@/lib/auth";
-import { fromNow } from "@/lib/date";
 import {
   getMyTasks,
   getProjectSummaries,
@@ -174,26 +174,15 @@ export default async function DashboardPage({ params }: { params: Promise<{ slug
           {/* Activity */}
           <section className="space-y-3">
             <h2 className="font-semibold">Recent activity</h2>
-            <div className="tf-card divide-y">
-              {activity.length === 0 ? (
-                <p className="p-6 text-center text-sm text-muted-foreground">
-                  No activity yet.
-                </p>
-              ) : (
-                activity.map((item) => (
-                  <div key={item.id} className="flex gap-3 p-3">
-                    <UserAvatar user={item.actor} className="mt-0.5 size-7" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm leading-snug">{item.message}</p>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {fromNow(item.createdAt)}
-                        {item.project ? ` · ${item.project.name}` : ""}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+            <ActivityFeed
+              items={activity.map((item) => ({
+                id: item.id,
+                message: item.message,
+                createdAt: item.createdAt,
+                actor: item.actor,
+                project: item.project,
+              }))}
+            />
           </section>
         </div>
 

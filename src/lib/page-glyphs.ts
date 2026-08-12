@@ -26,6 +26,22 @@ export const GLYPHS: Record<string, Glyph> = {
     ],
     nodes: [[30, 34], [92, 34], [92, 88], [30, 88], [108, 34], [170, 34], [170, 62], [108, 62], [108, 78], [170, 78], [170, 166], [108, 166], [30, 104], [92, 104], [92, 166], [30, 166]],
   },
+  // Maps — a constellation: one centre with branches running off it, which is
+  // the shape every one of the eight types is a special case of.
+  maps: {
+    paths: [
+      "M100 100 L52 58",
+      "M100 100 L156 66",
+      "M100 100 L60 148",
+      "M100 100 L148 150",
+      "M52 58 L34 30",
+      "M52 58 L26 76",
+      "M156 66 L178 42",
+      "M148 150 L172 172",
+      "M60 148 L36 168",
+    ],
+    nodes: [[100, 100], [52, 58], [156, 66], [60, 148], [148, 150], [34, 30], [26, 76], [178, 42], [172, 172], [36, 168]],
+  },
   // My tasks — a checklist, with the ticks as their own strokes.
   tasks: {
     paths: [

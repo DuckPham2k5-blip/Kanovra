@@ -32,7 +32,21 @@ const ACCENTS = {
   calendar: accent(202, "calendar"), // sky
   analytics: accent(38, "analytics"), // amber
   notifications: accent(340, "notifications"), // rose
-  maps: accent(88, "maps"), // lime — the map section, distinct from every other
+  /* Chosen by measurement, under two constraints rather than one. Twelve hues
+     are already spoken for — eight map types and the other sections — so there
+     is no gap that clears everything. The furthest hue overall is 124, and it
+     is useless here: its nearest neighbours are the lime circle map and the
+     green brace map, which is the original problem again.
+
+     So: maximise the distance from the eight *types*, which share the page,
+     subject to staying at least 28 degrees from any other section, which do
+     not. 312 wins — 44 degrees from the nearest map, 28 from rose.
+
+     The section began as lime, sitting on top of a lime circle map, a green
+     brace map and a cyan bubble map. Darkening those cards was tried twice and
+     could not work: a card in the same colour family as the wash behind it
+     reads as part of the page no matter how opaque it is. */
+  maps: accent(312, "maps"),
   members: accent(190, "members"), // cyan
   settings: accent(220, "settings"), // slate-blue
   marketing: accent(255, "marketing"), // deep violet for the landing page
