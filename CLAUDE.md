@@ -147,6 +147,20 @@ stack.
   kanovra_changes` connection and read the payloads directly; to check the app
   is subscribed, look for `query ilike 'listen%'` in `pg_stat_activity`. That
   subscription is lazy — nothing listens until an SSE stream opens.
+- **`npm run dev` must be stopped before `prisma generate` or `npm run build`.**
+  The dev server holds `query_engine-windows.dll.node`, so generate fails with
+  `EPERM`; and a build overwrites `.next` under the running server, which is
+  the `Cannot find module` trap above. Check by looking for a **listener on
+  port 3000**, not by asking `/api/health` — a busy dev server fails that probe
+  while very much running, which is how the build got launched anyway once.
+- **Radix numbers its menus with `useId`.** On a page with several triggers the
+  count can differ between the server render and hydration, and every trigger
+  after the first mismatch warns. An explicit `id` on the trigger does *not*
+  fix it — Radix overwrites it. Mounting the menu after hydration does.
+- **A card in the same colour family as the page wash cannot be rescued by
+  darkening it.** The Maps section was lime over a lime map card; two rounds of
+  making the card more opaque changed nothing. Section hues are picked by
+  measuring distance from the colours that share the page.
 - When testing anything by changing the database underneath a running page,
   change the data *first* without notifying and confirm the screen has **not**
   moved. Otherwise a stray reload — or Fast Refresh after a recompile — gets
@@ -224,6 +238,48 @@ the realtime one, with a workspace the owner does not belong to — see above.
   connections are cut every 60s and the write rate limit is not enforced at the
   edge.
 - `git push` — never pushed on the owner's behalf without being asked.
+
+## Built after the first pass (2026-08-11 → 12)
+
+**Presence.** A lit ring on an avatar means that person has the app open. It
+is a decaying `lastSeenAt` timestamp, not an online flag: a browser that
+crashes never says "I left", so a flag sticks forever. One endpoint both
+records the caller's heartbeat and returns who else is here. Whoever is online
+sorts to the front of an avatar stack, and the `+N` chip lights when somebody
+online is folded inside it.
+
+**Cross-device sync.** The realtime client used to drop events whose `actorId`
+matched the viewer, which meant one person's laptop and phone ignored each
+other. It is keyed on a `tf_origin` cookie now — the browser, not the person.
+Two tabs of one browser still share a cookie and so still ignore each other.
+
+**Sound.** Two cues synthesised with WebAudio, no asset files: a pop when
+somebody arrives, silence when they leave, and a ping for notifications, with
+a mute toggle in the bell. The gesture listener that wakes the AudioContext is
+deliberately never removed — removing it after the first click let the browser
+suspend the context again, and the next cue paid 585ms of latency asking
+permission at the moment it was due. Measured before and after: 585ms → 1ms.
+
+**Project backdrops.** A gradient, an uploaded picture or a linked one, only
+ever one at a time. Links are fetched once on save and rejected unless the
+response is a real image — a Pinterest share link is a valid URL to an HTML
+page, and accepting it produced an empty header nobody could explain. Every
+hop of that fetch is resolved and refused if the IP is private, because
+fetching an address a visitor chose is how a server gets asked what it can
+reach that they cannot.
+
+**Mind maps.** A new section with the eight Thinking Maps. Circle, bubble and
+double bubble are free canvases; the other five are laid out from their
+structure and cannot be dragged. The canvas is an unbounded plane — pan and
+zoom are one transform, not a scrollable box, which is what a fixed sheet
+could not do. Node size is chosen when a node is made, in either direction
+without limit, rather than derived from depth.
+
+**Still unfinished on the maps**, from the owner's sketches: per-node presence
+avatars, a `…` menu, emoji, comments and border colour on nodes; orthogonal
+non-overlapping edge routing for brace, flow and multi-flow; and bespoke
+layouts that make bridge, circle, double bubble and brace look like their own
+notation rather than variations on one drawing.
 
 **Known feature gaps** versus comparable products, in no particular order: task
 dependencies (blocked by / blocks), multi-select and bulk actions, saved and
