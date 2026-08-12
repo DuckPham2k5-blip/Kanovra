@@ -156,7 +156,11 @@ stack.
 - **Radix numbers its menus with `useId`.** On a page with several triggers the
   count can differ between the server render and hydration, and every trigger
   after the first mismatch warns. An explicit `id` on the trigger does *not*
-  fix it — Radix overwrites it. Mounting the menu after hydration does.
+  fix it — Radix overwrites it. Mounting the menu after hydration does. The map
+  canvas gates all its per-node menus on a `mounted` flag for this reason, and
+  node comments deliberately use **one panel for the whole canvas** rather than a
+  popover per node: a canvas is an arbitrary number of triggers, which is the
+  worst possible shape for that counter.
 - **A card in the same colour family as the page wash cannot be rescued by
   darkening it.** The Maps section was lime over a lime map card; two rounds of
   making the card more opaque changed nothing. Section hues are picked by
@@ -165,13 +169,55 @@ stack.
   change the data *first* without notifying and confirm the screen has **not**
   moved. Otherwise a stray reload — or Fast Refresh after a recompile — gets
   mistaken for the feature working.
+- **Every gap in a map layout is space between boxes, never a centre-to-centre
+  pitch.** A fixed pitch assumes every node is the same size, and node size is
+  chosen freely in either direction without limit — a rank-3 node is *wider than
+  the sibling gap meant to separate it*. So any map holding one large node
+  overlapped, in three of the five structured types, and it looked like a
+  rendering fault rather than an arithmetic one. `mind-map-edges.test.ts` asserts
+  no two nodes overlap across every type; that is how these were found.
+- **Rendering the layouts to an SVG and looking at them catches what tests
+  cannot.** Multi-flow drew every arrow parent-to-child, so the cause side read
+  as "the outage caused the bad deploy" — backwards, in the one type whose whole
+  purpose is direction. The geometry was right and only the meaning was wrong, so
+  no assertion would have failed. The same look found a bridge edge overshooting
+  its target and coming back at it from behind, because the channel sweep stopped
+  204px from the midpoint while the only clear channel sat at 335px.
+- **`parseCanvas` validates nodes one at a time, and must stay that way.**
+  Validating the array meant a single bad value failed the whole parse, and the
+  caller answers an empty canvas by seeding a fresh centre node — so "one node
+  had a hue out of range" and "this map has been wiped" looked identical to
+  whoever opened it. Losing one node loudly beats appearing to lose all of them.
+- **Prisma's `notIn: []` matches everything**, the exact opposite of `in: []`.
+  The comment cleanup on map save depends on it; getting it backwards either
+  orphans every comment forever or deletes them all on the next save, and neither
+  shows up until somebody notices a conversation missing. Pinned in
+  `mind-map-comments.test.ts` against a real database.
+- **A comment cannot live inside `MindMap.data`.** A map is one JSON document
+  saved explicitly and all at once, so a comment in the blob is overwritten the
+  next time anybody saves their own version of the drawing — silently, because
+  whoever lost it was not looking at the map when it happened. `nodeId` points
+  into the JSON with no foreign key, which has two consequences, both handled:
+  the server checks the id is really in the *saved* map before writing (so a node
+  only drawn, never saved, has no comment control yet), and comments whose node
+  is gone are cleaned up **on save**, not on delete — deleting a box in an unsaved
+  document is not a decision yet.
+- **The assistant's in-app browser has no Clerk session**, so it lands on the
+  marketing page and cannot reach a workspace. Anything behind sign-in has to be
+  driven from the owner's own signed-in browser. Map geometry was verified instead
+  by rendering the real layout, routing and notation modules to an SVG from a
+  throwaway test under `src/`, rasterising it with the `sharp` already in
+  `node_modules`, and looking at the picture. The test has to live under `src/` for
+  Vitest to resolve the `@/` alias, and the script has to run from the project
+  root for `sharp` to resolve — both were briefly done the other way round and
+  neither works.
 
 ---
 
 ## State and what is left
 
 All application work asked for so far is committed to `main` and green:
-typecheck, lint, 40 tests, production build.
+typecheck, lint, 118 tests, production build.
 
 **Live updates: verified end to end on 2026-08-10**, in dev, with the owner
 driving the browser. What the run actually established:
@@ -275,17 +321,76 @@ zoom are one transform, not a scrollable box, which is what a fixed sheet
 could not do. Node size is chosen when a node is made, in either direction
 without limit, rather than derived from depth.
 
-**Still unfinished on the maps**, from the owner's sketches: per-node presence
-avatars, a `…` menu, emoji, comments and border colour on nodes; orthogonal
-non-overlapping edge routing for brace, flow and multi-flow; and bespoke
-layouts that make bridge, circle, double bubble and brace look like their own
-notation rather than variations on one drawing.
-
 **Known feature gaps** versus comparable products, in no particular order: task
 dependencies (blocked by / blocks), multi-select and bulk actions, saved and
 shareable filter views, recurring tasks, actual time tracking (`estimate`
 exists, actuals do not), project templates, keyboard shortcuts beyond ⌘K, undo,
 CSV export, public read-only share links.
+
+---
+
+## Built after the second pass (2026-08-12)
+
+Everything on the maps list from the first pass is done. Five commits, each
+green on typecheck, lint, tests and a production build.
+
+**Edges are routed, not drawn between centres.** A route is a list of points:
+out of the side facing the target, right angles, onto the target's boundary,
+around whatever is in the way (`mind-map-edges.ts`). Centre-to-centre put the
+line *underneath* the boxes at both ends and hid every arrowhead behind its own
+target — and nobody reports a missing arrow when the arrow is simply behind
+something. Three families of route are tried in order of how ordinary they look
+and the first clear one wins; when nothing is clear the most natural route is
+drawn anyway, because a line clipping a box beats a missing line.
+
+**Node size lives in the library**, so the geometry that is *drawn* and the
+geometry that is *routed around* are the same numbers. Height used to be left to
+the content, which meant any attempt at avoiding a node would have been avoiding
+a guess. Text that outgrows its box scrolls inside it rather than reshaping the
+box and silently invalidating every route on the map.
+
+**Brace, bridge and circle have their own notation** (`mind-map-notation.ts`).
+A brace map is one bracket spanning each group, not a line per part. A bridge map
+is one long line with words astride it. A circle map is a circle inside a dashed
+frame of reference. For those three the mark *is* the connection, so the
+per-edge routes are not drawn at all — a bracket with lines through it reads as
+a mistake rather than as either notation. The per-node inner ring went with them:
+eight small rings inside one big one reads as a rendering fault.
+
+**Double bubble is the one type whose shape depends on its contents.** It has two
+subjects, and a quality either belongs to one or is shared by both — which
+parenthood cannot express, because a shared quality touches two bubbles and a
+node has one parent. So a node carries a `role` (`subject` / `shared`), set from
+its own menu, kept on the node rather than modelled as a second parent link,
+which would make every walk, layout and orphan check handle graphs to express a
+fact true of exactly one map type. Structured only once a second subject has been
+named; before that it is an ordinary bubble map, which is what it is.
+
+**Nodes have a `…` menu, an emoji and a border hue.** Fixed sets, not pickers:
+free colour lets somebody choose a border indistinguishable from the backdrop,
+and a thousand emoji make marking a node slower than typing the word. Only the
+border is tinted — colouring the fill too put nine washes on one backdrop and the
+map stopped reading as one drawing.
+
+**Presence and comments per node.** Presence rides the ordinary heartbeat as an
+opaque scope string (`map:<mapId>:<nodeId>`) in `User.focus`, so being on a node
+decays the same way being in the workspace does. A focus change polls immediately
+instead of waiting for the next scheduled heartbeat: ten seconds between clicking
+a node and anyone seeing you on it is long enough for two people to overwrite each
+other before either ring appears. The scope is chosen by the caller's own browser
+and handed back to their teammates, so **nothing renders it** — clients compare it
+for equality to decide whether to draw an avatar. Comments are rows in
+`MindMapComment`, not another field in `MindMap.data` — see the trap below.
+
+**What this pass did *not* verify.** Nothing was seen in the running application.
+The assistant's browser has no Clerk session, so the geometry was checked by
+rendering the real modules to a picture and looking at it (see the trap), and the
+rest by typecheck, lint, 118 tests and a production build. Specifically unproven
+in a browser: the `…` menu opening without a hydration warning, an emoji or border
+colour surviving a save and reload, a comment posting and appearing, and a second
+person's avatar arriving on a node. The comment cleanup query *is* proven against
+the real database. Per-node presence has the same gap as workspace presence: it
+has never been exercised by two genuinely different signed-in sessions.
 
 ---
 
