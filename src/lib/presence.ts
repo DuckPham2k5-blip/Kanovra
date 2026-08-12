@@ -39,15 +39,38 @@ type Snapshot = {
   arrived: ReadonlySet<string>;
   /** Ids that were here in the previous poll and are not any more. */
   left: ReadonlySet<string>;
+  /**
+   * Where each online person is looking, as an opaque scope string.
+   *
+   * Only ever compared for equality, never displayed. The value is chosen by
+   * somebody else's browser, so treating it as text to render would be putting
+   * a string a teammate controls onto this page.
+   */
+  focus: ReadonlyMap<string, string>;
 };
 
-const EMPTY: Snapshot = { you: null, online: new Set(), arrived: new Set(), left: new Set() };
+const EMPTY: Snapshot = {
+  you: null,
+  online: new Set(),
+  arrived: new Set(),
+  left: new Set(),
+  focus: new Map(),
+};
 
 let snapshot: Snapshot = EMPTY;
 const subscribers = new Set<() => void>();
 let timer: ReturnType<typeof setInterval> | undefined;
 let currentSlug: string | null = null;
 let seenFirstResponse = false;
+
+/**
+ * What this browser is looking at, sent up with the heartbeat.
+ *
+ * Module-level rather than a hook argument, for the same reason the poller is:
+ * there is one browser and it is looking at one thing, however many components
+ * happen to be asking who else is around.
+ */
+let myFocus: string | null = null;
 
 function publish(next: Snapshot) {
   snapshot = next;
@@ -60,13 +83,18 @@ async function poll() {
     const res = await fetch("/api/presence", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slug: currentSlug }),
+      body: JSON.stringify({ slug: currentSlug, focus: myFocus }),
       cache: "no-store",
     });
     if (!res.ok) return;
 
-    const data = (await res.json()) as { you: string; online: string[] };
+    const data = (await res.json()) as {
+      you: string;
+      online: string[];
+      focus?: Record<string, string>;
+    };
     const online = new Set(data.online);
+    const focus = new Map(Object.entries(data.focus ?? {}));
 
     // The first response is the baseline. Treating it as arrivals would light
     // up every teammate the moment a page loads, which says "they just got
@@ -79,7 +107,7 @@ async function poll() {
     }
     seenFirstResponse = true;
 
-    publish({ you: data.you, online, arrived, left });
+    publish({ you: data.you, online, arrived, left, focus });
   } catch {
     // Offline or a transient failure. Keeping the previous snapshot is the
     // right call: a failed request is not evidence that anybody left.
@@ -127,6 +155,50 @@ function slugFromPath(pathname: string | null): string | null {
   if (!pathname) return null;
   const match = /^\/w\/([^/]+)/.exec(pathname);
   return match ? match[1] : null;
+}
+
+/**
+ * Says what this browser is looking at, and tells the server straight away.
+ *
+ * Waiting for the next scheduled heartbeat would mean up to ten seconds between
+ * clicking a node and anyone else seeing you on it, which for something as
+ * fine-grained as "who is editing this box" is long enough that two people
+ * overwrite each other before either ring appears.
+ */
+export function setPresenceFocus(scope: string | null) {
+  if (myFocus === scope) return;
+  myFocus = scope;
+  if (currentSlug) void poll();
+}
+
+/**
+ * Everyone looking at something under `prefix`, grouped by whatever follows it.
+ *
+ * Grouped here rather than asked per thing, because a caller with a list of
+ * things cannot call a hook for each of them — the count changes as the list
+ * does, and React counts hooks. One call returns the whole picture.
+ *
+ * Yourself excluded: your own avatar on the node you are typing in tells you
+ * nothing you do not already know, and it would sit on top of that node's own
+ * controls.
+ */
+export function useFocusGroups(prefix: string): ReadonlyMap<string, string[]> {
+  const { you, online, focus } = usePresence();
+
+  return React.useMemo(() => {
+    const out = new Map<string, string[]>();
+    for (const [userId, at] of focus) {
+      if (userId === you) continue;
+      if (!online.has(userId)) continue;
+      if (!at.startsWith(prefix)) continue;
+
+      const key = at.slice(prefix.length);
+      const list = out.get(key);
+      if (list) list.push(userId);
+      else out.set(key, [userId]);
+    }
+    return out;
+  }, [prefix, focus, online, you]);
 }
 
 export function usePresence(): Snapshot {

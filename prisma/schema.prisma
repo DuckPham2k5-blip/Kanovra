@@ -94,19 +94,27 @@ enum NotificationType {
 // ---------------------------------------------------------------------------
 
 model User {
-  id        String   @id @default(cuid())
+  id         String    @id @default(cuid())
   /// Clerk user id — the source of truth for authentication.
-  clerkId   String   @unique
-  email     String   @unique
-  name      String
-  imageUrl  String?
+  clerkId    String    @unique
+  email      String    @unique
+  name       String
+  imageUrl   String?
   /// Last heartbeat from an open tab. Presence is derived from this rather than
   /// stored as a boolean: a browser that crashes or loses its connection never
   /// gets to say "I left", so a flag would stay stuck at online forever. A
   /// timestamp that simply stops being refreshed decays on its own.
   lastSeenAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  /// What this person has open right now, as an opaque scope string such as
+  /// `map:<mapId>:<nodeId>`. Read only alongside `lastSeenAt`, so it decays for
+  /// the same reason and needs no clearing when a tab closes.
+  ///
+  /// A column rather than process memory. PM2 runs two workers, and presence
+  /// held in one of them is invisible to whoever is served by the other — the
+  /// same reason live updates go through Postgres instead of an EventEmitter.
+  focus      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   ownedWorkspaces    Workspace[]       @relation("WorkspaceOwner")
   memberships        WorkspaceMember[]
@@ -118,6 +126,7 @@ model User {
   activities         Activity[]        @relation("ActivityActor")
   notifications      Notification[]    @relation("NotificationRecipient")
   mindMaps           MindMap[]         @relation("MindMapAuthor")
+  mindMapComments    MindMapComment[]  @relation("MindMapCommentAuthor")
   actedNotifications Notification[]    @relation("NotificationActor")
   invitationsSent    Invitation[]      @relation("InvitationInviter")
 
@@ -196,23 +205,23 @@ model Invitation {
 // ---------------------------------------------------------------------------
 
 model Project {
-  id          String        @id @default(cuid())
-  workspaceId String
-  name        String
+  id              String        @id @default(cuid())
+  workspaceId     String
+  name            String
   /// Short uppercase key used to build human task references, e.g. `WEB-42`.
-  key         String
-  description String?
-  color       String        @default("#6366f1")
-  icon        String        @default("Rocket")
-  status      ProjectStatus @default(ACTIVE)
-  startDate   DateTime?
-  dueDate     DateTime?
-  archived    Boolean       @default(false)
+  key             String
+  description     String?
+  color           String        @default("#6366f1")
+  icon            String        @default("Rocket")
+  status          ProjectStatus @default(ACTIVE)
+  startDate       DateTime?
+  dueDate         DateTime?
+  archived        Boolean       @default(false)
   /// Name of a built-in gradient from `lib/project-banners.ts`, or null.
-  bannerPreset String?
+  bannerPreset    String?
   /// Id of an uploaded picture on disk, stored the way attachments are: outside
   /// the web root, served through a route that re-checks membership.
-  bannerImageId String?
+  bannerImageId   String?
   /// The picture's type, kept because the serving route sends `nosniff`: with
   /// sniffing off the browser will not guess, so an approximate content type
   /// means the image simply does not render.
@@ -221,16 +230,16 @@ model Project {
   /// visitor's browser directly, so it is outside our membership check: the
   /// host on the other end sees who is looking, and can change or remove the
   /// picture whenever it likes. Only ever `https`.
-  bannerImageUrl String?
+  bannerImageUrl  String?
   /// Vertical framing of a picture, 0 (top) to 100 (bottom). A header strip is
   /// far wider than it is tall, so almost every picture is cropped top and
   /// bottom and the only interesting question is which band to keep.
-  bannerPositionY Int @default(50)
+  bannerPositionY Int           @default(50)
   /// Monotonic counter used to allocate the numeric part of a task reference.
-  taskCounter Int           @default(0)
-  createdById String
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  taskCounter     Int           @default(0)
+  createdById     String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   workspace  Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   createdBy  User            @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Cascade)
@@ -453,7 +462,6 @@ model Notification {
   @@map("notifications")
 }
 
-
 /// The eight Thinking Maps. Each has its own structure, so the shape stored in
 /// `data` depends on this — see `lib/mind-maps.ts`, which is the one place
 /// that knows how to read and write each of them.
@@ -482,11 +490,44 @@ model MindMap {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  createdBy User      @relation("MindMapAuthor", fields: [createdById], references: [id], onDelete: Cascade)
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdBy User             @relation("MindMapAuthor", fields: [createdById], references: [id], onDelete: Cascade)
+  comments  MindMapComment[]
 
   @@index([workspaceId])
   @@index([projectId])
   @@map("mind_maps")
+}
+
+/// A comment on one node of a mind map.
+///
+/// A row of its own rather than another field inside `MindMap.data`, and that is
+/// the whole design decision here. A map is saved explicitly, all of it at once,
+/// as a document somebody is drafting — so a comment living inside that blob
+/// would be overwritten the next time anybody saved their own version of the
+/// drawing. Discussion is not part of the document; it is about the document,
+/// and it posts on its own the moment it is written.
+///
+/// `nodeId` points into the JSON by the node's client-generated id, which is
+/// never rewritten once assigned. There is no foreign key to enforce — the node
+/// is not a row — so comments whose node has been deleted are cleaned up when
+/// the map is next saved.
+model MindMapComment {
+  id       String @id @default(cuid())
+  mapId    String
+  /// The `id` of a node inside `MindMap.data`, not a row anywhere.
+  nodeId   String
+  authorId String
+  body     String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  map    MindMap @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  author User    @relation("MindMapCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([mapId])
+  @@index([mapId, nodeId])
+  @@map("mind_map_comments")
 }

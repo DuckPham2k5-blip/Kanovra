@@ -7,6 +7,7 @@ import {
   Columns2,
   Equal,
   Link2,
+  MessageSquare,
   MoreHorizontal,
   Plus,
   Trash2,
@@ -15,6 +16,11 @@ import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 
+import {
+  MindMapNodeComments,
+  type NodeComment,
+} from "@/components/mind-map/mind-map-node-comments";
+import { UserAvatar, type AvatarUser } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -41,6 +47,7 @@ import {
 } from "@/lib/mind-map-edges";
 import { isStructured, layoutNodes } from "@/lib/mind-map-layout";
 import { notationFor, replacesEdges } from "@/lib/mind-map-notation";
+import { setPresenceFocus, useFocusGroups } from "@/lib/presence";
 import {
   mindMapColor,
   mindMapStyle,
@@ -77,12 +84,18 @@ export function MindMapCanvas({
   title,
   initialNodes,
   canEdit,
+  canComment,
+  comments,
+  members,
 }: {
   mapId: string;
   type: MindMapType;
   title: string;
   initialNodes: CanvasNode[];
   canEdit: boolean;
+  canComment: boolean;
+  comments: NodeComment[];
+  members: AvatarUser[];
 }) {
   const router = useRouter();
 
@@ -97,6 +110,52 @@ export function MindMapCanvas({
   // triggers, and a canvas is nothing but many triggers.
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
+
+  /** Which node's comments are on screen. One panel, not one per node. */
+  const [openThread, setOpenThread] = React.useState<string | null>(null);
+
+  /**
+   * Who else is on which node.
+   *
+   * Reported as an opaque scope on the ordinary presence heartbeat, so being
+   * *on a node* decays exactly the way being *in the workspace* does — a
+   * browser that crashes never says it left, and an avatar that only
+   * disappears when told to would sit on that node until someone reloaded.
+   */
+  const watchers = useFocusGroups(`map:${mapId}:`);
+
+  const commentCounts = React.useMemo(() => {
+    const out = new Map<string, number>();
+    for (const comment of comments) {
+      out.set(comment.nodeId, (out.get(comment.nodeId) ?? 0) + 1);
+    }
+    return out;
+  }, [comments]);
+
+  const memberById = React.useMemo(
+    () => new Map(members.map((member) => [member.id, member])),
+    [members],
+  );
+
+  /**
+   * Which nodes exist in the *saved* map, which is not the same as which nodes
+   * are on screen.
+   *
+   * A comment is a row keyed by a node id, and the server checks that the id is
+   * really in the map before writing one — otherwise a comment can be attached
+   * to something that has never existed and sits in the table unreachable. So a
+   * node that has only been drawn, never saved, cannot be commented on yet, and
+   * the control is absent rather than present and failing. Derived from the prop,
+   * so it catches up by itself on the refresh that follows a save.
+   */
+  const savedIds = React.useMemo(
+    () => new Set(initialNodes.map((node) => node.id)),
+    [initialNodes],
+  );
+
+  // Leaving the page must clear the focus, or the last node touched keeps an
+  // avatar on it for whoever is still reading.
+  React.useEffect(() => () => setPresenceFocus(null), []);
 
   // Ids added since this page loaded. Only these animate in — re-running the
   // entrance for every node on each render would make the map twitch whenever
@@ -545,10 +604,18 @@ export function MindMapCanvas({
             // The same numbers the router used. Anything else here and a line
             // that provably misses a box misses the wrong box.
             const { w, h } = nodeSize(type, node.rank);
+            const here = (watchers.get(node.id) ?? [])
+              .map((id) => memberById.get(id))
+              .filter((member): member is AvatarUser => !!member);
+            const threadSize = commentCounts.get(node.id) ?? 0;
             return (
               <div
                 key={node.id}
                 onPointerDown={(event) => onNodePointerDown(event, node)}
+                // Pressing anywhere on a node is enough to count as being on it.
+                // Waiting for the text box to take focus would leave anyone who
+                // is only reading, or who has no permission to edit, invisible.
+                onPointerDownCapture={() => setPresenceFocus(`map:${mapId}:${node.id}`)}
                 className={cn(
                   // No `overflow-hidden` here, however tempting: the hover
                   // controls hang outside the box on purpose, and clipping the
@@ -621,6 +688,52 @@ export function MindMapCanvas({
                     isCentre && "font-semibold",
                   )}
                 />
+
+                {/* Who else is on this node, and how much has been said about
+                    it. Both sit outside the box: inside, they would compete with
+                    the words on a node that may be several ranks small, and the
+                    box is a fixed size the router depends on. */}
+                {here.length > 0 ? (
+                  <span className="pointer-events-none absolute -bottom-3 left-1 flex -space-x-1.5">
+                    {here.slice(0, 3).map((member) => (
+                      <UserAvatar
+                        key={member.id}
+                        user={member}
+                        showTooltip={false}
+                        className="size-5 ring-2 ring-background"
+                      />
+                    ))}
+                    {here.length > 3 ? (
+                      <span className="flex size-5 items-center justify-center rounded-full bg-accent text-[9px] font-semibold ring-2 ring-background">
+                        +{here.length - 3}
+                      </span>
+                    ) : null}
+                    <span className="sr-only">
+                      {here.map((member) => member.name).join(", ")} looking at this
+                    </span>
+                  </span>
+                ) : null}
+
+                {savedIds.has(node.id) && (threadSize > 0 || (mounted && canComment)) ? (
+                  <button
+                    type="button"
+                    aria-label={
+                      threadSize > 0 ? `${threadSize} comments on this node` : "Comment on this node"
+                    }
+                    onClick={() => setOpenThread(node.id)}
+                    className={cn(
+                      "absolute -bottom-2.5 -right-2 flex items-center gap-0.5 rounded-full border bg-background px-1.5 py-0.5 text-[10px] font-semibold shadow-sm",
+                      // A node nobody has said anything about does not advertise
+                      // the fact; the button appears on hover instead.
+                      threadSize === 0 &&
+                        "opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100",
+                    )}
+                    style={{ borderColor: mindMapColor(type, 0.5) }}
+                  >
+                    <MessageSquare className="size-3" />
+                    {threadSize > 0 ? threadSize : null}
+                  </button>
+                ) : null}
 
                 {/* Menus are mounted after hydration, never rendered on the
                     server. Radix numbers them with `useId`, which React derives
@@ -788,6 +901,21 @@ export function MindMapCanvas({
           })}
         </div>
       </div>
+
+      {/* Outside the pan-and-zoom transform on purpose: a thread scaled to 40%
+          is unreadable and one at 200% is bigger than the node it belongs to. */}
+      {/* Only while the node is still on screen. Removing a node with its thread
+          open would otherwise leave a panel discussing a box nobody can see. */}
+      {openThread && nodes.some((node) => node.id === openThread) ? (
+        <MindMapNodeComments
+          mapId={mapId}
+          nodeId={openThread}
+          nodeLabel={nodes.find((node) => node.id === openThread)?.text ?? ""}
+          comments={comments}
+          canComment={canComment}
+          onClose={() => setOpenThread(null)}
+        />
+      ) : null}
     </div>
   );
 }

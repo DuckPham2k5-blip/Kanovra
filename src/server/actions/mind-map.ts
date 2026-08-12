@@ -148,6 +148,22 @@ export async function updateMindMapData(input: unknown): Promise<ActionResult> {
       data: { data: parsed.data },
     });
 
+    /*
+     * Comments on nodes that no longer exist go with them.
+     *
+     * `MindMapComment.nodeId` points into this JSON, and there is no foreign key
+     * to cascade because the node is not a row. Left alone, deleting a node
+     * would leave its discussion in the table unreachable — and if that id were
+     * ever reused, the old conversation would reappear under a new node.
+     *
+     * Done on save rather than on delete because deleting a node is a local edit
+     * to an unsaved document: someone who removes a box and then closes the tab
+     * without saving still has the box, and should still have its comments.
+     */
+    await prisma.mindMapComment.deleteMany({
+      where: { mapId, nodeId: { notIn: parsed.data.nodes.map((node) => node.id) } },
+    });
+
     revalidatePath(`/w/${map.workspace.slug}/maps/${mapId}`);
     return ok(undefined);
   });

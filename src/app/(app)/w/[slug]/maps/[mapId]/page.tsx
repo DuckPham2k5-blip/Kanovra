@@ -18,7 +18,7 @@ export default async function MapPage({
   params: Promise<{ slug: string; mapId: string }>;
 }) {
   const { slug, mapId } = await params;
-  const { workspace, can } = await requireWorkspace(slug);
+  const { workspace, can, user } = await requireWorkspace(slug);
 
   // Scoped by workspace, not just by id: an id from another workspace must
   // read as missing rather than as forbidden.
@@ -30,6 +30,27 @@ export default async function MapPage({
 
   const meta = MIND_MAP_META[map.type];
   const canvas = parseCanvas(map.data);
+
+  const [comments, members] = await Promise.all([
+    prisma.mindMapComment.findMany({
+      where: { mapId: map.id },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        nodeId: true,
+        body: true,
+        createdAt: true,
+        author: { select: { id: true, name: true, imageUrl: true } },
+      },
+    }),
+    // Only for drawing avatars on nodes: presence answers with ids, and an id is
+    // not a face. Fetched here rather than added to the presence payload, which
+    // is polled every ten seconds and would carry the same names each time.
+    prisma.workspaceMember.findMany({
+      where: { workspaceId: workspace.id },
+      select: { user: { select: { id: true, name: true, imageUrl: true } } },
+    }),
+  ]);
 
   return (
     /*
@@ -72,6 +93,15 @@ export default async function MapPage({
         title={map.title}
         initialNodes={canvas.nodes}
         canEdit={can("project:update")}
+        canComment={can("comment:create")}
+        // `mine` is decided here rather than compared in the browser: whether
+        // the delete control appears is a permission question, and a permission
+        // question answered by the client is a suggestion.
+        comments={comments.map((comment) => ({
+          ...comment,
+          mine: comment.author.id === user.id,
+        }))}
+        members={members.map((member) => member.user)}
       />
     </div>
   );

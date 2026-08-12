@@ -31,9 +31,20 @@ export async function POST(request: Request) {
   if (!user) return new Response("Unauthorized", { status: 401 });
 
   let slug: string | undefined;
+  let focus: string | null = null;
   try {
-    const body = (await request.json()) as { slug?: string };
+    const body = (await request.json()) as { slug?: string; focus?: unknown };
     slug = body.slug;
+    /*
+     * An opaque scope string, capped and never rendered.
+     *
+     * It is chosen by the caller's own browser and handed back out to their
+     * teammates, so the only safe contract is that nobody displays it: clients
+     * compare it for equality to decide whether to draw an avatar. The cap is
+     * there because this is a column, and an uncapped client-chosen string in a
+     * column is a place to put a megabyte.
+     */
+    if (typeof body.focus === "string" && body.focus.length <= 200) focus = body.focus;
   } catch {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
@@ -55,7 +66,7 @@ export async function POST(request: Request) {
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { lastSeenAt: new Date() },
+    data: { lastSeenAt: new Date(), focus },
   });
 
   const since = new Date(Date.now() - ONLINE_WINDOW_MS);
@@ -64,11 +75,20 @@ export async function POST(request: Request) {
       workspaceId: workspace.id,
       user: { lastSeenAt: { gte: since } },
     },
-    select: { userId: true },
+    select: { userId: true, user: { select: { focus: true } } },
   });
 
+  // Only for people who are actually here. A stale `focus` on a lapsed
+  // heartbeat is where somebody *was*, and reporting it would leave an avatar
+  // sitting on a node nobody has looked at for an hour — the exact failure a
+  // decaying timestamp exists to avoid.
+  const focused: Record<string, string> = {};
+  for (const member of online) {
+    if (member.user.focus) focused[member.userId] = member.user.focus;
+  }
+
   return NextResponse.json(
-    { you: user.id, online: online.map((m) => m.userId) },
+    { you: user.id, online: online.map((m) => m.userId), focus: focused },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
