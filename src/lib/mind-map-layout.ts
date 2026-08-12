@@ -41,12 +41,33 @@ const BRIDGE_GAP = 34;
 /** A cycle in `parentId` cannot be reached from the root, but self-parenting can. */
 const GUARD = 200;
 
-export function isStructured(type: MindMapType) {
+/**
+ * The second subject of a double bubble map, if one has been named.
+ *
+ * A double bubble is the one type whose shape depends on its contents rather
+ * than only on its type: until somebody says which node is the *other* thing
+ * being compared, there is no comparison to lay out, and the map is an ordinary
+ * bubble map with a slightly odd name.
+ */
+export function otherSubject(nodes: CanvasNode[]): CanvasNode | undefined {
+  const root = nodes.find((node) => node.parentId === null);
+  if (!root) return undefined;
+  return nodes.find(
+    (node) => node.parentId === root.id && node.role === "subject" && node.id !== root.id,
+  );
+}
+
+export function isStructured(type: MindMapType, nodes?: CanvasNode[]) {
   switch (type) {
     case MindMapType.CIRCLE:
     case MindMapType.BUBBLE:
-    case MindMapType.DOUBLE_BUBBLE:
       return false;
+    case MindMapType.DOUBLE_BUBBLE:
+      // Structured only once it is genuinely a double bubble. Laying out two
+      // columns and a shared middle before anybody has said what the second
+      // subject is would place every quality as though it belonged to the
+      // first — and switch dragging off while doing it.
+      return !!nodes && !!otherSubject(nodes);
     default:
       return true;
   }
@@ -116,7 +137,7 @@ function stackColumn(
 export function layoutNodes(type: MindMapType, nodes: CanvasNode[]): Map<string, Point> {
   const placed = new Map<string, Point>();
   const root = nodes.find((node) => node.parentId === null);
-  if (!root || !isStructured(type)) return placed;
+  if (!root || !isStructured(type, nodes)) return placed;
 
   const cache = new Map<string, { w: number; h: number }>();
   const size = (id: string) => {
@@ -273,6 +294,66 @@ export function layoutNodes(type: MindMapType, nodes: CanvasNode[]): Map<string,
         placed.set(row.id, { x: x1, y: row.y + shift });
         for (const kid of row.kids) placed.set(kid.id, { x: x2, y: kid.y + shift });
       }
+      break;
+    }
+
+    case MindMapType.DOUBLE_BUBBLE: {
+      /*
+       * Two subjects level with each other, what they share between them, and
+       * what is true of only one out on the far side.
+       *
+       * Left to right: this subject's own qualities, this subject, the shared
+       * ones, the other subject, its own qualities. That order is the notation —
+       * "shared" means physically between the two things, and putting a shared
+       * quality anywhere else leaves the reader to work out which bubbles it
+       * touches from the lines alone.
+       */
+      const other = otherSubject(nodes);
+      if (!other) break;
+
+      const shared = nodes.filter(
+        (node) =>
+          node.role === "shared" && (node.parentId === root.id || node.parentId === other.id),
+      );
+      const sharedIds = new Set(shared.map((node) => node.id));
+      const mine = childrenOf(nodes, root.id).filter(
+        (node) => node.id !== other.id && !sharedIds.has(node.id),
+      );
+      const theirs = childrenOf(nodes, other.id).filter((node) => !sharedIds.has(node.id));
+
+      const widest = (list: CanvasNode[]) =>
+        list.length ? Math.max(...list.map((node) => size(node.id).w)) : 0;
+
+      const rootW = size(root.id).w;
+      const otherW = size(other.id).w;
+      const sharedW = widest(shared);
+
+      const sharedX = rootW / 2 + COL_GAP + sharedW / 2;
+      const otherX = sharedW
+        ? sharedX + sharedW / 2 + COL_GAP + otherW / 2
+        : rootW / 2 + COL_GAP * 2 + otherW / 2;
+
+      placed.set(root.id, { x: 0, y: 0 });
+      placed.set(other.id, { x: otherX, y: 0 });
+
+      // Each column stacked and centred on the line the two subjects sit on.
+      const stack = (list: CanvasNode[], x: number) => {
+        const total = list.reduce(
+          (sum, node, index) => sum + size(node.id).h + (index ? ROW_GAP : 0),
+          0,
+        );
+        let cursor = -total / 2;
+        for (const node of list) {
+          const h = size(node.id).h;
+          cursor += h / 2;
+          placed.set(node.id, { x, y: cursor });
+          cursor += h / 2 + ROW_GAP;
+        }
+      };
+
+      stack(shared, sharedX);
+      stack(mine, -(rootW / 2 + COL_GAP + widest(mine) / 2));
+      stack(theirs, otherX + otherW / 2 + COL_GAP + widest(theirs) / 2);
       break;
     }
 

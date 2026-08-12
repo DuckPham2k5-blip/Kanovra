@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { nodeSize, type CanvasNode } from "@/lib/mind-map-canvas";
 import type { Rect } from "@/lib/mind-map-edges";
-import { layoutNodes } from "@/lib/mind-map-layout";
+import { isStructured, layoutNodes } from "@/lib/mind-map-layout";
 import { notationFor, replacesEdges } from "@/lib/mind-map-notation";
 
 /**
@@ -124,6 +124,83 @@ describe("bridge map", () => {
     const alone = [node("as", null, 1)];
     const rects = rectsFor(MindMapType.BRIDGE, alone);
     expect(notationFor(MindMapType.BRIDGE, alone, rects)).toEqual([]);
+  });
+});
+
+describe("double bubble map", () => {
+  /** Cat vs Dog: two subjects, two shared qualities, one unique to each. */
+  function comparison(withSubject: boolean): CanvasNode[] {
+    const dog: CanvasNode = { ...node("Dog", "Cat", 1), role: withSubject ? "subject" : null };
+    return [
+      node("Cat", null, 1),
+      dog,
+      { ...node("has fur", "Cat"), role: "shared" },
+      { ...node("a pet", "Cat"), role: "shared" },
+      node("purrs", "Cat"),
+      node("barks", "Dog"),
+    ];
+  }
+
+  it("stays an ordinary bubble map until a second subject is named", () => {
+    const nodes = comparison(false);
+    expect(isStructured(MindMapType.DOUBLE_BUBBLE, nodes)).toBe(false);
+    expect(replacesEdges(MindMapType.DOUBLE_BUBBLE, nodes)).toBe(false);
+    expect(notationFor(MindMapType.DOUBLE_BUBBLE, nodes, rectsFor(MindMapType.DOUBLE_BUBBLE, nodes))).toEqual([]);
+  });
+
+  it("becomes a comparison the moment one is", () => {
+    const nodes = comparison(true);
+    expect(isStructured(MindMapType.DOUBLE_BUBBLE, nodes)).toBe(true);
+    expect(replacesEdges(MindMapType.DOUBLE_BUBBLE, nodes)).toBe(true);
+  });
+
+  it("puts the shared qualities between the two subjects", () => {
+    const nodes = comparison(true);
+    const rects = rectsFor(MindMapType.DOUBLE_BUBBLE, nodes);
+
+    const cat = rects.get("Cat")!;
+    const dog = rects.get("Dog")!;
+    for (const id of ["has fur", "a pet"]) {
+      const shared = rects.get(id)!;
+      expect(shared.x).toBeGreaterThan(cat.x);
+      expect(shared.x).toBeLessThan(dog.x);
+    }
+
+    // And each subject's own quality out on its own side.
+    expect(rects.get("purrs")!.x).toBeLessThan(cat.x);
+    expect(rects.get("barks")!.x).toBeGreaterThan(dog.x);
+  });
+
+  it("stands the two subjects level with each other", () => {
+    const rects = rectsFor(MindMapType.DOUBLE_BUBBLE, comparison(true));
+    expect(rects.get("Cat")!.y).toBe(rects.get("Dog")!.y);
+  });
+
+  it("joins a shared quality to both subjects and the subjects to neither", () => {
+    const nodes = comparison(true);
+    const rects = rectsFor(MindMapType.DOUBLE_BUBBLE, nodes);
+    const links = notationFor(MindMapType.DOUBLE_BUBBLE, nodes, rects).filter(
+      (m) => m.kind === "link",
+    );
+
+    // Two shared × two subjects, plus one unique each.
+    expect(links).toHaveLength(6);
+    expect(links.filter((m) => m.id.endsWith("has fur"))).toHaveLength(2);
+    expect(links.filter((m) => m.id.endsWith("purrs"))).toHaveLength(1);
+
+    // Nothing runs between Cat and Dog: the map compares them, it does not
+    // claim a relationship between them.
+    const cat = rects.get("Cat")!;
+    const dog = rects.get("Dog")!;
+    const subjectToSubject = links.some(
+      (m) =>
+        m.kind === "link" &&
+        Math.abs(m.y1 - cat.y) < 1 &&
+        Math.abs(m.y2 - dog.y) < 1 &&
+        Math.abs(m.x1 - (cat.x + cat.w / 2)) < 1 &&
+        Math.abs(m.x2 - (dog.x - dog.w / 2)) < 1,
+    );
+    expect(subjectToSubject).toBe(false);
   });
 });
 

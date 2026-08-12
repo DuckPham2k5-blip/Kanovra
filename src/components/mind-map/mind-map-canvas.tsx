@@ -1,7 +1,16 @@
 "use client";
 
 import { MindMapType } from "@prisma/client";
-import { ChevronDown, ChevronUp, Equal, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Columns2,
+  Equal,
+  Link2,
+  MoreHorizontal,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -107,7 +116,9 @@ export function MindMapCanvas({
   const panning = React.useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
 
   const style = mindMapStyle(type);
-  const structured = isStructured(type);
+  // Double bubble is structured only once a second subject has been named, so
+  // this depends on the contents and not only on the type.
+  const structured = isStructured(type, nodes);
 
   /**
    * For the five structured types the position of a node is computed from the
@@ -153,7 +164,7 @@ export function MindMapCanvas({
    * with lines through it reads as a mistake rather than as either notation.
    */
   const marks = React.useMemo(() => notationFor(type, nodes, rects), [type, nodes, rects]);
-  const markedOnly = replacesEdges(type);
+  const markedOnly = replacesEdges(type, nodes);
 
   const routes = React.useMemo(() => {
     if (markedOnly) return [];
@@ -456,6 +467,20 @@ export function MindMapCanvas({
                   />
                 );
               }
+              if (mark.kind === "link") {
+                return (
+                  <line
+                    key={mark.id}
+                    x1={mark.x1}
+                    y1={mark.y1}
+                    x2={mark.x2}
+                    y2={mark.y2}
+                    stroke={mindMapColor(type, 0.5)}
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                );
+              }
               if (mark.kind === "circle") {
                 return (
                   <circle
@@ -706,6 +731,42 @@ export function MindMapCanvas({
                             />
                           ))}
                         </div>
+
+                        {/* A double bubble cannot be drawn without knowing which
+                            node is the other subject and which qualities belong
+                            to both — parenthood cannot say it, because a shared
+                            quality touches two bubbles and a node has one
+                            parent. Naming a second subject is what turns this
+                            from a bubble map into a comparison, so the map
+                            rearranges itself the moment it happens. */}
+                        {type === MindMapType.DOUBLE_BUBBLE && !isCentre ? (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel>Comparison</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                update(node.id, {
+                                  role: node.role === "subject" ? null : "subject",
+                                })
+                              }
+                            >
+                              <Columns2 />
+                              {node.role === "subject"
+                                ? "Not the other subject"
+                                : "The other subject"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                update(node.id, {
+                                  role: node.role === "shared" ? null : "shared",
+                                })
+                              }
+                            >
+                              <Link2 />
+                              {node.role === "shared" ? "Belongs to one only" : "Shared by both"}
+                            </DropdownMenuItem>
+                          </>
+                        ) : null}
 
                         {!isCentre ? (
                           <>

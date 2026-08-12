@@ -1,7 +1,9 @@
 import { MindMapType } from "@prisma/client";
 
 import type { CanvasNode } from "@/lib/mind-map-canvas";
-import type { Rect } from "@/lib/mind-map-edges";
+import { trimStraight, type Rect } from "@/lib/mind-map-edges";
+import { otherSubject } from "@/lib/mind-map-layout";
+import { mindMapStyle } from "@/lib/mind-maps";
 
 /**
  * The marks that make a type look like itself.
@@ -34,7 +36,9 @@ export type Mark =
   | { kind: "brace"; id: string; for: string; d: string; x: number; y0: number; y1: number }
   | { kind: "line"; id: string; x0: number; x1: number; y: number }
   | { kind: "circle"; id: string; cx: number; cy: number; r: number }
-  | { kind: "frame"; id: string; x: number; y: number; w: number; h: number };
+  | { kind: "frame"; id: string; x: number; y: number; w: number; h: number }
+  /** A straight join between two bubbles, trimmed to both boundaries. */
+  | { kind: "link"; id: string; x1: number; y1: number; x2: number; y2: number };
 
 /** How far the curl of a bracket reaches. */
 const CURL = 16;
@@ -50,7 +54,12 @@ const LINE_OVERHANG = 40;
  * bracket with lines through it reads as a mistake rather than as either
  * notation.
  */
-export function replacesEdges(type: MindMapType): boolean {
+export function replacesEdges(type: MindMapType, nodes?: CanvasNode[]): boolean {
+  if (type === MindMapType.DOUBLE_BUBBLE) {
+    // Only once there is a second subject. Before that the map is an ordinary
+    // bubble map and its parent-to-child edges are exactly right.
+    return !!nodes && !!otherSubject(nodes);
+  }
   return (
     type === MindMapType.BRACE || type === MindMapType.BRIDGE || type === MindMapType.CIRCLE
   );
@@ -159,11 +168,21 @@ export function notationFor(
       const cx = centre.x;
       const cy = centre.y;
 
-      // Sized from the node that reaches furthest, measured corner-out so a box
-      // is enclosed rather than merely its centre being inside.
+      /*
+       * Sized from the node that reaches furthest, measured from its centre to
+       * its own outermost point.
+       *
+       * A circle map's nodes are circles, so that is the radius — half the
+       * width. Using half the diagonal, as an enclosing box would, overstates a
+       * round node by 41% and the ring came out with a wide band of nothing
+       * inside it, which reads as the drawing having been mis-sized rather than
+       * as room to write in.
+       */
+      const round = mindMapStyle(type).node === "circle";
       const reach = Math.max(
         ...all.map(
-          (r) => Math.hypot(r.x - cx, r.y - cy) + Math.hypot(r.w, r.h) / 2,
+          (r) =>
+            Math.hypot(r.x - cx, r.y - cy) + (round ? r.w / 2 : Math.hypot(r.w, r.h) / 2),
         ),
       );
       const r = reach + RING_PAD;
@@ -179,6 +198,51 @@ export function notationFor(
         },
         { kind: "circle", id: "circle-ring", cx, cy, r },
       ];
+    }
+
+    case MindMapType.DOUBLE_BUBBLE: {
+      const other = otherSubject(nodes);
+      if (!other) return [];
+
+      const a = rects.get(root.id);
+      const b = rects.get(other.id);
+      if (!a || !b) return [];
+
+      const marks: Mark[] = [];
+      const join = (id: string, from: Rect, to: Rect) => {
+        const [p, q] = trimStraight(from, to, true);
+        marks.push({ kind: "link", id, x1: p.x, y1: p.y, x2: q.x, y2: q.y });
+      };
+
+      const shared = nodes.filter(
+        (node) =>
+          node.role === "shared" && (node.parentId === root.id || node.parentId === other.id),
+      );
+      const sharedIds = new Set(shared.map((node) => node.id));
+
+      // A shared quality touches *both* bubbles. That second line is the whole
+      // reason this map cannot be drawn from parenthood alone, and it is the
+      // difference between a double bubble and two bubble maps side by side.
+      for (const node of shared) {
+        const rect = rects.get(node.id);
+        if (!rect) continue;
+        join(`db-a-${node.id}`, a, rect);
+        join(`db-b-${node.id}`, b, rect);
+      }
+
+      for (const node of nodes) {
+        if (sharedIds.has(node.id) || node.id === other.id || node.id === root.id) continue;
+        const rect = rects.get(node.id);
+        if (!rect) continue;
+
+        // Whichever subject it hangs off. Nothing joins the two subjects to each
+        // other: a double bubble compares them, it does not claim a relationship
+        // between them.
+        if (node.parentId === root.id) join(`db-a-${node.id}`, a, rect);
+        else if (node.parentId === other.id) join(`db-b-${node.id}`, b, rect);
+      }
+
+      return marks;
     }
 
     default:
