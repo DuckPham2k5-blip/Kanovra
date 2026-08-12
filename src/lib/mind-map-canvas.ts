@@ -1,6 +1,8 @@
 import { MindMapType } from "@prisma/client";
 import { z } from "zod";
 
+import { mindMapStyle } from "@/lib/mind-maps";
+
 /**
  * A map as nodes on a canvas.
  *
@@ -122,4 +124,37 @@ export function parseCanvas(raw: unknown): CanvasData {
  */
 export function rankScale(rank: number) {
   return Math.pow(1.22, rank);
+}
+
+/**
+ * How wide and tall a node is drawn.
+ *
+ * Round nodes are sized, not stretched — a circle that grows with its text is
+ * an ellipse, and an ellipse is a different notation. Long text wraps inside.
+ */
+export const NODE_WIDTH = 190;
+export const CIRCLE_SIZE = 150;
+const BOX_HEIGHT = 64;
+const PILL_HEIGHT = 52;
+
+/**
+ * The exact box a node occupies, in map coordinates.
+ *
+ * This exists so that the geometry which is *drawn* and the geometry which is
+ * *routed around* are the same numbers. Height used to be left to the content —
+ * no `height` in the style at all — which meant edge routing had nothing to
+ * work from and any attempt at avoiding a node would have been avoiding a
+ * guess. Fixing the height is the price of being able to prove a line misses a
+ * box, and it is a price worth paying: the alternative is measuring the DOM and
+ * feeding the measurements back into the render that produced them.
+ *
+ * Text that outgrows the box scrolls inside it rather than pushing the box out
+ * of shape, so a long note cannot silently invalidate every route on the map.
+ */
+export function nodeSize(type: MindMapType, rank: number): { w: number; h: number } {
+  const scale = rankScale(rank);
+  const shape = mindMapStyle(type).node;
+
+  if (shape === "circle") return { w: CIRCLE_SIZE * scale, h: CIRCLE_SIZE * scale };
+  return { w: NODE_WIDTH * scale, h: (shape === "pill" ? PILL_HEIGHT : BOX_HEIGHT) * scale };
 }

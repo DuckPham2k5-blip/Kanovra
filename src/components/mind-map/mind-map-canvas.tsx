@@ -1,6 +1,6 @@
 "use client";
 
-import type { MindMapType } from "@prisma/client";
+import { MindMapType } from "@prisma/client";
 import { ChevronDown, ChevronUp, Equal, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
@@ -13,18 +13,25 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { newNodeId, rankScale, seedNodes, type CanvasNode } from "@/lib/mind-map-canvas";
+import {
+  newNodeId,
+  nodeSize,
+  rankScale,
+  seedNodes,
+  type CanvasNode,
+} from "@/lib/mind-map-canvas";
+import {
+  edgeAxis,
+  pathFromPoints,
+  pathLength,
+  routeEdge,
+  trimStraight,
+  type Rect,
+} from "@/lib/mind-map-edges";
 import { isStructured, layoutNodes } from "@/lib/mind-map-layout";
 import { mindMapColor, mindMapStyle } from "@/lib/mind-maps";
 import { cn } from "@/lib/utils";
 import { updateMindMapData } from "@/server/actions/mind-map";
-
-const NODE_WIDTH = 190;
-/**
- * Round nodes are sized, not stretched — a circle that grows with its text is
- * an ellipse, and an ellipse is a different notation. Long text wraps inside.
- */
-const CIRCLE_SIZE = 150;
 
 const MIN_SCALE = 0.2;
 const MAX_SCALE = 3;
@@ -84,7 +91,6 @@ export function MindMapCanvas({
   const dragging = React.useRef<{ id: string; dx: number; dy: number } | null>(null);
   const panning = React.useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
 
-  const byId = React.useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
   const style = mindMapStyle(type);
   const structured = isStructured(type);
 
@@ -103,6 +109,73 @@ export function MindMapCanvas({
     (node: CanvasNode) => layout?.get(node.id) ?? { x: node.x, y: node.y },
     [layout],
   );
+
+  /** Every node as the box it actually occupies — what the router steers around. */
+  const rects = React.useMemo(() => {
+    const out = new Map<string, Rect>();
+    for (const node of nodes) {
+      const point = positionOf(node);
+      const { w, h } = nodeSize(type, node.rank);
+      out.set(node.id, { x: point.x, y: point.y, w, h });
+    }
+    return out;
+  }, [nodes, positionOf, type]);
+
+  /**
+   * The edges, routed once per change rather than per frame.
+   *
+   * Structured maps get orthogonal routes that go round whatever is in the way;
+   * the three free canvases get a straight line trimmed to both boundaries,
+   * because bending an association into right angles claims a structure a bubble
+   * map does not have. Either way the line now stops at the edge of a node
+   * instead of running under it — which is also what makes an arrowhead visible,
+   * since one drawn at the target's centre is behind the target.
+   */
+  const routes = React.useMemo(() => {
+    const all = [...rects.entries()];
+    const out: { id: string; d: string; length: number }[] = [];
+
+    for (const node of nodes) {
+      if (!node.parentId) continue;
+      const from = rects.get(node.parentId);
+      const to = rects.get(node.id);
+      if (!from || !to) continue;
+
+      const axis = edgeAxis(type, from, to);
+      if (axis === "free") {
+        const [a, b] = trimStraight(from, to, style.node === "circle");
+        out.push({
+          id: node.id,
+          d: pathFromPoints([a, b]),
+          length: Math.hypot(b.x - a.x, b.y - a.y),
+        });
+        continue;
+      }
+
+      const obstacles = all
+        .filter(([id]) => id !== node.id && id !== node.parentId)
+        .map(([, rect]) => rect);
+      const points = routeEdge(from, to, axis, obstacles);
+
+      /*
+       * On a multi-flow map the arrowhead marks what came *later*, and on the
+       * cause side that is the parent, not the child.
+       *
+       * Drawn parent-to-child throughout, every arrow pointed away from the
+       * event — so the left half of the map read as "the outage caused the bad
+       * deploy". Backwards, and backwards in the one type whose entire purpose is
+       * direction. Found by rendering the five layouts and looking at them; no
+       * test would have caught it, because the geometry was right and only the
+       * meaning was wrong.
+       */
+      const causeSide = type === MindMapType.MULTI_FLOW && to.x < from.x;
+      const drawn = causeSide ? [...points].reverse() : points;
+
+      out.push({ id: node.id, d: pathFromPoints(drawn), length: pathLength(drawn) });
+    }
+
+    return out;
+  }, [nodes, rects, style.node, type]);
 
   // Put the origin — and so the centre node — in the middle of the view on
   // open. A blank sheet whose only node is off screen reads as broken.
@@ -130,10 +203,21 @@ export function MindMapCanvas({
     // Below-right of its parent, then nudged clear of anything already there —
     // two nodes stacked exactly on top of each other read as one, and the
     // second is only discovered by dragging the first.
-    const x = parent.x + 260;
+    //
+    // Clearance is measured against both boxes rather than a fixed 60×50, which
+    // let a large node land on top of a small one and still count as clear.
+    const box = nodeSize(type, rank);
+    const x = parent.x + nodeSize(type, parent.rank).w / 2 + 70 + box.w / 2;
     let y = parent.y + 150;
-    while (nodes.some((n) => Math.abs(n.x - x) < 60 && Math.abs(n.y - y) < 50)) {
-      y += 110;
+    while (
+      nodes.some((n) => {
+        const other = nodeSize(type, n.rank);
+        return (
+          Math.abs(n.x - x) < (other.w + box.w) / 2 && Math.abs(n.y - y) < (other.h + box.h) / 2
+        );
+      })
+    ) {
+      y += box.h + 40;
     }
 
     const node: CanvasNode = { id: newNodeId(), text: "", x, y, parentId: parent.id, rank };
@@ -317,49 +401,28 @@ export function MindMapCanvas({
               </marker>
             </defs>
 
-            {nodes.map((node) => {
-              const parent = node.parentId ? byId.get(node.parentId) : undefined;
-              if (!parent) return null;
-
-              const a = positionOf(parent);
-              const b = positionOf(node);
-
-              // An elbow leaves its parent downward, turns once, and arrives
-              // square-on: the drawing of hierarchy rather than of a link.
-              const midY = (a.y + b.y) / 2;
-              const d =
-                style.edge === "elbow"
-                  ? `M ${a.x} ${a.y} V ${midY} H ${b.x} V ${b.y}`
-                  : `M ${a.x} ${a.y} L ${b.x} ${b.y}`;
-
-              // Dash lengths are in user units, so the draw-on animation needs
-              // the real path length; an elbow is longer than the line between
-              // its ends.
-              const length =
-                style.edge === "elbow"
-                  ? Math.abs(midY - a.y) + Math.abs(b.x - a.x) + Math.abs(b.y - midY)
-                  : Math.hypot(b.x - a.x, b.y - a.y);
-
-              return (
-                <path
-                  key={node.id}
-                  d={d}
-                  fill="none"
-                  stroke={mindMapColor(type, 0.5)}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeDasharray={style.edge === "dashed" ? "7 6" : undefined}
-                  markerEnd={style.edge === "arrow" ? `url(#tf-arrow-${type})` : undefined}
-                  className={fresh.has(node.id) && style.edge !== "dashed" ? "tf-map-edge" : undefined}
-                  style={
-                    fresh.has(node.id) && style.edge !== "dashed"
-                      ? ({ "--tf-edge-length": `${Math.round(length)}` } as React.CSSProperties)
-                      : undefined
-                  }
-                />
-              );
-            })}
+            {routes.map((route) => (
+              <path
+                key={route.id}
+                d={route.d}
+                fill="none"
+                stroke={mindMapColor(type, 0.5)}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray={style.edge === "dashed" ? "7 6" : undefined}
+                markerEnd={style.edge === "arrow" ? `url(#tf-arrow-${type})` : undefined}
+                className={fresh.has(route.id) && style.edge !== "dashed" ? "tf-map-edge" : undefined}
+                // Dash lengths are in user units, so the draw-on animation needs
+                // the length along the corners — an elbow is longer than the
+                // line between its ends.
+                style={
+                  fresh.has(route.id) && style.edge !== "dashed"
+                    ? ({ "--tf-edge-length": `${Math.round(route.length)}` } as React.CSSProperties)
+                    : undefined
+                }
+              />
+            ))}
           </svg>
 
           {nodes.map((node) => {
@@ -368,18 +431,23 @@ export function MindMapCanvas({
             const round = style.node === "circle";
             // Chosen when the node was made, not inferred from where it sits.
             const shrink = rankScale(node.rank);
-            const size = CIRCLE_SIZE * shrink;
-            const boxWidth = NODE_WIDTH * shrink;
+            // The same numbers the router used. Anything else here and a line
+            // that provably misses a box misses the wrong box.
+            const { w, h } = nodeSize(type, node.rank);
             return (
               <div
                 key={node.id}
                 onPointerDown={(event) => onNodePointerDown(event, node)}
                 className={cn(
+                  // No `overflow-hidden` here, however tempting: the hover
+                  // controls hang outside the box on purpose, and clipping the
+                  // node clips them. Overflowing *text* is the textarea's own
+                  // problem, and it scrolls.
                   "group absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-1 border",
                   round
                     ? "rounded-full p-3 text-center"
                     : style.node === "pill"
-                      ? "rounded-full px-5 py-2.5"
+                      ? "rounded-full px-5 py-2"
                       : "rounded-md px-3 py-2",
                   canEdit && !structured && "cursor-grab active:cursor-grabbing",
                   fresh.has(node.id) && "tf-map-node-in",
@@ -387,8 +455,8 @@ export function MindMapCanvas({
                 style={{
                   left: point.x,
                   top: point.y,
-                  width: round ? size : boxWidth,
-                  height: round ? size : undefined,
+                  width: w,
+                  height: h,
                   fontSize: `${Math.max(0.68, shrink) * 100}%`,
                   background: mindMapColor(type, isCentre ? 0.24 : 0.12),
                   borderColor: mindMapColor(type, isCentre ? 0.7 : 0.35),
@@ -406,14 +474,17 @@ export function MindMapCanvas({
                   />
                 ) : null}
 
+                {/* Fills the box rather than sizing itself, because the box is
+                    now a fixed size the router relies on. Text past the bottom
+                    scrolls; it does not stretch the node and quietly invalidate
+                    every route on the map. */}
                 <textarea
                   value={node.text}
                   readOnly={!canEdit}
-                  rows={round ? 3 : 1}
                   placeholder={isCentre ? "Main title" : "…"}
                   onChange={(event) => update(node.id, { text: event.target.value })}
                   className={cn(
-                    "w-full resize-none bg-transparent text-center text-[1em] outline-none placeholder:text-muted-foreground",
+                    "h-full w-full resize-none bg-transparent text-center text-[1em] leading-snug outline-none placeholder:text-muted-foreground",
                     isCentre && "font-semibold",
                   )}
                 />
