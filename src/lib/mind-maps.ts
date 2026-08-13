@@ -27,7 +27,12 @@ export const MIND_MAP_META: Record<MindMapType, MindMapMeta> = {
   CIRCLE: {
     type: MindMapType.CIRCLE,
     label: "Circle map",
-    question: "What do we already know about this, and where did we learn it?",
+    // Deliberately no longer "what do we already know, and where did we learn
+    // it?". That was a ring with the detail loose inside it and a frame of
+    // reference around the outside. This is a wheel of nested segments now, and
+    // the question a wheel answers is how the whole divides up — with the angle a
+    // branch occupies standing for how much of the whole it accounts for.
+    question: "How does this break down, and how much of it is each part?",
     hue: 88, // lime
   },
   BUBBLE: {
@@ -140,6 +145,27 @@ export const NODE_EMOJI = [
   "🌱",
   "🌍",
 ];
+
+/**
+ * A radial map's segment fill, and the ink that stays readable on it.
+ *
+ * The two are one function of the same lightness on purpose. Choosing them apart
+ * is how a wheel ends up with dark labels on its dark inner rings — legible in
+ * the outer rings where it was designed and unreadable in the middle, which is
+ * where the branch names people navigate by actually live.
+ *
+ * Lightness steps outward so the hub is the darkest thing and each ring lifts
+ * away from it, and saturation falls as it goes so ten rings do not fight.
+ */
+export function radialShade(hue: number, depth: number) {
+  const lightness = Math.min(74, 30 + depth * 11);
+  const saturation = Math.max(34, 62 - depth * 6);
+  return {
+    fill: `hsl(${hue} ${saturation}% ${lightness}%)`,
+    // The crossover sits where mid-grey text stops winning against the fill.
+    ink: lightness < 52 ? `hsl(${hue} 30% 96%)` : `hsl(${hue} 60% 12%)`,
+  };
+}
 
 /** A node's own border colour, or the map's accent when it has none. */
 export function nodeBorderColor(type: MindMapType, hue: number | null | undefined, alpha: number) {

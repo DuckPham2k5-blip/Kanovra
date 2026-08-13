@@ -27,6 +27,14 @@ import { mindMapStyle } from "@/lib/mind-maps";
 
 const LIMIT = 100_000;
 
+/**
+ * What a fresh branch gets on a radial map. Exported so the schema's defaults and
+ * every place that builds a node by hand cannot disagree — they did, briefly, and
+ * a node built with no weight sorts as zero-width.
+ */
+export const DEFAULT_WEIGHT = 1;
+export const DEFAULT_THICKNESS = 110;
+
 export const canvasNodeSchema = z.object({
   id: z.string().min(1).max(64),
   text: z.string().trim().max(160).default(""),
@@ -74,11 +82,48 @@ export const canvasNodeSchema = z.object({
    * instead of trees, to express a fact that is true of exactly one map type.
    */
   role: z.enum(["subject", "shared"]).nullish(),
+  /**
+   * How much of its parent's angular span this branch takes, relative to its
+   * siblings. Only a radial map reads it.
+   *
+   * A *share* rather than a stored start-and-end angle. Absolute angles let a
+   * child drift outside the parent it belongs to, and then every operation —
+   * splitting, deleting, dragging a boundary — has to police an invariant that
+   * ought to be structural. With weights, "the children exactly fill their
+   * parent" is not something to check: it is the only thing the arithmetic can
+   * produce.
+   */
+  weight: z.number().finite().min(0.05).max(200).default(DEFAULT_WEIGHT),
+  /**
+   * How far this branch reaches outward, in pixels — its own ring's thickness.
+   *
+   * Per node, not per ring, because a branch is dragged longer or shorter on its
+   * own. A node's inner radius is the hub plus the thickness of everything it
+   * hangs off, so one fat branch pushes only its own descendants outward.
+   */
+  thickness: z.number().finite().min(24).max(2000).default(DEFAULT_THICKNESS),
+});
+
+/**
+ * Where a radial map's whole wheel sits.
+ *
+ * `start` is where the first branch begins and `sweep` is how much of the circle
+ * the branches share out between them — 360 for a closed wheel, less to leave a
+ * deliberate gap. Both belong to the map rather than to any node: rotating the
+ * drawing must not mean rewriting every branch, and a gap is a property of the
+ * arrangement, not of whichever branch happens to sit beside it.
+ */
+export const radialSchema = z.object({
+  start: z.number().finite().default(-90),
+  sweep: z.number().finite().min(20).max(360).default(360),
 });
 
 export const canvasSchema = z.object({
   nodes: z.array(canvasNodeSchema).max(200).default([]),
+  radial: radialSchema.default({ start: -90, sweep: 360 }),
 });
+
+export type RadialSettings = z.infer<typeof radialSchema>;
 
 export type CanvasNode = z.infer<typeof canvasNodeSchema>;
 export type CanvasData = z.infer<typeof canvasSchema>;
@@ -112,6 +157,8 @@ export function seedNodes(_type: MindMapType, title: string): CanvasNode[] {
       y: 0,
       parentId: null,
       rank: 1,
+      weight: DEFAULT_WEIGHT,
+      thickness: DEFAULT_THICKNESS,
     },
   ];
 }
@@ -132,9 +179,13 @@ export function seedNodes(_type: MindMapType, title: string): CanvasNode[] {
  * opened it. Losing one node loudly beats appearing to lose all of them.
  */
 export function parseCanvas(raw: unknown): CanvasData {
-  const outer = z.object({ nodes: z.array(z.unknown()).max(200).default([]) });
+  const fallback: RadialSettings = { start: -90, sweep: 360 };
+  const outer = z.object({
+    nodes: z.array(z.unknown()).max(200).default([]),
+    radial: z.unknown().optional(),
+  });
   const result = outer.safeParse(raw ?? {});
-  if (!result.success) return { nodes: [] };
+  if (!result.success) return { nodes: [], radial: fallback };
 
   const nodes = result.data.nodes.flatMap((node) => {
     const parsed = canvasNodeSchema.safeParse(node);
@@ -143,7 +194,12 @@ export function parseCanvas(raw: unknown): CanvasData {
   const ids = new Set(nodes.map((node) => node.id));
   const root = nodes.find((node) => node.parentId === null);
 
+  // Same reasoning as the nodes: a bad rotation is not a reason to lose a map,
+  // so it falls back to a closed wheel starting at the top.
+  const radial = radialSchema.safeParse(result.data.radial ?? {});
+
   return {
+    radial: radial.success ? radial.data : fallback,
     nodes: nodes.map((node) =>
       node.parentId && !ids.has(node.parentId)
         ? { ...node, parentId: root?.id ?? null }

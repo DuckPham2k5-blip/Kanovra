@@ -30,13 +30,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { MindMapWheel } from "@/components/mind-map/mind-map-wheel";
 import {
+  DEFAULT_WEIGHT,
   newNodeId,
   nodeSize,
   rankScale,
   seedNodes,
   type CanvasNode,
+  type RadialSettings,
 } from "@/lib/mind-map-canvas";
+import { RING_THICKNESS } from "@/lib/mind-map-radial";
 import {
   edgeAxis,
   pathFromPoints,
@@ -49,6 +53,7 @@ import { isStructured, layoutNodes } from "@/lib/mind-map-layout";
 import { notationFor, replacesEdges } from "@/lib/mind-map-notation";
 import { setPresenceFocus, useFocusGroups } from "@/lib/presence";
 import {
+  MIND_MAP_META,
   mindMapColor,
   mindMapStyle,
   nodeBorderColor,
@@ -83,6 +88,7 @@ export function MindMapCanvas({
   type,
   title,
   initialNodes,
+  initialRadial,
   canEdit,
   canComment,
   comments,
@@ -92,6 +98,7 @@ export function MindMapCanvas({
   type: MindMapType;
   title: string;
   initialNodes: CanvasNode[];
+  initialRadial: RadialSettings;
   canEdit: boolean;
   canComment: boolean;
   comments: NodeComment[];
@@ -105,6 +112,17 @@ export function MindMapCanvas({
   const [dirty, setDirty] = React.useState(initialNodes.length === 0);
   const [busy, setBusy] = React.useState(false);
 
+  /**
+   * Where a radial map's wheel starts and how much of the circle it uses.
+   *
+   * Part of the document, not of the view: rotating the wheel changes which
+   * branch sits at the top, and that is an arrangement somebody chose. Pan and
+   * zoom stay per-viewer for the opposite reason — they are where *this* person
+   * is looking.
+   */
+  const [radial, setRadial] = React.useState<RadialSettings>(initialRadial);
+  const isRadial = type === MindMapType.CIRCLE;
+
   // Gates the per-node menus. See the note at the trigger: Radix's `useId`
   // counter drifts between the server render and hydration on a page with many
   // triggers, and a canvas is nothing but many triggers.
@@ -113,6 +131,16 @@ export function MindMapCanvas({
 
   /** Which node's comments are on screen. One panel, not one per node. */
   const [openThread, setOpenThread] = React.useState<string | null>(null);
+
+  /**
+   * The selected branch, on a radial map only.
+   *
+   * A wheel has nowhere to hang per-segment controls the way a box has corners,
+   * and putting a menu trigger on every segment would mean a wheel's worth of
+   * Radix `useId` counters — the exact shape that made the node menus warn. So one
+   * segment at a time carries the furniture, and clicking chooses which.
+   */
+  const [selected, setSelected] = React.useState<string | null>(null);
 
   /**
    * Who else is on which node.
@@ -135,6 +163,44 @@ export function MindMapCanvas({
   const memberById = React.useMemo(
     () => new Map(members.map((member) => [member.id, member])),
     [members],
+  );
+
+  /**
+   * The avatars of whoever else is on a node.
+   *
+   * One function serving both drawings. Written twice, the box canvas and the
+   * wheel would eventually show presence differently, and the version nobody was
+   * looking at would be the one that broke.
+   */
+  const renderWatchers = React.useCallback(
+    (nodeId: string) => {
+      const here = (watchers.get(nodeId) ?? [])
+        .map((id) => memberById.get(id))
+        .filter((member): member is AvatarUser => !!member);
+      if (!here.length) return null;
+
+      return (
+        <span className="pointer-events-none flex -space-x-1.5">
+          {here.slice(0, 3).map((member) => (
+            <UserAvatar
+              key={member.id}
+              user={member}
+              showTooltip={false}
+              className="size-5 ring-2 ring-background"
+            />
+          ))}
+          {here.length > 3 ? (
+            <span className="flex size-5 items-center justify-center rounded-full bg-accent text-[9px] font-semibold ring-2 ring-background">
+              +{here.length - 3}
+            </span>
+          ) : null}
+          <span className="sr-only">
+            {here.map((member) => member.name).join(", ")} looking at this
+          </span>
+        </span>
+      );
+    },
+    [memberById, watchers],
   );
 
   /**
@@ -316,7 +382,16 @@ export function MindMapCanvas({
       y += box.h + 40;
     }
 
-    const node: CanvasNode = { id: newNodeId(), text: "", x, y, parentId: parent.id, rank };
+    const node: CanvasNode = {
+      id: newNodeId(),
+      text: "",
+      x,
+      y,
+      parentId: parent.id,
+      rank,
+      weight: DEFAULT_WEIGHT,
+      thickness: RING_THICKNESS,
+    };
     setNodes((prev) => [...prev, node]);
     setFresh((prev) => new Set(prev).add(node.id));
     setDirty(true);
@@ -333,6 +408,80 @@ export function MindMapCanvas({
         .filter((n) => n.id !== id)
         .map((n) => (n.parentId === id ? { ...n, parentId: target.parentId } : n));
     });
+    setDirty(true);
+  }
+
+  /**
+   * Splits a branch into `count` narrower ones.
+   *
+   * Each child arrives with weight 1, so they divide their parent evenly and the
+   * parent's own angle does not change — which is the point. Splitting is meant
+   * to be a statement about the branch's contents, not a resize of the wheel, and
+   * it is the operation the whole share-based model exists to make safe.
+   */
+  function splitInto(parent: CanvasNode, count: number) {
+    const made: CanvasNode[] = [];
+    for (let i = 0; i < count; i += 1) {
+      made.push({
+        id: newNodeId(),
+        text: "",
+        x: 0,
+        y: 0,
+        parentId: parent.id,
+        rank: 0,
+        weight: 1,
+        thickness: RING_THICKNESS,
+      });
+    }
+    setNodes((prev) => [...prev, ...made]);
+    setFresh((prev) => {
+      const next = new Set(prev);
+      for (const node of made) next.add(node.id);
+      return next;
+    });
+    setDirty(true);
+  }
+
+  /**
+   * Adds a branch beside this one — or a first branch, when called on the hub.
+   *
+   * Weight 1 means the newcomer takes an equal share and every sibling narrows to
+   * make room. That is the honest behaviour for a wheel whose total is fixed: the
+   * alternative, growing the sweep, silently rotates work somebody has already
+   * arranged.
+   */
+  function addBranch(beside: CanvasNode) {
+    const parentId = beside.parentId ?? beside.id;
+    const node: CanvasNode = {
+      id: newNodeId(),
+      text: "",
+      x: 0,
+      y: 0,
+      parentId,
+      rank: 0,
+      weight: 1,
+      thickness: RING_THICKNESS,
+    };
+    setNodes((prev) => [...prev, node]);
+    setFresh((prev) => new Set(prev).add(node.id));
+    setDirty(true);
+  }
+
+  /** Wider or narrower, as a proportion of what it already has. */
+  function reweight(id: string, factor: number) {
+    setNodes((prev) =>
+      prev.map((n) =>
+        n.id === id ? { ...n, weight: clamp(n.weight * factor, 0.05, 200) } : n,
+      ),
+    );
+    setDirty(true);
+  }
+
+  /** Longer or shorter, in pixels. */
+  function resize(id: string, delta: number) {
+    setNodes((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, thickness: clamp(n.thickness + delta, 24, 2000) } : n)),
+    );
     setDirty(true);
   }
 
@@ -423,7 +572,10 @@ export function MindMapCanvas({
   async function save() {
     setBusy(true);
     try {
-      const result = await updateMindMapData({ mapId, data: { nodes } });
+      // `radial` goes with the nodes. Left out, a rotation survives on screen
+      // until the next reload and then quietly reverts, which reads as the save
+      // having failed at something else entirely.
+      const result = await updateMindMapData({ mapId, data: { nodes, radial } });
       if (!result.success) {
         toast.error(result.error);
         return;
@@ -479,9 +631,45 @@ export function MindMapCanvas({
           className="absolute left-0 top-0 origin-top-left"
           style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }}
         >
+          {/* A radial map's segment *is* its node, so the whole drawing layer is
+              different — no boxes, no edges, no notation marks. Everything around
+              it is shared: the node state, the explicit save, pan and zoom, the
+              comment panel and presence all live out here. */}
+          {isRadial ? (
+            <MindMapWheel
+              nodes={nodes}
+              radial={radial}
+              canEdit={canEdit}
+              canComment={canComment}
+              mounted={mounted}
+              threadSizes={commentCounts}
+              savedIds={savedIds}
+              renderWatchers={renderWatchers}
+              hue={MIND_MAP_META[type].hue}
+              focusedNodeId={selected}
+              onUpdate={update}
+              onSplit={splitInto}
+              onAddBranch={addBranch}
+              onRemove={remove}
+              onReweight={reweight}
+              onResize={resize}
+              onRotate={(degrees) => {
+                setRadial((prev) => ({ ...prev, start: prev.start + degrees }));
+                setDirty(true);
+              }}
+              onOpenThread={setOpenThread}
+              onFocusNode={(id) => {
+                setSelected(id);
+                if (id) setPresenceFocus(`map:${mapId}:${id}`);
+              }}
+            />
+          ) : null}
+
           {/* One overflowing SVG for every edge. It has no meaningful size of
               its own; `overflow: visible` is what lets a line reach a node far
               outside whatever box the element happens to occupy. */}
+          {isRadial ? null : (
+          <>
           <svg className="pointer-events-none absolute overflow-visible" aria-hidden="true">
             <defs>
               <marker
@@ -540,35 +728,11 @@ export function MindMapCanvas({
                   />
                 );
               }
-              if (mark.kind === "circle") {
-                return (
-                  <circle
-                    key={mark.id}
-                    cx={mark.cx}
-                    cy={mark.cy}
-                    r={mark.r}
-                    fill="none"
-                    stroke={mindMapColor(type, 0.45)}
-                    strokeWidth="2"
-                  />
-                );
-              }
-              return (
-                // The frame of reference: dashed, because it is where you say
-                // how you know what you know rather than part of the subject.
-                <rect
-                  key={mark.id}
-                  x={mark.x}
-                  y={mark.y}
-                  width={mark.w}
-                  height={mark.h}
-                  rx="18"
-                  fill="none"
-                  stroke={mindMapColor(type, 0.28)}
-                  strokeWidth="2"
-                  strokeDasharray="10 8"
-                />
-              );
+              // A ring and a dashed frame used to be drawn here for the circle
+              // map. That map is a wheel of ring segments now and never reaches
+              // this code, so the branches went with it rather than sitting
+              // unreachable and looking maintained.
+              return null;
             })}
 
             {routes.map((route) => (
@@ -604,9 +768,6 @@ export function MindMapCanvas({
             // The same numbers the router used. Anything else here and a line
             // that provably misses a box misses the wrong box.
             const { w, h } = nodeSize(type, node.rank);
-            const here = (watchers.get(node.id) ?? [])
-              .map((id) => memberById.get(id))
-              .filter((member): member is AvatarUser => !!member);
             const threadSize = commentCounts.get(node.id) ?? 0;
             return (
               <div
@@ -693,26 +854,7 @@ export function MindMapCanvas({
                     it. Both sit outside the box: inside, they would compete with
                     the words on a node that may be several ranks small, and the
                     box is a fixed size the router depends on. */}
-                {here.length > 0 ? (
-                  <span className="pointer-events-none absolute -bottom-3 left-1 flex -space-x-1.5">
-                    {here.slice(0, 3).map((member) => (
-                      <UserAvatar
-                        key={member.id}
-                        user={member}
-                        showTooltip={false}
-                        className="size-5 ring-2 ring-background"
-                      />
-                    ))}
-                    {here.length > 3 ? (
-                      <span className="flex size-5 items-center justify-center rounded-full bg-accent text-[9px] font-semibold ring-2 ring-background">
-                        +{here.length - 3}
-                      </span>
-                    ) : null}
-                    <span className="sr-only">
-                      {here.map((member) => member.name).join(", ")} looking at this
-                    </span>
-                  </span>
-                ) : null}
+                <span className="absolute -bottom-3 left-1">{renderWatchers(node.id)}</span>
 
                 {savedIds.has(node.id) && (threadSize > 0 || (mounted && canComment)) ? (
                   <button
@@ -899,6 +1041,8 @@ export function MindMapCanvas({
               </div>
             );
           })}
+          </>
+          )}
         </div>
       </div>
 

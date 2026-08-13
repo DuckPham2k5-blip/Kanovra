@@ -1,7 +1,12 @@
 import { MindMapType } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
-import { nodeSize, type CanvasNode } from "@/lib/mind-map-canvas";
+import {
+  DEFAULT_THICKNESS,
+  DEFAULT_WEIGHT,
+  nodeSize,
+  type CanvasNode,
+} from "@/lib/mind-map-canvas";
 import type { Rect } from "@/lib/mind-map-edges";
 import { isStructured, layoutNodes } from "@/lib/mind-map-layout";
 import { notationFor, replacesEdges } from "@/lib/mind-map-notation";
@@ -9,14 +14,27 @@ import { notationFor, replacesEdges } from "@/lib/mind-map-notation";
 /**
  * The marks that make a type look like itself.
  *
- * Three of the eight are not "boxes joined by lines" at all, and drawing them
- * that way is what made eight maps read as one map with eight colour schemes.
- * A brace map is a bracket. A bridge map is a line with words astride it. A
- * circle map is a circle inside a frame. None of those are edges.
+ * Some of the eight are not "boxes joined by lines" at all, and drawing them that
+ * way is what made eight maps read as one map with eight colour schemes. A brace
+ * map is a bracket. A bridge map is a line with words astride it. Neither is an
+ * edge.
+ *
+ * A circle map used to be here too, as a ring with a dashed frame around it. It
+ * is drawn as a wheel of ring segments now and has left this module entirely —
+ * see `mind-map-radial.ts`.
  */
 
 function node(id: string, parentId: string | null, rank = 0, x = 0, y = 0): CanvasNode {
-  return { id, text: id, x, y, parentId, rank };
+  return {
+    id,
+    text: id,
+    x,
+    y,
+    parentId,
+    rank,
+    weight: DEFAULT_WEIGHT,
+    thickness: DEFAULT_THICKNESS,
+  };
 }
 
 function rectsFor(type: MindMapType, nodes: CanvasNode[]): Map<string, Rect> {
@@ -34,8 +52,10 @@ describe("replacesEdges", () => {
   it("is true only for the types whose connection is the mark itself", () => {
     expect(replacesEdges(MindMapType.BRACE)).toBe(true);
     expect(replacesEdges(MindMapType.BRIDGE)).toBe(true);
-    expect(replacesEdges(MindMapType.CIRCLE)).toBe(true);
 
+    // Circle is false here and that is not an oversight: it does not go through
+    // edges *or* marks any more, because it is a wheel.
+    expect(replacesEdges(MindMapType.CIRCLE)).toBe(false);
     expect(replacesEdges(MindMapType.TREE)).toBe(false);
     expect(replacesEdges(MindMapType.FLOW)).toBe(false);
     expect(replacesEdges(MindMapType.MULTI_FLOW)).toBe(false);
@@ -205,43 +225,15 @@ describe("double bubble map", () => {
 });
 
 describe("circle map", () => {
-  const nodes = [
-    node("Ocean", null, 1, 0, 0),
-    node("vast", "Ocean", 0, -260, -170),
-    node("salty", "Ocean", 0, 250, -180),
-    node("deep", "Ocean", 0, 20, 300),
-  ];
-
-  it("encloses the detail in a circle, inside a frame of reference", () => {
+  it("has no marks at all, because it is not drawn as a circle any more", () => {
+    // A circle map is a wheel of ring segments now (`mind-map-radial.ts`). It
+    // used to draw an enclosing ring and a dashed frame of reference from here,
+    // and this test exists so that reappearing counts as a regression rather
+    // than as a feature nobody remembered removing.
+    const nodes = [node("Volcano", null, 1), node("erupts", "Volcano", 0, -250, -150)];
     const rects = rectsFor(MindMapType.CIRCLE, nodes);
-    const marks = notationFor(MindMapType.CIRCLE, nodes, rects);
 
-    const circle = marks.find((m) => m.kind === "circle");
-    const frame = marks.find((m) => m.kind === "frame");
-    if (circle?.kind !== "circle" || frame?.kind !== "frame") {
-      throw new Error("expected a circle and a frame");
-    }
-
-    // Every node fits inside the circle.
-    for (const [, rect] of rects) {
-      const reach = Math.hypot(rect.x - circle.cx, rect.y - circle.cy) + rect.w / 2;
-      expect(reach).toBeLessThanOrEqual(circle.r);
-    }
-
-    // The circle fits inside the frame.
-    expect(frame.x).toBeLessThan(circle.cx - circle.r);
-    expect(frame.x + frame.w).toBeGreaterThan(circle.cx + circle.r);
-    expect(frame.y).toBeLessThan(circle.cy - circle.r);
-    expect(frame.y + frame.h).toBeGreaterThan(circle.cy + circle.r);
-  });
-
-  it("still draws a circle for a map with nothing but its topic", () => {
-    const alone = [node("Ocean", null, 1, 0, 0)];
-    const rects = rectsFor(MindMapType.CIRCLE, alone);
-    const marks = notationFor(MindMapType.CIRCLE, alone, rects);
-
-    const circle = marks.find((m) => m.kind === "circle");
-    if (circle?.kind !== "circle") throw new Error("expected a circle");
-    expect(circle.r).toBeGreaterThan(rects.get("Ocean")!.w / 2);
+    expect(notationFor(MindMapType.CIRCLE, nodes, rects)).toEqual([]);
+    expect(replacesEdges(MindMapType.CIRCLE)).toBe(false);
   });
 });

@@ -92,6 +92,7 @@ export default async function MapPage({
         type={map.type}
         title={map.title}
         initialNodes={canvas.nodes}
+        initialRadial={canvas.radial}
         canEdit={can("project:update")}
         canComment={can("comment:create")}
         // `mine` is decided here rather than compared in the browser: whether

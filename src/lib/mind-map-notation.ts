@@ -3,7 +3,6 @@ import { MindMapType } from "@prisma/client";
 import type { CanvasNode } from "@/lib/mind-map-canvas";
 import { trimStraight, type Rect } from "@/lib/mind-map-edges";
 import { otherSubject } from "@/lib/mind-map-layout";
-import { mindMapStyle } from "@/lib/mind-maps";
 
 /**
  * The marks that make a type look like itself.
@@ -35,16 +34,11 @@ export type Mark =
   /** A curly bracket, spanning `y0`..`y1`, its cusp pointing back at `for`. */
   | { kind: "brace"; id: string; for: string; d: string; x: number; y0: number; y1: number }
   | { kind: "line"; id: string; x0: number; x1: number; y: number }
-  | { kind: "circle"; id: string; cx: number; cy: number; r: number }
-  | { kind: "frame"; id: string; x: number; y: number; w: number; h: number }
   /** A straight join between two bubbles, trimmed to both boundaries. */
   | { kind: "link"; id: string; x1: number; y1: number; x2: number; y2: number };
 
 /** How far the curl of a bracket reaches. */
 const CURL = 16;
-/** Breathing room between the outermost node and a ring or frame around it. */
-const RING_PAD = 60;
-const FRAME_PAD = 52;
 /** How far a bridge map's line runs past its last pair. */
 const LINE_OVERHANG = 40;
 
@@ -60,9 +54,10 @@ export function replacesEdges(type: MindMapType, nodes?: CanvasNode[]): boolean 
     // bubble map and its parent-to-child edges are exactly right.
     return !!nodes && !!otherSubject(nodes);
   }
-  return (
-    type === MindMapType.BRACE || type === MindMapType.BRIDGE || type === MindMapType.CIRCLE
-  );
+  // Circle is not in this list any more and is not absent by oversight: it is
+  // drawn as a wheel of ring segments now (`mind-map-radial.ts`), which does not
+  // go through edges or marks at all.
+  return type === MindMapType.BRACE || type === MindMapType.BRIDGE;
 }
 
 function childrenOf(nodes: CanvasNode[], id: string) {
@@ -157,46 +152,6 @@ export function notationFor(
           // astride y = 0, so the line is the axis the map was built on.
           y: 0,
         },
-      ];
-    }
-
-    case MindMapType.CIRCLE: {
-      const all = [...rects.values()];
-      if (!all.length) return [];
-
-      const centre = rects.get(root.id) ?? all[0];
-      const cx = centre.x;
-      const cy = centre.y;
-
-      /*
-       * Sized from the node that reaches furthest, measured from its centre to
-       * its own outermost point.
-       *
-       * A circle map's nodes are circles, so that is the radius — half the
-       * width. Using half the diagonal, as an enclosing box would, overstates a
-       * round node by 41% and the ring came out with a wide band of nothing
-       * inside it, which reads as the drawing having been mis-sized rather than
-       * as room to write in.
-       */
-      const round = mindMapStyle(type).node === "circle";
-      const reach = Math.max(
-        ...all.map(
-          (r) =>
-            Math.hypot(r.x - cx, r.y - cy) + (round ? r.w / 2 : Math.hypot(r.w, r.h) / 2),
-        ),
-      );
-      const r = reach + RING_PAD;
-
-      return [
-        {
-          kind: "frame",
-          id: "circle-frame",
-          x: cx - r - FRAME_PAD,
-          y: cy - r - FRAME_PAD,
-          w: (r + FRAME_PAD) * 2,
-          h: (r + FRAME_PAD) * 2,
-        },
-        { kind: "circle", id: "circle-ring", cx, cy, r },
       ];
     }
 

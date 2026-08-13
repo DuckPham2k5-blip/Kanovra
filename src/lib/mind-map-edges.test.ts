@@ -1,7 +1,12 @@
 import { MindMapType } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
-import { nodeSize, type CanvasNode } from "@/lib/mind-map-canvas";
+import {
+  DEFAULT_THICKNESS,
+  DEFAULT_WEIGHT,
+  nodeSize,
+  type CanvasNode,
+} from "@/lib/mind-map-canvas";
 import {
   edgeAxis,
   hitsRect,
@@ -30,7 +35,16 @@ import { isStructured, layoutNodes } from "@/lib/mind-map-layout";
  */
 
 function node(id: string, parentId: string | null, rank = 0): CanvasNode {
-  return { id, text: id, x: 0, y: 0, parentId, rank };
+  return {
+    id,
+    text: id,
+    x: 0,
+    y: 0,
+    parentId,
+    rank,
+    weight: DEFAULT_WEIGHT,
+    thickness: DEFAULT_THICKNESS,
+  };
 }
 
 /** A map of `type` with a shape chosen to stress that type's layout. */
