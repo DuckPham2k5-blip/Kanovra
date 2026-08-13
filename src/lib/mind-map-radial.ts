@@ -130,6 +130,49 @@ export function radialReach(sectors: Map<string, Sector>): number {
   return reach;
 }
 
+/**
+ * The same turn expressed as the shorter way round, in (-180, 180].
+ *
+ * `atan2` wraps at ±180, so a drag crossing the nine o'clock line reports a 359°
+ * jump. Without this the wheel spins the long way round the moment the pointer
+ * crosses that line, which reads as the drag having glitched rather than as
+ * arithmetic.
+ */
+export function shortestTurn(degrees: number) {
+  let turn = degrees % 360;
+  if (turn > 180) turn -= 360;
+  if (turn <= -180) turn += 360;
+  return turn;
+}
+
+/**
+ * Where to put two neighbours' weights so their shared edge lands under the
+ * pointer.
+ *
+ * The pair's total weight is held constant, which is what confines the drag to the
+ * two of them: weights are shares, so if the pair keeps its total then every other
+ * branch on the wheel keeps its angle. Change one weight alone and the whole ring
+ * re-divides, and the boundaries the author was not touching visibly slide.
+ *
+ * Both ends are clamped to leave a sliver rather than allowing zero. A branch
+ * dragged to nothing is unclickable, and the only way back would be to know it was
+ * still there.
+ */
+export function shareBetween(
+  pointerOffset: number,
+  combinedSpan: number,
+  combinedWeight: number,
+): { mine: number; theirs: number } {
+  const min = Math.min(2, combinedSpan / 2);
+  const mineSpan = Math.min(Math.max(pointerOffset, min), combinedSpan - min);
+  const share = combinedSpan > 0 ? mineSpan / combinedSpan : 0.5;
+
+  return {
+    mine: Math.max(0.05, combinedWeight * share),
+    theirs: Math.max(0.05, combinedWeight * (1 - share)),
+  };
+}
+
 function polar(r: number, degrees: number) {
   const rad = (degrees * Math.PI) / 180;
   return { x: r * Math.cos(rad), y: r * Math.sin(rad) };

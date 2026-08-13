@@ -19,6 +19,8 @@ import {
   radialLayout,
   radialReach,
   sectorPath,
+  shareBetween,
+  shortestTurn,
   type Sector,
 } from "@/lib/mind-map-radial";
 import { NODE_EMOJI, NODE_HUES, radialShade } from "@/lib/mind-maps";
@@ -64,10 +66,16 @@ export function MindMapWheel({
   onReweight,
   onResize,
   onRotate,
+  onSetThickness,
+  onSetWeights,
+  onCommitRotation,
   onOpenThread,
   onFocusNode,
   focusedNodeId,
+  siblingsOf,
 }: {
+  /** The branches sharing a parent with this one, in drawing order. */
+  siblingsOf: (id: string) => CanvasNode[];
   nodes: CanvasNode[];
   radial: RadialSettings;
   canEdit: boolean;
@@ -91,6 +99,12 @@ export function MindMapWheel({
   onReweight: (id: string, factor: number) => void;
   onResize: (id: string, delta: number) => void;
   onRotate: (degrees: number) => void;
+  /** Sets a branch's thickness outright, for a drag that knows the answer. */
+  onSetThickness: (id: string, px: number) => void;
+  /** Moves weight between two neighbours in one go, so their shared edge holds. */
+  onSetWeights: (updates: { id: string; weight: number }[]) => void;
+  /** Commits a rotation once the drag ends. */
+  onCommitRotation: (start: number) => void;
   onOpenThread: (id: string) => void;
   onFocusNode: (id: string | null) => void;
   focusedNodeId: string | null;
@@ -128,33 +142,185 @@ export function MindMapWheel({
     [sectors],
   );
 
+  const svgRef = React.useRef<SVGSVGElement>(null);
+
+  /**
+   * Rotation while the drag is in flight, kept apart from `radial.start`.
+   *
+   * This is the whole reason the rotation is smooth. Writing to `radial.start` on
+   * every pointer move would re-run the layout, rebuild every segment path and
+   * re-reconcile the lot sixty times a second. Instead the number lands on one
+   * SVG `transform` on a group whose children are memoised, so a frame of
+   * rotating costs one attribute — and the real value is written once, on release.
+   */
+  const [liveRotation, setLiveRotation] = React.useState(0);
+
+  const drag = React.useRef<
+    | { kind: "rotate"; from: number }
+    | { kind: "thickness"; id: string; r0: number }
+    | {
+        kind: "weight";
+        id: string;
+        nextId: string;
+        a0: number;
+        combinedSpan: number;
+        combinedWeight: number;
+      }
+    | null
+  >(null);
+
+  /**
+   * Where the pointer is, in the wheel's own polar coordinates.
+   *
+   * Measured from the SVG's box rather than from the canvas's pan and zoom. The
+   * wheel sits inside that transform, and asking the element where it actually
+   * landed is both shorter and immune to the two of them drifting — the
+   * alternative is threading offset and scale down here and recomputing what the
+   * browser already knows.
+   */
+  const pointerAt = React.useCallback((event: { clientX: number; clientY: number }) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect || !rect.width) return { angle: 0, radius: 0 };
+
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    // The viewBox is square and 1:1 with user units, so one number converts back.
+    const scale = rect.width / (viewSide(reach) * 2);
+    const dx = event.clientX - cx;
+    const dy = event.clientY - cy;
+
+    return {
+      angle: (Math.atan2(dy, dx) * 180) / Math.PI,
+      radius: Math.hypot(dx, dy) / (scale || 1),
+    };
+  }, [reach]);
+
+  function beginDrag(event: React.PointerEvent, next: NonNullable<typeof drag.current>) {
+    // Swallowed so the canvas underneath does not start panning at the same time —
+    // the bug that killed the add button twice on the box canvas.
+    event.stopPropagation();
+    event.preventDefault();
+    (event.currentTarget as Element).setPointerCapture(event.pointerId);
+    drag.current = next;
+  }
+
+  function onDragMove(event: React.PointerEvent) {
+    const active = drag.current;
+    if (!active) return;
+    const { angle, radius } = pointerAt(event);
+
+    if (active.kind === "rotate") {
+      setLiveRotation(shortestTurn(angle - active.from));
+      return;
+    }
+
+    if (active.kind === "thickness") {
+      onSetThickness(active.id, radius - active.r0);
+      return;
+    }
+
+    // The shared edge between two neighbours follows the pointer, and the pair's
+    // total weight is held fixed — so one widens by exactly what the other loses
+    // and nothing beyond the two of them moves.
+    const { mine, theirs } = shareBetween(
+      shortestTurn(angle - active.a0),
+      active.combinedSpan,
+      active.combinedWeight,
+    );
+
+    onSetWeights([
+      { id: active.id, weight: mine },
+      { id: active.nextId, weight: theirs },
+    ]);
+  }
+
+  function endDrag() {
+    const active = drag.current;
+    drag.current = null;
+    if (active?.kind === "rotate" && liveRotation !== 0) {
+      onCommitRotation(radial.start + liveRotation);
+      setLiveRotation(0);
+    }
+  }
+
   if (!root) return null;
+
+  const selectedSector = focusedNodeId ? sectors.get(focusedNodeId) : undefined;
+  const selectedNode = focusedNodeId ? byId.get(focusedNodeId) : undefined;
 
   return (
     <div className="absolute left-0 top-0">
       {/* Sized from the drawing rather than fixed, and centred on the origin, so
           the wheel grows outward from the middle exactly as the geometry says. */}
       <svg
+        ref={svgRef}
         className="absolute overflow-visible"
-        style={{ left: -(reach + 40), top: -(reach + 40) }}
-        width={(reach + 40) * 2}
-        height={(reach + 40) * 2}
-        viewBox={`${-(reach + 40)} ${-(reach + 40)} ${(reach + 40) * 2} ${(reach + 40) * 2}`}
+        style={{ left: -viewSide(reach), top: -viewSide(reach) }}
+        width={viewSide(reach) * 2}
+        height={viewSide(reach) * 2}
+        viewBox={`${-viewSide(reach)} ${-viewSide(reach)} ${viewSide(reach) * 2} ${viewSide(reach) * 2}`}
+        onPointerMove={onDragMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
       >
-        {ordered.map((sector) => {
-          const node = byId.get(sector.id);
-          if (!node || sector.depth === 0) return null;
-          return (
-            <Segment
-              key={sector.id}
-              sector={sector}
-              node={node}
-              hue={hueOf(sector.id)}
-              selected={focusedNodeId === sector.id}
-              onSelect={() => onFocusNode(sector.id)}
+        {/* The live rotation is one attribute on one group. Everything inside is
+            memoised, so a frame of rotating does not rebuild a single path. */}
+        <g transform={liveRotation ? `rotate(${liveRotation.toFixed(3)})` : undefined}>
+          <Segments
+            ordered={ordered}
+            byId={byId}
+            hueOf={hueOf}
+            focusedNodeId={focusedNodeId}
+            onFocusNode={onFocusNode}
+          />
+
+          {canEdit && selectedSector && selectedNode ? (
+            <Handles
+              sector={selectedSector}
+              hasNextSibling={nextSiblingOf(selectedNode, siblingsOf) !== undefined}
+              onThicknessDown={(event) =>
+                beginDrag(event, {
+                  kind: "thickness",
+                  id: selectedSector.id,
+                  r0: selectedSector.r0,
+                })
+              }
+              onWeightDown={(event) => {
+                const next = nextSiblingOf(selectedNode, siblingsOf);
+                const nextSector = next ? sectors.get(next.id) : undefined;
+                if (!next || !nextSector) return;
+                beginDrag(event, {
+                  kind: "weight",
+                  id: selectedSector.id,
+                  nextId: next.id,
+                  a0: selectedSector.a0,
+                  combinedSpan:
+                    selectedSector.a1 - selectedSector.a0 + (nextSector.a1 - nextSector.a0),
+                  combinedWeight: selectedNode.weight + next.weight,
+                });
+              }}
             />
-          );
-        })}
+          ) : null}
+        </g>
+
+        {/* The rotate grip rides the hub's rim, outside the rotating group: a grip
+            that moves with what it is rotating slides out from under the pointer. */}
+        {canEdit ? (
+          <circle
+            cx={0}
+            cy={-HUB_RADIUS}
+            r={9}
+            className="cursor-grab"
+            fill={`hsl(${mapHue} 85% 62%)`}
+            stroke="hsl(0 0% 100% / 0.85)"
+            strokeWidth={2}
+            onPointerDown={(event) =>
+              beginDrag(event, { kind: "rotate", from: pointerAt(event).angle })
+            }
+          >
+            <title>Drag to turn the wheel</title>
+          </circle>
+        ) : null}
       </svg>
 
       {/* The hub is real HTML, not SVG: it holds an editable title, and a
@@ -348,6 +514,125 @@ export function MindMapWheel({
         : null}
     </div>
   );
+}
+
+/** Half the side of the square the wheel is drawn into, with room to breathe. */
+function viewSide(reach: number) {
+  return reach + 40;
+}
+
+/** The branch drawn immediately after this one among its siblings. */
+function nextSiblingOf(node: CanvasNode, siblingsOf: (id: string) => CanvasNode[]) {
+  const siblings = siblingsOf(node.id);
+  const index = siblings.findIndex((s) => s.id === node.id);
+  return index >= 0 ? siblings[index + 1] : undefined;
+}
+
+/**
+ * Every segment, memoised as one unit.
+ *
+ * Split out purely so rotating the wheel does not touch it. Left inline, each
+ * pointer move during a rotation re-created every path element in the drawing,
+ * and the answer to "why does it stutter on a big map" would have been "because it
+ * redraws the map to move it".
+ */
+const Segments = React.memo(function Segments({
+  ordered,
+  byId,
+  hueOf,
+  focusedNodeId,
+  onFocusNode,
+}: {
+  ordered: Sector[];
+  byId: Map<string, CanvasNode>;
+  hueOf: (id: string) => number;
+  focusedNodeId: string | null;
+  onFocusNode: (id: string | null) => void;
+}) {
+  return (
+    <>
+      {ordered.map((sector) => {
+        const node = byId.get(sector.id);
+        if (!node || sector.depth === 0) return null;
+        return (
+          <Segment
+            key={sector.id}
+            sector={sector}
+            node={node}
+            hue={hueOf(sector.id)}
+            selected={focusedNodeId === sector.id}
+            onSelect={() => onFocusNode(sector.id)}
+          />
+        );
+      })}
+    </>
+  );
+});
+
+/**
+ * The two grips on the selected branch: one on its outer rim for how far it
+ * reaches, one on its trailing edge for how wide it is.
+ *
+ * Grips rather than dragging the segment body. A segment is also the thing you
+ * click to select and the thing that carries the label, and making a press mean
+ * three different things depending on where in the shape it landed is how a
+ * drawing becomes guesswork.
+ */
+function Handles({
+  sector,
+  hasNextSibling,
+  onThicknessDown,
+  onWeightDown,
+}: {
+  sector: Sector;
+  hasNextSibling: boolean;
+  onThicknessDown: (event: React.PointerEvent) => void;
+  onWeightDown: (event: React.PointerEvent) => void;
+}) {
+  const mid = (sector.a0 + sector.a1) / 2;
+  const rim = polarPoint(sector.r1, mid);
+  const edge = polarPoint((sector.r0 + sector.r1) / 2, sector.a1);
+
+  return (
+    <>
+      <circle
+        cx={rim.x}
+        cy={rim.y}
+        r={7}
+        className="cursor-ns-resize"
+        fill="hsl(0 0% 100% / 0.92)"
+        stroke="hsl(0 0% 0% / 0.5)"
+        strokeWidth={1.5}
+        onPointerDown={onThicknessDown}
+      >
+        <title>Drag outward to lengthen this branch</title>
+      </circle>
+
+      {/* Only when there is a neighbour to trade with. Dragging the last edge of
+          the last branch would have to take its angle from everybody at once, and
+          watching every other boundary move is not what the grip appears to
+          promise. */}
+      {hasNextSibling ? (
+        <circle
+          cx={edge.x}
+          cy={edge.y}
+          r={7}
+          className="cursor-ew-resize"
+          fill="hsl(0 0% 100% / 0.92)"
+          stroke="hsl(0 0% 0% / 0.5)"
+          strokeWidth={1.5}
+          onPointerDown={onWeightDown}
+        >
+          <title>Drag around to share width with the next branch</title>
+        </circle>
+      ) : null}
+    </>
+  );
+}
+
+function polarPoint(r: number, degrees: number) {
+  const rad = (degrees * Math.PI) / 180;
+  return { x: r * Math.cos(rad), y: r * Math.sin(rad) };
 }
 
 /** One ring segment: its fill, its label, and the text you can edit in place. */

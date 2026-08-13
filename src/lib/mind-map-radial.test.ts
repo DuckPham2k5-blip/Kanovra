@@ -7,6 +7,8 @@ import {
   radialLayout,
   radialReach,
   sectorPath,
+  shareBetween,
+  shortestTurn,
 } from "@/lib/mind-map-radial";
 
 /**
@@ -214,6 +216,56 @@ describe("labelPlacement", () => {
     // Twelve o'clock at mid-radius 150 is straight up from the centre.
     expect(x).toBeCloseTo(0, 6);
     expect(y).toBeCloseTo(-150, 6);
+  });
+});
+
+describe("shortestTurn", () => {
+  it("leaves a small turn alone", () => {
+    expect(shortestTurn(20)).toBe(20);
+    expect(shortestTurn(-20)).toBe(-20);
+  });
+
+  it("takes the short way round instead of nearly a full turn", () => {
+    // What `atan2` reports when a drag crosses the nine o'clock line.
+    expect(shortestTurn(359)).toBe(-1);
+    expect(shortestTurn(-359)).toBe(1);
+  });
+
+  it("never reports more than half a turn either way", () => {
+    for (let d = -1080; d <= 1080; d += 7) {
+      const turn = shortestTurn(d);
+      expect(turn).toBeGreaterThan(-180.000001);
+      expect(turn).toBeLessThanOrEqual(180);
+    }
+  });
+});
+
+describe("shareBetween", () => {
+  it("keeps the pair's total weight, so nothing outside the pair moves", () => {
+    const { mine, theirs } = shareBetween(30, 90, 4);
+    expect(mine + theirs).toBeCloseTo(4, 9);
+  });
+
+  it("puts the shared edge where the pointer is", () => {
+    // A third of the way across a 90° pair is a third of the weight.
+    const { mine, theirs } = shareBetween(30, 90, 3);
+    expect(mine).toBeCloseTo(1, 9);
+    expect(theirs).toBeCloseTo(2, 9);
+  });
+
+  it("leaves a sliver rather than collapsing a branch to nothing", () => {
+    for (const offset of [-500, 0, 90, 500]) {
+      const { mine, theirs } = shareBetween(offset, 90, 4);
+      expect(mine).toBeGreaterThan(0);
+      expect(theirs).toBeGreaterThan(0);
+      expect(mine + theirs).toBeCloseTo(4, 9);
+    }
+  });
+
+  it("does not divide by zero on a pair with no angle at all", () => {
+    const { mine, theirs } = shareBetween(10, 0, 2);
+    expect(Number.isFinite(mine)).toBe(true);
+    expect(Number.isFinite(theirs)).toBe(true);
   });
 });
 

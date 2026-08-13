@@ -485,6 +485,42 @@ export function MindMapCanvas({
     setDirty(true);
   }
 
+  /** Thickness set outright, for a drag that already knows the answer. */
+  function setThickness(id: string, px: number) {
+    setNodes((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, thickness: clamp(px, 24, 2000) } : n)),
+    );
+    setDirty(true);
+  }
+
+  /**
+   * Several weights at once.
+   *
+   * One call rather than two, because moving a boundary is a single fact about a
+   * pair of neighbours. Applied as two separate updates, the frame between them
+   * has a total that matches neither state and the shared edge visibly twitches.
+   */
+  function setWeights(updates: { id: string; weight: number }[]) {
+    const byUpdate = new Map(updates.map((u) => [u.id, u.weight]));
+    setNodes((prev) =>
+      prev.map((n) => {
+        const weight = byUpdate.get(n.id);
+        return weight === undefined ? n : { ...n, weight: clamp(weight, 0.05, 200) };
+      }),
+    );
+    setDirty(true);
+  }
+
+  /** The branches sharing a parent with this one, in the order they are drawn. */
+  const siblingsOf = React.useCallback(
+    (id: string) => {
+      const node = nodes.find((n) => n.id === id);
+      if (!node) return [];
+      return nodes.filter((n) => n.parentId === node.parentId && n.parentId !== null);
+    },
+    [nodes],
+  );
+
   function onNodePointerDown(event: React.PointerEvent, node: CanvasNode) {
     if (!canEdit) return;
     if (structured) {
@@ -657,6 +693,13 @@ export function MindMapCanvas({
                 setRadial((prev) => ({ ...prev, start: prev.start + degrees }));
                 setDirty(true);
               }}
+              onSetThickness={setThickness}
+              onSetWeights={setWeights}
+              onCommitRotation={(start) => {
+                setRadial((prev) => ({ ...prev, start }));
+                setDirty(true);
+              }}
+              siblingsOf={siblingsOf}
               onOpenThread={setOpenThread}
               onFocusNode={(id) => {
                 setSelected(id);
