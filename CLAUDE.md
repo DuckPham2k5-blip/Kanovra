@@ -211,13 +211,37 @@ stack.
   Vitest to resolve the `@/` alias, and the script has to run from the project
   root for `sharp` to resolve — both were briefly done the other way round and
   neither works.
+- **Check for a listener on port 3000 *immediately* before `npm run build`, not a
+  few steps earlier.** The existing note about not building under a running dev
+  server is not enough on its own: the check was done, then `.next` was deleted,
+  then the owner restarted dev, and only then did the build run — which failed
+  with `Cannot find module for page` on routes nothing had touched, *and* left the
+  owner's dev server with a clobbered chunk map. The gap between checking and
+  building is the whole bug.
+- **`git commit -m` with a PowerShell here-string splits the message into
+  pathspecs.** `git commit -m @'…'@` does not pass one argument; git receives each
+  word and reports `pathspec 'outage' did not match any file(s)`. Write the message
+  to a file and use `git commit -F`. Same lesson as the bash-heredoc note above:
+  the shell is not a good way to hand multi-line text to a program.
+- **Adding a `.default()` field to `canvasNodeSchema` makes it *required* on
+  `CanvasNode`.** Zod's inferred output type has no idea the value was defaulted, so
+  every place that builds a node by hand stops compiling — seed, add-child, and two
+  test helpers. That is the right failure, but the constants have to live somewhere
+  both the schema and those callers can reach (`DEFAULT_WEIGHT`,
+  `DEFAULT_THICKNESS`) or they drift, and a node built with no weight lays out as
+  zero-width.
+- **Excising a block from a file by index needs the block to actually come first.**
+  Cutting from `describe("circle map"` to `describe("double bubble map"` duplicated
+  both blocks instead of removing one, because circle came *after* double bubble in
+  the file and the end index was lower than the start. Typecheck caught it; a
+  looser test file would not have.
 
 ---
 
 ## State and what is left
 
 All application work asked for so far is committed to `main` and green:
-typecheck, lint, 118 tests, production build.
+typecheck, lint, 148 tests, production build.
 
 **Live updates: verified end to end on 2026-08-10**, in dev, with the owner
 driving the browser. What the run actually established:
@@ -391,6 +415,80 @@ colour surviving a save and reload, a comment posting and appearing, and a secon
 person's avatar arriving on a node. The comment cleanup query *is* proven against
 the real database. Per-node presence has the same gap as workspace presence: it
 has never been exercised by two genuinely different signed-in sessions.
+
+---
+
+## Built after the third pass (2026-08-13)
+
+**The circle map is not a Thinking Maps circle map any more.** It is a radial
+sunburst, redrawn from the owner's sketch: the title in a hub, branches fanning
+out as ring segments, each free to split into narrower segments further out. The
+old ring-with-detail-loose-inside and its dashed frame of reference are gone, and
+so is its question — a wheel answers *how does this break down, and how much of it
+is each part*, because the angle a branch occupies stands for its share of the
+whole. Existing rows keep their `x`/`y`; those fields are simply not read, which is
+the same policy the structured types already had.
+
+**Angles are shares, never stored positions** (`mind-map-radial.ts`). A branch
+keeps a `weight` and its span is its share of whatever its parent has. That single
+decision is what makes the editing safe: splitting into three is three children of
+weight 1, deleting one hands its angle back to its siblings, widening one narrows
+its neighbours — and none of them can produce a child sticking out of its parent, a
+gap in the middle of a ring, or two segments on top of each other. With absolute
+angles every one of those is a case to police, and the first one missed draws a
+wheel that is visibly wrong with nothing asserting otherwise.
+
+**Radius accumulates down a branch, not across a ring.** A node's inner radius is
+the hub plus the thickness of each of its ancestors, so dragging one branch longer
+pushes *its own* descendants outward and leaves its siblings alone. A per-ring
+thickness would be simpler and would make one long branch fatten everything beside
+it.
+
+**Rotation is one SVG transform over memoised children.** Writing to the wheel's
+start angle on every pointer move re-runs the layout, rebuilds every path and
+reconciles the lot sixty times a second. The live angle goes onto a `<g transform>`
+whose contents are a `React.memo` component, and the real value is written once on
+release. The owner asked for the turn to be smooth and not stutter; this is that
+requirement met structurally rather than by tuning.
+
+**Three grips, not a draggable segment body.** Hub rim turns the wheel; the
+selected branch's outer edge sets how far it reaches; its trailing boundary trades
+width with the next branch. A segment is already the thing you click to select and
+the thing carrying the label, and making one press mean three things depending on
+where in the shape it landed is how a drawing becomes guesswork. The rotate grip
+sits *outside* the rotating group, or it slides out from under the pointer. The
+width grip only appears where there is a neighbour to trade with — the last edge of
+the last branch would have to take its angle from everybody at once.
+
+**One segment at a time carries the furniture.** A wheel has nowhere to hang
+per-segment controls the way a box has corners, and a menu trigger per segment is a
+wheel's worth of Radix `useId` counters — the exact shape behind the hydration
+warnings already recorded. Clicking selects; the selection carries the `…` menu, the
+comment button and the presence avatars.
+
+**Traps found by rendering it and looking:**
+
+- Labels were dark ink on every fill, which is legible in the light outer rings and
+  unreadable on the dark inner ones — where the branch names people navigate by
+  actually live. Fill and ink are now one function of the same lightness
+  (`radialShade`), because choosing them apart is how that happens.
+- Every label was forced along its arc, so long words in the outer rings were
+  squeezed into an arc a fraction of their length. A label now runs tangentially or
+  radially, whichever it fits, and the flip that keeps it right side up is decided
+  from the **drawn** angle rather than the branch's — the two are a quarter turn
+  apart for tangential text, so testing the branch angle left every label across the
+  bottom of the wheel upside down, and only across the bottom.
+- An arc command from an angle back to the same angle has zero length and draws
+  nothing, so a single branch filling the whole wheel came out invisible. A full turn
+  is built from four arcs.
+
+**What this pass did *not* verify.** Nothing was seen in the running application,
+for the same reason as before — the assistant's browser has no Clerk session. The
+geometry was checked by rendering the real modules to a picture and looking at it,
+and the rest by typecheck, lint, 148 tests and a production build. Specifically
+unproven in a browser: any of the three drags actually feeling smooth under a real
+pointer, the rotate grip staying under the finger, a wheel of two hundred segments
+staying responsive, and whether the hub is big enough to type a real title into.
 
 ---
 
