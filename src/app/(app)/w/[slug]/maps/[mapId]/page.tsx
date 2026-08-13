@@ -7,7 +7,12 @@ import { MindMapCanvas } from "@/components/mind-map/mind-map-canvas";
 import { Button } from "@/components/ui/button";
 import { requireWorkspace } from "@/lib/auth";
 import { parseCanvas } from "@/lib/mind-map-canvas";
-import { MIND_MAP_META, mindMapBackdrop, mindMapColor } from "@/lib/mind-maps";
+import {
+  isRetiredMapType,
+  MIND_MAP_META,
+  mindMapBackdrop,
+  mindMapColor,
+} from "@/lib/mind-maps";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Map" };
@@ -27,6 +32,10 @@ export default async function MapPage({
     select: { id: true, title: true, type: true, data: true },
   });
   if (!map) notFound();
+
+  // A withdrawn type reads as missing rather than as forbidden. The row is still
+  // there — see `RETIRED_MAP_TYPES` — but nothing in the product opens it.
+  if (isRetiredMapType(map.type)) notFound();
 
   const meta = MIND_MAP_META[map.type];
   const canvas = parseCanvas(map.data);

@@ -1,7 +1,11 @@
 import { MindMapType } from "@prisma/client";
 
 /**
- * The eight Thinking Maps.
+ * The map types.
+ *
+ * Eight to begin with — the Thinking Maps — of which six are offered now. Bridge
+ * and double bubble were withdrawn; see `RETIRED_MAP_TYPES` for why their entries
+ * are still here.
  *
  * Each one answers a different question, and that is the whole point of having
  * eight rather than one free-form canvas: choosing the map is choosing how to
@@ -79,15 +83,35 @@ export const MIND_MAP_META: Record<MindMapType, MindMapMeta> = {
   },
 };
 
+/**
+ * Types withdrawn from the product.
+ *
+ * Kept in the Prisma enum on purpose. Rows of these types exist, and dropping an
+ * enum value means deleting them — an irreversible answer to a question about the
+ * *interface*. So they are absent from the picker, refused by the create action and
+ * answered with a 404 by the map page, while the rows sit untouched until somebody
+ * decides about them deliberately.
+ *
+ * `MIND_MAP_META` still carries entries for them, because a `Record` over the enum
+ * has to be exhaustive and because a retired row still needs a label if anything
+ * ever reports on it.
+ */
+export const RETIRED_MAP_TYPES: ReadonlySet<MindMapType> = new Set([
+  MindMapType.BRIDGE,
+  MindMapType.DOUBLE_BUBBLE,
+]);
+
+export function isRetiredMapType(type: MindMapType) {
+  return RETIRED_MAP_TYPES.has(type);
+}
+
 export const MIND_MAP_ORDER: MindMapType[] = [
   MindMapType.CIRCLE,
   MindMapType.BUBBLE,
-  MindMapType.DOUBLE_BUBBLE,
   MindMapType.TREE,
   MindMapType.FLOW,
   MindMapType.MULTI_FLOW,
   MindMapType.BRACE,
-  MindMapType.BRIDGE,
 ];
 
 /**
