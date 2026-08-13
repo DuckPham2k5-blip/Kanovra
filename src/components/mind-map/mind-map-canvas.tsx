@@ -522,18 +522,19 @@ export function MindMapCanvas({
   );
 
   function onNodePointerDown(event: React.PointerEvent, node: CanvasNode) {
-    if (!canEdit) return;
-    if (structured) {
-      // Still swallowed, so pressing a node does not pan the sheet underneath.
-      event.stopPropagation();
-      return;
-    }
-
-    // Stopped either way. Returning without stopping was the bug behind a
-    // dead add button *twice*: the press bubbled to the viewport, the viewport
-    // captured the pointer to pan, and the click that should have followed was
-    // delivered somewhere else entirely.
+    /*
+     * Swallowed first, before any other question is asked.
+     *
+     * Returning without stopping was the bug behind a dead add button *three*
+     * times: the press bubbles to the viewport, the viewport captures the pointer
+     * to pan, and the click that should have followed is delivered somewhere else
+     * entirely. The third time was this very early return — a reader with no edit
+     * permission still has a comment button on a node, and for them the press was
+     * never stopped, so that button did nothing at all. Whether the press goes on
+     * to start a drag is a separate decision, taken below.
+     */
     event.stopPropagation();
+    if (!canEdit || structured) return;
 
     const target = event.target as HTMLElement;
     if (target.closest("button") || target.closest("textarea")) return;

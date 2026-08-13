@@ -327,6 +327,11 @@ export function MindMapWheel({
           `foreignObject` inside SVG behaves differently enough across browsers to
           be a poor place for the one control every map has. */}
       <div
+        // Swallowed, or the viewport underneath captures the pointer to pan and
+        // neither the title box nor the add button ever receives its click. Every
+        // HTML control layered over this canvas needs this; forgetting it is the
+        // single recurring cause of a dead button in this project.
+        onPointerDown={(event) => event.stopPropagation()}
         className="absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 text-center"
         style={{
           left: 0,
@@ -388,6 +393,9 @@ export function MindMapWheel({
 
             return (
               <div
+                // Same reason as the hub: the `…` menu, the comment button and the
+                // avatars all sit over the pannable canvas.
+                onPointerDown={(event) => event.stopPropagation()}
                 className="absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-1"
                 style={{ left: place.x, top: place.y }}
               >
