@@ -264,7 +264,9 @@ stack.
 ## State and what is left
 
 All application work asked for so far is committed to `main` and green:
-typecheck, lint, 142 tests, production build.
+typecheck, lint, 151 tests. The production build was last run green at
+`d755608`; the fifth pass has not been through one, because the dev server was
+running and building under it clobbers the chunk map.
 
 **Live updates: verified end to end on 2026-08-10**, in dev, with the owner
 driving the browser. What the run actually established:
@@ -553,6 +555,53 @@ types, six enum labels, no orphaned comments), and the remaining five types rend
 to a picture and looked at. **Not verified:** anything in a signed-in browser — in
 particular that the Maps page now shows six cards, and the four button fixes, which
 only a real pointer can prove.
+
+---
+
+## Built after the fifth pass (2026-08-17)
+
+**A node is resized by dragging its corner.** This closes the "dead button"
+report for good, and the diagnosis behind the fourth pass turned out to be right
+but beside the point: the three size options really did add a node rather than
+resize one, and relabelling them so they said so did not help, because the owner
+was never looking for an add menu. `+` is one press and one node now — inheriting
+its parent's size, the only one of the three that asked nothing of the author —
+and size is a grip on the node itself, which says what it does without a label.
+
+**The drag is proportional, not pixels-per-rank.** Move the pointer 1.5× further
+from the node's centre and the node is 1.5× the size. Rank is geometric, so a
+fixed pixels-per-step would behave differently on a large node than a small one.
+`rankFromRatio` is the inverse of `rankScale`, and the test asserts the promise
+rather than the formula — drawn size after ÷ drawn size before equals the ratio
+the pointer travelled, across three starting sizes.
+
+**`rank` is fractional now.** It was `.int()` while the only way to change size
+was a menu stepping by one. A step is 22%, so keeping whole numbers under a
+continuous gesture snaps the shape in 22% jumps beneath a pointer moving
+smoothly, which reads as the *drag* stuttering rather than as sizes being tidy.
+Existing integer data stays valid; the menu and a new node still produce whole
+numbers.
+
+**The node's centre is frozen when the press lands**, not read again each move.
+On the structured types the layout is computed from the nodes, so growing one
+shifts it — and measuring against a centre that moves *because of the change
+being measured* is a feedback loop, which is how a drag runs away from the
+pointer. Frozen, the response stays monotonic.
+
+A ratio of zero, negative or `NaN` has no logarithm and would put `NaN` into the
+node: a box with no size, saved over the real value. `rankFromRatio` answers
+those by leaving the rank alone, pinned in `mind-map-canvas.test.ts`.
+
+The `…` menu keeps "Make it bigger" / "Make it smaller". A drag is a mouse and
+only a mouse; removing them would leave anyone on a keyboard with no way to
+resize a node at all — a worse bug than the one that started this, and a silent
+one rather than one that merely looks broken.
+
+**Verified:** typecheck, lint, 151 tests, and — for the first time in this
+strand of work — **the owner drove the real thing and reported the drag smooth**.
+**Not verified:** a production build (the dev server was running, so it was not
+run), and the drag on a structured type, where the frozen-centre trade-off is the
+one that could still feel loose.
 
 ---
 

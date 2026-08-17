@@ -4,7 +4,7 @@ import { MindMapType } from "@prisma/client";
 import {
   ChevronDown,
   ChevronUp,
-  Equal,
+  Maximize2,
   MessageSquare,
   MoreHorizontal,
   Plus,
@@ -31,8 +31,10 @@ import {
 import { MindMapWheel } from "@/components/mind-map/mind-map-wheel";
 import {
   DEFAULT_WEIGHT,
+  clampRank,
   newNodeId,
   nodeSize,
+  rankFromRatio,
   rankScale,
   seedNodes,
   type CanvasNode,
@@ -237,6 +239,24 @@ export function MindMapCanvas({
   const viewportRef = React.useRef<HTMLDivElement>(null);
   const dragging = React.useRef<{ id: string; dx: number; dy: number } | null>(null);
   const panning = React.useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+  /**
+   * A resize in progress: which node, the rank it had when the press landed, how
+   * far the pointer was from its centre then, and where that centre was.
+   *
+   * The centre is *frozen* at the press rather than read again each move. On the
+   * structured types the layout is computed from the nodes, so growing one shifts
+   * it — and measuring against a centre that moves because of the very change
+   * being measured is a feedback loop, which is how a drag ends up running away
+   * from the pointer. Frozen, the response stays monotonic: further out is always
+   * bigger, by the proportion the pointer actually travelled.
+   */
+  const resizing = React.useRef<{
+    id: string;
+    rank: number;
+    distance: number;
+    cx: number;
+    cy: number;
+  } | null>(null);
 
   const style = mindMapStyle(type);
   const structured = isStructured(type);
@@ -405,10 +425,15 @@ export function MindMapCanvas({
    *
    * Clamped to the range the schema accepts, so a long press on "bigger" cannot
    * write a node the parser will later reject.
+   *
+   * Kept now that the corner can be dragged, because a drag is a mouse and only a
+   * mouse. Removing these would leave anyone working from the keyboard with no
+   * way to resize a node at all, which is a worse bug than the one that started
+   * this — it would at least be silent rather than looking broken.
    */
   function resizeNode(id: string, step: number) {
     setNodes((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, rank: clamp(n.rank + step, -40, 40) } : n)),
+      prev.map((n) => (n.id === id ? { ...n, rank: clampRank(n.rank + step) } : n)),
     );
     setDirty(true);
   }
@@ -561,17 +586,57 @@ export function MindMapCanvas({
   }
 
   /**
+   * Starts a resize from the grip on a node's outer corner.
+   *
+   * Size used to be settable only at the moment a node was made, and then only
+   * from a menu that also added the node — which is what made the three options
+   * read as dead buttons, since the node under the cursor deliberately did not
+   * change. Dragging the shape is the gesture people already expect from every
+   * other drawing tool, and it says what it does without a label.
+   *
+   * Available on the structured types too. Position is theirs to decide, size is
+   * not: a tree map reflows around a bigger box, it does not fight it.
+   */
+  function onResizePointerDown(event: React.PointerEvent, node: CanvasNode) {
+    // Swallowed first, before any question is asked — see `onNodePointerDown`.
+    // Every dead button on this canvas has been a press that reached the
+    // viewport, which captures the pointer to pan and eats the click.
+    event.stopPropagation();
+    if (!canEdit) return;
+
+    const centre = positionOf(node);
+    const point = toWorld(event);
+    const distance = Math.hypot(point.x - centre.x, point.y - centre.y);
+    // The grip sits on the node's corner, so this cannot happen to a real press.
+    // It guards the division, not the gesture: a zero here is an infinite ratio.
+    if (distance < 1) return;
+
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    resizing.current = { id: node.id, rank: node.rank, distance, cx: centre.x, cy: centre.y };
+  }
+
+  /**
    * Anything that is not a node pans the view. The capture is taken on the
    * viewport, so a drag keeps working when the pointer leaves whatever it
    * started on — however far it goes.
    */
   function onViewportPointerDown(event: React.PointerEvent) {
-    if (dragging.current) return;
+    if (dragging.current || resizing.current) return;
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     panning.current = { x: event.clientX, y: event.clientY, ox: offset.x, oy: offset.y };
   }
 
   function onPointerMove(event: React.PointerEvent) {
+    // Before the pan, because a resize takes the pointer capture on the grip and
+    // a stray pan started underneath it would move the map as well as the node.
+    const resize = resizing.current;
+    if (resize) {
+      const point = toWorld(event);
+      const distance = Math.hypot(point.x - resize.cx, point.y - resize.cy);
+      update(resize.id, { rank: rankFromRatio(resize.rank, distance / resize.distance) });
+      return;
+    }
+
     const pan = panning.current;
     if (pan) {
       setOffset({
@@ -590,6 +655,7 @@ export function MindMapCanvas({
   function endDrag() {
     dragging.current = null;
     panning.current = null;
+    resizing.current = null;
   }
 
   /**
@@ -915,41 +981,26 @@ export function MindMapCanvas({
                     appear on hover and nobody hovers during hydration. */}
                 {canEdit && mounted ? (
                   <div className="absolute -right-2 -top-2 flex gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          aria-label="Add a connected node"
-                          className="rounded-full border bg-background p-1 shadow-sm"
-                          style={{ borderColor: mindMapColor(type, 0.5) }}
-                        >
-                          <Plus className="size-3.5" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      {/* Size is asked for at the moment of creation, when the
-                          author knows whether this is a heading, a sibling or
-                          an aside. Asking later means every new node arrives
-                          the same and has to be corrected.
+                    {/* One press, one node. This was a menu of three sizes for
+                        the child about to be created, and it was the wrong place
+                        to ask: the options sat under a `+`, described a node that
+                        did not exist yet, and left the node actually under the
+                        cursor unchanged — so clicking one looked exactly like a
+                        dead button, and was reported as one. Size belongs to a
+                        node that can be seen, and is dragged from its corner.
 
-                          Every item names the verb. They used to read "Bigger
-                          than this" / "Same size" / "Smaller than this", which
-                          describes the child but sounds like it resizes the node
-                          you clicked — and on a free canvas, where adding a node
-                          does not visibly reflow anything, clicking one looked
-                          exactly like a dead button. */}
-                      <DropdownMenuContent align="start">
-                        <DropdownMenuLabel>Add a node</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => addChild(node, node.rank + 1)}>
-                          <ChevronUp /> Add a bigger one
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => addChild(node, node.rank)}>
-                          <Equal /> Add one the same size
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => addChild(node, node.rank - 1)}>
-                          <ChevronDown /> Add a smaller one
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                        The new node inherits its parent's size, which is what the
+                        middle option did and the only one of the three that
+                        needed no decision from the author. */}
+                    <button
+                      type="button"
+                      aria-label="Add a connected node"
+                      onClick={() => addChild(node, node.rank)}
+                      className="rounded-full border bg-background p-1 shadow-sm"
+                      style={{ borderColor: mindMapColor(type, 0.5) }}
+                    >
+                      <Plus className="size-3.5" />
+                    </button>
 
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -1049,6 +1100,31 @@ export function MindMapCanvas({
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
+                ) : null}
+
+                {/* Drag the corner to resize. No `mounted` gate: this is a plain
+                    button, not a Radix menu, so it carries none of the `useId`
+                    counting behind the hydration warnings.
+
+                    A round node's bounding box corner is outside the circle, so
+                    the grip would float unattached in the gap. It sits on the
+                    shape itself instead — 45° round the rim, which is that same
+                    corner pulled in to where the ink actually is. */}
+                {canEdit ? (
+                  <button
+                    type="button"
+                    aria-label="Drag to resize this node"
+                    title="Drag to resize"
+                    onPointerDown={(event) => onResizePointerDown(event, node)}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize touch-none rounded-full border bg-background p-1 opacity-0 shadow-sm transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+                    style={{
+                      left: round ? "85.4%" : "100%",
+                      top: round ? "85.4%" : "100%",
+                      borderColor: mindMapColor(type, 0.5),
+                    }}
+                  >
+                    <Maximize2 className="size-3 rotate-90" />
+                  </button>
                 ) : null}
               </div>
             );

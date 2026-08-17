@@ -35,6 +35,19 @@ const LIMIT = 100_000;
 export const DEFAULT_WEIGHT = 1;
 export const DEFAULT_THICKNESS = 110;
 
+/**
+ * How much bigger one step of rank draws a node, and how far rank may go.
+ *
+ * Exported because the schema, the scale function and the resize drag all have to
+ * agree on them. They were three separate literals — `1.22` in `rankScale` and
+ * `-40, 40` written out again at the call site that clamps — which is exactly the
+ * shape that drifts: widening the bound in the schema alone would let the drag
+ * write a node the parser then refuses to read back.
+ */
+export const RANK_RATIO = 1.22;
+export const RANK_MIN = -40;
+export const RANK_MAX = 40;
+
 export const canvasNodeSchema = z.object({
   id: z.string().min(1).max(64),
   text: z.string().trim().max(160).default(""),
@@ -52,8 +65,16 @@ export const canvasNodeSchema = z.object({
    * to look as important as a main branch, and a genuinely minor aside three
    * levels down cannot be made small. The bound below is arithmetic hygiene —
    * beyond it the scale factor overflows — not a design limit.
+   *
+   * Fractional, deliberately. It was `.int()` while the only way to change size
+   * was a menu item stepping by one, and a node is resized by dragging its
+   * corner now — a continuous gesture. Rounding to whole steps would snap the
+   * shape in 22% jumps under a pointer that is moving smoothly, which reads as
+   * the drag stuttering rather than as sizes being tidy. Whole numbers are still
+   * what the menu and a freshly added node produce, so nothing that existed
+   * before this became untidy.
    */
-  rank: z.number().int().min(-40).max(40).default(0),
+  rank: z.number().finite().min(RANK_MIN).max(RANK_MAX).default(0),
   /**
    * A single glyph shown beside the text.
    *
@@ -204,7 +225,32 @@ export function parseCanvas(raw: unknown): CanvasData {
  * a small one.
  */
 export function rankScale(rank: number) {
-  return Math.pow(1.22, rank);
+  return Math.pow(RANK_RATIO, rank);
+}
+
+/**
+ * The rank that draws a node `ratio` times the size `from` draws it — the inverse
+ * of `rankScale`, and the whole arithmetic of the resize drag.
+ *
+ * The grip is dragged away from the node's centre, and the node grows by exactly
+ * the proportion the pointer moved out: drag to twice the distance and the node
+ * is twice the size. Anything else — a fixed pixels-per-rank, say — behaves
+ * differently on a large node than on a small one, because rank is geometric.
+ *
+ * A ratio that is zero, negative or not a number has no logarithm and would put
+ * `NaN` into the node, which survives the render as a box with no size at all and
+ * is then saved. The guard answers with the rank it started from instead: a drag
+ * that cannot be interpreted leaves the node alone.
+ */
+export function rankFromRatio(from: number, ratio: number) {
+  if (!Number.isFinite(ratio) || ratio <= 0) return clampRank(from);
+  return clampRank(from + Math.log(ratio) / Math.log(RANK_RATIO));
+}
+
+/** Held inside the range the schema will read back. */
+export function clampRank(rank: number) {
+  if (!Number.isFinite(rank)) return 0;
+  return Math.min(RANK_MAX, Math.max(RANK_MIN, rank));
 }
 
 /**

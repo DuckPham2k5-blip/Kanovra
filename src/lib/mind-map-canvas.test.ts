@@ -1,7 +1,16 @@
 import { MindMapType } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
-import { nodeSize, parseCanvas, rankScale } from "@/lib/mind-map-canvas";
+import {
+  RANK_MAX,
+  RANK_MIN,
+  RANK_RATIO,
+  clampRank,
+  nodeSize,
+  parseCanvas,
+  rankFromRatio,
+  rankScale,
+} from "@/lib/mind-map-canvas";
 
 /**
  * Reading a map back out of the database.
@@ -26,6 +35,21 @@ describe("parseCanvas", () => {
     const family = "👨‍👩‍👧‍👦";
     const canvas = parseCanvas({ nodes: [{ ...good, emoji: family }] });
     expect(canvas.nodes[0].emoji).toBe(family);
+  });
+
+  /*
+   * `rank` was an integer while the only way to change size was a menu stepping
+   * by one. A resize drag writes whatever proportion the pointer travelled, so a
+   * schema that still insisted on whole numbers would drop every node anybody
+   * resized — silently, one node at a time, on the reload after the save.
+   */
+  it("keeps the fractional rank a resize drag writes", () => {
+    const canvas = parseCanvas({ nodes: [{ ...good, rank: 1.37 }] });
+    expect(canvas.nodes[0].rank).toBeCloseTo(1.37, 10);
+  });
+
+  it("still refuses a rank outside the bounds", () => {
+    expect(parseCanvas({ nodes: [good, { ...good, id: "b", rank: 900 }] }).nodes).toHaveLength(1);
   });
 
   it("drops only the offending node, never the whole map", () => {
@@ -103,5 +127,77 @@ describe("rankScale", () => {
   it("is 1 at rank 0 and symmetric about it", () => {
     expect(rankScale(0)).toBe(1);
     expect(rankScale(2) * rankScale(-2)).toBeCloseTo(1, 10);
+  });
+});
+
+/**
+ * The arithmetic of dragging a node's corner.
+ *
+ * The gesture is: press the grip, and whatever proportion the pointer moves away
+ * from the node's centre, the node grows by. So the property worth pinning is not
+ * a formula but that promise — drag to 1.5× the distance, get a node 1.5× the
+ * size — because that is the whole of what makes the drag feel attached to the
+ * pointer rather than merely correlated with it.
+ */
+describe("rankFromRatio", () => {
+  it("leaves the node alone when the pointer has not moved", () => {
+    expect(rankFromRatio(2, 1)).toBeCloseTo(2, 10);
+  });
+
+  it("grows the node by exactly the proportion the pointer moved out", () => {
+    for (const start of [-6, 0, 3.4]) {
+      for (const ratio of [0.4, 1.5, 3]) {
+        const before = nodeSize(MindMapType.TREE, start).w;
+        const after = nodeSize(MindMapType.TREE, rankFromRatio(start, ratio)).w;
+        expect(after / before).toBeCloseTo(ratio, 6);
+      }
+    }
+  });
+
+  it("is one whole step at the ratio a menu step means", () => {
+    expect(rankFromRatio(0, RANK_RATIO)).toBeCloseTo(1, 10);
+    expect(rankFromRatio(0, 1 / RANK_RATIO)).toBeCloseTo(-1, 10);
+  });
+
+  it("moves smoothly rather than in whole steps, which is why rank is not an int", () => {
+    const rank = rankFromRatio(0, 1.1);
+    expect(Number.isInteger(rank)).toBe(false);
+    expect(rank).toBeGreaterThan(0);
+    expect(rank).toBeLessThan(1);
+  });
+
+  /*
+   * A drag flung to the edge of the plane must not write a rank the parser will
+   * then refuse, because the node would come back as one dropped node — and
+   * `parseCanvas` drops nodes silently by design.
+   */
+  it("cannot be dragged outside the range the schema reads back", () => {
+    expect(rankFromRatio(RANK_MAX - 1, 1e6)).toBe(RANK_MAX);
+    expect(rankFromRatio(RANK_MIN + 1, 1e-6)).toBe(RANK_MIN);
+
+    const node = { id: "a", text: "", x: 0, y: 0, parentId: null };
+    for (const rank of [rankFromRatio(RANK_MAX, 1e6), rankFromRatio(RANK_MIN, 1e-6)]) {
+      expect(parseCanvas({ nodes: [{ ...node, rank }] }).nodes).toHaveLength(1);
+    }
+  });
+
+  /*
+   * A ratio of zero has no logarithm. Left unguarded it puts NaN into the node,
+   * which renders as a box with no size and is then saved over the real value —
+   * a drag that destroys the node it was meant to resize.
+   */
+  it("answers a ratio with no logarithm by leaving the rank where it was", () => {
+    for (const ratio of [0, -2, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(rankFromRatio(3, ratio)).toBe(3);
+    }
+  });
+});
+
+describe("clampRank", () => {
+  it("holds the schema's own bounds", () => {
+    expect(clampRank(RANK_MAX + 10)).toBe(RANK_MAX);
+    expect(clampRank(RANK_MIN - 10)).toBe(RANK_MIN);
+    expect(clampRank(2.5)).toBe(2.5);
+    expect(clampRank(Number.NaN)).toBe(0);
   });
 });
