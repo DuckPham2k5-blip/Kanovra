@@ -264,9 +264,7 @@ stack.
 ## State and what is left
 
 All application work asked for so far is committed to `main` and green:
-typecheck, lint, 151 tests. The production build was last run green at
-`d755608`; the fifth pass has not been through one, because the dev server was
-running and building under it clobbers the chunk map.
+typecheck, lint, 151 tests, production build.
 
 **Live updates: verified end to end on 2026-08-10**, in dev, with the owner
 driving the browser. What the run actually established:
@@ -597,11 +595,12 @@ only a mouse; removing them would leave anyone on a keyboard with no way to
 resize a node at all — a worse bug than the one that started this, and a silent
 one rather than one that merely looks broken.
 
-**Verified:** typecheck, lint, 151 tests, and — for the first time in this
-strand of work — **the owner drove the real thing and reported the drag smooth**.
-**Not verified:** a production build (the dev server was running, so it was not
-run), and the drag on a structured type, where the frozen-centre trade-off is the
-one that could still feel loose.
+**Verified:** typecheck, lint, 151 tests, a production build, and — for the first
+time in this strand of work — **the owner drove the real thing and reported the
+drag smooth**. The build was run with the port-3000 check and `npm run build` in
+one command, so nothing could start between them; that gap is the whole of the
+trap recorded above. **Not verified:** the drag on a structured type, where the
+frozen-centre trade-off is the one that could still feel loose.
 
 ---
 
