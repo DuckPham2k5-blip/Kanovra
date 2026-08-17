@@ -393,6 +393,26 @@ export function MindMapCanvas({
     setDirty(true);
   }
 
+  /**
+   * Makes an existing node a step bigger or smaller.
+   *
+   * This did not exist at all until somebody went looking for it. Size was chosen
+   * once, when the node was made, and never again — so the only thing on the menu
+   * that mentioned size was the *add* menu, whose three options describe the child
+   * about to be created. Read as "change this node's size", clicked, and nothing
+   * about that node changes: the button looks broken when it is in fact a
+   * different button.
+   *
+   * Clamped to the range the schema accepts, so a long press on "bigger" cannot
+   * write a node the parser will later reject.
+   */
+  function resizeNode(id: string, step: number) {
+    setNodes((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, rank: clamp(n.rank + step, -40, 40) } : n)),
+    );
+    setDirty(true);
+  }
+
   function remove(id: string) {
     // Children are re-parented to their grandparent rather than deleted with
     // it. Losing a branch because its middle node went is the kind of thing
@@ -909,16 +929,24 @@ export function MindMapCanvas({
                       {/* Size is asked for at the moment of creation, when the
                           author knows whether this is a heading, a sibling or
                           an aside. Asking later means every new node arrives
-                          the same and has to be corrected. */}
+                          the same and has to be corrected.
+
+                          Every item names the verb. They used to read "Bigger
+                          than this" / "Same size" / "Smaller than this", which
+                          describes the child but sounds like it resizes the node
+                          you clicked — and on a free canvas, where adding a node
+                          does not visibly reflow anything, clicking one looked
+                          exactly like a dead button. */}
                       <DropdownMenuContent align="start">
+                        <DropdownMenuLabel>Add a node</DropdownMenuLabel>
                         <DropdownMenuItem onClick={() => addChild(node, node.rank + 1)}>
-                          <ChevronUp /> Bigger than this
+                          <ChevronUp /> Add a bigger one
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => addChild(node, node.rank)}>
-                          <Equal /> Same size
+                          <Equal /> Add one the same size
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => addChild(node, node.rank - 1)}>
-                          <ChevronDown /> Smaller than this
+                          <ChevronDown /> Add a smaller one
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -935,6 +963,18 @@ export function MindMapCanvas({
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" className="w-60">
+                        {/* This node's own size, which had no control anywhere
+                            until now — rank was set when the node was made and
+                            never again. */}
+                        <DropdownMenuLabel>Size of this node</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => resizeNode(node.id, 1)}>
+                          <ChevronUp /> Make it bigger
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => resizeNode(node.id, -1)}>
+                          <ChevronDown /> Make it smaller
+                        </DropdownMenuItem>
+
+                        <DropdownMenuSeparator />
                         <DropdownMenuLabel>Emoji</DropdownMenuLabel>
                         {/* A grid inside the menu rather than a submenu per
                             emoji: twenty-four items as menu rows is a scroll,
