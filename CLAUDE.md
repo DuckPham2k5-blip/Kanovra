@@ -230,6 +230,29 @@ stack.
   both the schema and those callers can reach (`DEFAULT_WEIGHT`,
   `DEFAULT_THICKNESS`) or they drift, and a node built with no weight lays out as
   zero-width.
+- **Every HTML control layered over the map canvas must swallow its own
+  `pointerdown`.** Three separate dead-button incidents have had this one cause: the
+  press bubbles to the viewport, the viewport captures the pointer to pan, and the
+  click never lands. The subtle variant is an early `return` placed *before* the
+  `stopPropagation()` — the press is then only stopped for people who can edit, so a
+  read-only viewer's comment button silently does nothing. Dropdown *contents* are
+  exempt, because Radix portals them to the document root and they are not over the
+  canvas at all; that is why the menus worked while the triggers opening them did
+  not.
+- **GitHub push protection reads Clerk's `sk_test_` placeholder as a Stripe key.**
+  `sk_test_` followed by ~24 plausible characters matches GitHub's Stripe secret
+  pattern, and the entire push is rejected over a string of x's in `.env.example`.
+  Placeholders have to break the shape — `sk_test_<your-clerk-secret-key>`. Verified
+  false positive: no real key has ever been committed, and `.env` has never been in
+  the history.
+- **Removing a value from a Prisma enum is a delete, and the order is fixed.**
+  Postgres cannot drop an enum value in place, so Prisma rebuilds the type and casts
+  the column across — and that cast fails while any row still holds the old value.
+  The `DELETE` has to live *inside* the same migration, before the swap. Doing it by
+  hand first works on this machine and fails on the VPS, where nobody has pre-cleaned
+  the data. `prisma migrate dev` also refuses to run non-interactively once it has a
+  data-loss warning to show, so the migration is hand-written and applied with
+  `prisma migrate deploy`.
 - **Excising a block from a file by index needs the block to actually come first.**
   Cutting from `describe("circle map"` to `describe("double bubble map"` duplicated
   both blocks instead of removing one, because circle came *after* double bubble in
@@ -241,7 +264,7 @@ stack.
 ## State and what is left
 
 All application work asked for so far is committed to `main` and green:
-typecheck, lint, 148 tests, production build.
+typecheck, lint, 142 tests, production build.
 
 **Live updates: verified end to end on 2026-08-10**, in dev, with the owner
 driving the browser. What the run actually established:
@@ -338,7 +361,8 @@ hop of that fetch is resolved and refused if the IP is private, because
 fetching an address a visitor chose is how a server gets asked what it can
 reach that they cannot.
 
-**Mind maps.** A new section with the eight Thinking Maps. Circle, bubble and
+**Mind maps.** A new section with the eight Thinking Maps — six of them now; see
+the fourth pass. Circle, bubble and
 double bubble are free canvases; the other five are laid out from their
 structure and cannot be dragged. The canvas is an unbounded plane — pan and
 zoom are one transform, not a scrollable box, which is what a fixed sheet
@@ -489,6 +513,46 @@ and the rest by typecheck, lint, 148 tests and a production build. Specifically
 unproven in a browser: any of the three drags actually feeling smooth under a real
 pointer, the rotate grip staying under the finger, a wheel of two hundred segments
 staying responsive, and whether the hub is big enough to type a real title into.
+
+---
+
+## Built after the fourth pass (2026-08-17)
+
+**Four dead buttons, one cause.** See the `pointerdown` trap above. The fixes were
+the early `return` in `onNodePointerDown`, the wheel's hub, and the wheel's
+selected-segment furniture.
+
+**Bridge and double bubble are gone.** Not hidden — removed. The enum values, the
+13 rows, the layouts, the notation, the glyphs, the `role` field on a node and the
+tests all went. There are six map types now.
+
+It happened in two steps on purpose. The first withdrew them from the interface
+while keeping the enum, because rows existed and deleting them is irreversible; the
+second, once the owner had actually been asked, removed everything. The 13 rows were
+listed before deleting and were all throwaway test data with no comments, and the
+database was dumped to the scratchpad first.
+
+Two things did *not* go:
+
+- **The `activities` rows** saying "… started a bridge map". They have no foreign
+  key to a map, so they survive on their own, and they are true — it did happen.
+  Deleting them would mean matching on message text, which would also catch a task
+  genuinely named "bridge map". A log is not rewritten to match a later product
+  decision.
+- **`trimStraight`** in `mind-map-edges.ts`, which looked like double bubble's but
+  is still what the bubble map draws with.
+
+Two signatures got simpler as a result, and that is the part worth noticing:
+`isStructured` and `replacesEdges` both took the whole node list purely so a double
+bubble could be structured only once its second subject was named. They take a type
+again. `edgeAxis` likewise took two rectangles only because a bridge map ran along
+one axis and stacked its pairs across the other.
+
+**Verified:** typecheck, lint, 142 tests, a production build, the database (six
+types, six enum labels, no orphaned comments), and the remaining five types rendered
+to a picture and looked at. **Not verified:** anything in a signed-in browser — in
+particular that the Maps page now shows six cards, and the four button fixes, which
+only a real pointer can prove.
 
 ---
 

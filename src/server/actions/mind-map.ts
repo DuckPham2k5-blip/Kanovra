@@ -7,7 +7,7 @@ import { z } from "zod";
 import { ForbiddenError, getMembership, requireUser } from "@/lib/auth";
 import { logActivity } from "@/lib/events";
 import { canvasSchema } from "@/lib/mind-map-canvas";
-import { isRetiredMapType, MIND_MAP_META } from "@/lib/mind-maps";
+import { MIND_MAP_META } from "@/lib/mind-maps";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { fail, NOT_FOUND, ok, parse, withErrorHandling, type ActionResult } from "@/server/action-result";
@@ -30,11 +30,6 @@ export async function createMindMap(input: unknown): Promise<ActionResult<{ id: 
   return withErrorHandling(async () => {
     const user = await requireUser();
     const data = parse(createSchema, input);
-
-    // Checked on the server, not just hidden from the picker. A type absent from
-    // the gallery is still a valid enum value that a hand-made request can send,
-    // and the whole point of withdrawing it is that no more of them appear.
-    if (isRetiredMapType(data.type)) return fail("That kind of map is no longer available.");
 
     const membership = await getMembership(user.id, data.workspaceId);
     if (!can(membership?.role, "project:create")) throw new ForbiddenError();

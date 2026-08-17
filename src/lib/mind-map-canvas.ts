@@ -70,19 +70,6 @@ export const canvasNodeSchema = z.object({
    */
   hue: z.number().int().min(0).max(359).nullish(),
   /**
-   * What this node *is* within its map, where the type needs to know.
-   *
-   * Only a double bubble uses it, and it is the one thing that map cannot be
-   * drawn without: a double bubble has two subjects, and a quality either
-   * belongs to one of them or is shared by both. Parenthood alone cannot say
-   * that — a shared quality hangs off both subjects, and a node has one parent.
-   *
-   * Kept on the node rather than added as a second parent link. A second parent
-   * would need every walk, layout and orphan check in this file to handle graphs
-   * instead of trees, to express a fact that is true of exactly one map type.
-   */
-  role: z.enum(["subject", "shared"]).nullish(),
-  /**
    * How much of its parent's angular span this branch takes, relative to its
    * siblings. Only a radial map reads it.
    *

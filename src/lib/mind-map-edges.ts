@@ -48,26 +48,25 @@ type Side = "left" | "right";
  * Which way a type's edges run.
  *
  * A tree descends, so its edges leave the bottom of a parent and arrive at the
- * top of a child. Flow, multi-flow and brace all read across the page, so
- * theirs leave a side. A bridge map is the one type with both: the relating
- * factor runs along the line, and each pair is stacked across it — so that one
- * is decided per edge from the two boxes rather than per type.
+ * top of a child. Flow, multi-flow and brace all read across the page, so theirs
+ * leave a side.
  *
- * The three free canvases have no axis at all. Their edges are associations
- * between things the author placed by hand, and bending those into right angles
- * would assert a structure that a bubble map specifically does not have.
+ * A bubble map has no axis at all. Its edges are associations between things the
+ * author placed by hand, and bending those into right angles would assert a
+ * structure a bubble map specifically does not have. Circle answers "free" too,
+ * though nothing asks: it is a radial wheel and draws no edges.
+ *
+ * This used to take the two boxes as well, so a bridge map could decide per edge —
+ * it was the one type running along one axis and stacking its pairs across the
+ * other. That type is gone and the parameters went with it.
  */
-export function edgeAxis(type: MindMapType, from?: Rect, to?: Rect): Axis | "free" {
+export function edgeAxis(type: MindMapType): Axis | "free" {
   switch (type) {
     case MindMapType.CIRCLE:
     case MindMapType.BUBBLE:
-    case MindMapType.DOUBLE_BUBBLE:
       return "free";
     case MindMapType.TREE:
       return "v";
-    case MindMapType.BRIDGE:
-      if (!from || !to) return "h";
-      return Math.abs(to.y - from.y) > Math.abs(to.x - from.x) ? "v" : "h";
     default:
       return "h";
   }

@@ -8,20 +8,19 @@ import {
   type CanvasNode,
 } from "@/lib/mind-map-canvas";
 import type { Rect } from "@/lib/mind-map-edges";
-import { isStructured, layoutNodes } from "@/lib/mind-map-layout";
+import { layoutNodes } from "@/lib/mind-map-layout";
 import { notationFor, replacesEdges } from "@/lib/mind-map-notation";
 
 /**
  * The marks that make a type look like itself.
  *
- * Some of the eight are not "boxes joined by lines" at all, and drawing them that
- * way is what made eight maps read as one map with eight colour schemes. A brace
- * map is a bracket. A bridge map is a line with words astride it. Neither is an
- * edge.
+ * One type still needs them. A brace map is a bracket, not boxes joined by lines,
+ * and drawing it as edges is what made every map read as the same drawing in a
+ * different colour.
  *
- * A circle map used to be here too, as a ring with a dashed frame around it. It
- * is drawn as a wheel of ring segments now and has left this module entirely —
- * see `mind-map-radial.ts`.
+ * Two others have left. A circle map is a wheel now (`mind-map-radial.ts`). A
+ * bridge map's long line and a double bubble's twin joins went when those types
+ * were removed from the product altogether.
  */
 
 function node(id: string, parentId: string | null, rank = 0, x = 0, y = 0): CanvasNode {
@@ -49,9 +48,8 @@ function rectsFor(type: MindMapType, nodes: CanvasNode[]): Map<string, Rect> {
 }
 
 describe("replacesEdges", () => {
-  it("is true only for the types whose connection is the mark itself", () => {
+  it("is true only for the type whose connection is the mark itself", () => {
     expect(replacesEdges(MindMapType.BRACE)).toBe(true);
-    expect(replacesEdges(MindMapType.BRIDGE)).toBe(true);
 
     // Circle is false here and that is not an oversight: it does not go through
     // edges *or* marks any more, because it is a wheel.
@@ -109,118 +107,6 @@ describe("brace map", () => {
     const rects = rectsFor(MindMapType.BRACE, lone);
     const marks = notationFor(MindMapType.BRACE, lone, rects);
     expect(marks.filter((m) => m.kind === "brace")).toHaveLength(1);
-  });
-});
-
-describe("bridge map", () => {
-  const nodes = [
-    node("as", null, 1),
-    node("Paris", "as"),
-    node("France", "Paris"),
-    node("Hanoi", "as", 2),
-    node("Vietnam", "Hanoi"),
-  ];
-
-  it("draws exactly one line, whatever the number of pairs", () => {
-    const rects = rectsFor(MindMapType.BRIDGE, nodes);
-    const marks = notationFor(MindMapType.BRIDGE, nodes, rects);
-    expect(marks.filter((m) => m.kind === "line")).toHaveLength(1);
-  });
-
-  it("runs the line from the relating factor past the last pair", () => {
-    const rects = rectsFor(MindMapType.BRIDGE, nodes);
-    const line = notationFor(MindMapType.BRIDGE, nodes, rects).find((m) => m.kind === "line");
-    if (line?.kind !== "line") throw new Error("expected a line");
-
-    const factor = rects.get("as")!;
-    const last = rects.get("Vietnam")!;
-
-    expect(line.y).toBe(0);
-    expect(line.x0).toBeGreaterThanOrEqual(factor.x + factor.w / 2);
-    expect(line.x1).toBeGreaterThan(last.x + last.w / 2);
-  });
-
-  it("has no line at all when there are no pairs yet", () => {
-    const alone = [node("as", null, 1)];
-    const rects = rectsFor(MindMapType.BRIDGE, alone);
-    expect(notationFor(MindMapType.BRIDGE, alone, rects)).toEqual([]);
-  });
-});
-
-describe("double bubble map", () => {
-  /** Cat vs Dog: two subjects, two shared qualities, one unique to each. */
-  function comparison(withSubject: boolean): CanvasNode[] {
-    const dog: CanvasNode = { ...node("Dog", "Cat", 1), role: withSubject ? "subject" : null };
-    return [
-      node("Cat", null, 1),
-      dog,
-      { ...node("has fur", "Cat"), role: "shared" },
-      { ...node("a pet", "Cat"), role: "shared" },
-      node("purrs", "Cat"),
-      node("barks", "Dog"),
-    ];
-  }
-
-  it("stays an ordinary bubble map until a second subject is named", () => {
-    const nodes = comparison(false);
-    expect(isStructured(MindMapType.DOUBLE_BUBBLE, nodes)).toBe(false);
-    expect(replacesEdges(MindMapType.DOUBLE_BUBBLE, nodes)).toBe(false);
-    expect(notationFor(MindMapType.DOUBLE_BUBBLE, nodes, rectsFor(MindMapType.DOUBLE_BUBBLE, nodes))).toEqual([]);
-  });
-
-  it("becomes a comparison the moment one is", () => {
-    const nodes = comparison(true);
-    expect(isStructured(MindMapType.DOUBLE_BUBBLE, nodes)).toBe(true);
-    expect(replacesEdges(MindMapType.DOUBLE_BUBBLE, nodes)).toBe(true);
-  });
-
-  it("puts the shared qualities between the two subjects", () => {
-    const nodes = comparison(true);
-    const rects = rectsFor(MindMapType.DOUBLE_BUBBLE, nodes);
-
-    const cat = rects.get("Cat")!;
-    const dog = rects.get("Dog")!;
-    for (const id of ["has fur", "a pet"]) {
-      const shared = rects.get(id)!;
-      expect(shared.x).toBeGreaterThan(cat.x);
-      expect(shared.x).toBeLessThan(dog.x);
-    }
-
-    // And each subject's own quality out on its own side.
-    expect(rects.get("purrs")!.x).toBeLessThan(cat.x);
-    expect(rects.get("barks")!.x).toBeGreaterThan(dog.x);
-  });
-
-  it("stands the two subjects level with each other", () => {
-    const rects = rectsFor(MindMapType.DOUBLE_BUBBLE, comparison(true));
-    expect(rects.get("Cat")!.y).toBe(rects.get("Dog")!.y);
-  });
-
-  it("joins a shared quality to both subjects and the subjects to neither", () => {
-    const nodes = comparison(true);
-    const rects = rectsFor(MindMapType.DOUBLE_BUBBLE, nodes);
-    const links = notationFor(MindMapType.DOUBLE_BUBBLE, nodes, rects).filter(
-      (m) => m.kind === "link",
-    );
-
-    // Two shared × two subjects, plus one unique each.
-    expect(links).toHaveLength(6);
-    expect(links.filter((m) => m.id.endsWith("has fur"))).toHaveLength(2);
-    expect(links.filter((m) => m.id.endsWith("purrs"))).toHaveLength(1);
-
-    // Nothing runs between Cat and Dog: the map compares them, it does not
-    // claim a relationship between them.
-    const cat = rects.get("Cat")!;
-    const dog = rects.get("Dog")!;
-    const subjectToSubject = links.some(
-      (m) =>
-        m.kind === "link" &&
-        Math.abs(m.y1 - cat.y) < 1 &&
-        Math.abs(m.y2 - dog.y) < 1 &&
-        Math.abs(m.x1 - (cat.x + cat.w / 2)) < 1 &&
-        Math.abs(m.x2 - (dog.x - dog.w / 2)) < 1,
-    );
-    expect(subjectToSubject).toBe(false);
   });
 });
 

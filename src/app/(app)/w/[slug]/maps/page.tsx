@@ -4,7 +4,6 @@ import type { Metadata } from "next";
 import { MindMapGallery } from "@/components/mind-map/mind-map-gallery";
 import { PageHeader } from "@/components/shared/page-header";
 import { requireWorkspace } from "@/lib/auth";
-import { RETIRED_MAP_TYPES } from "@/lib/mind-maps";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Maps" };
@@ -14,10 +13,7 @@ export default async function MapsPage({ params }: { params: Promise<{ slug: str
   const { workspace } = await requireWorkspace(slug);
 
   const maps = await prisma.mindMap.findMany({
-    // Withdrawn types are excluded here as well as being absent from the picker.
-    // Grouping them under a type the gallery no longer walks would hide them by
-    // accident; refusing them in the query is the same outcome on purpose.
-    where: { workspaceId: workspace.id, type: { notIn: [...RETIRED_MAP_TYPES] } },
+    where: { workspaceId: workspace.id },
     orderBy: { updatedAt: "desc" },
     select: { id: true, title: true, type: true },
   });

@@ -4,9 +4,7 @@ import { MindMapType } from "@prisma/client";
 import {
   ChevronDown,
   ChevronUp,
-  Columns2,
   Equal,
-  Link2,
   MessageSquare,
   MoreHorizontal,
   Plus,
@@ -241,9 +239,7 @@ export function MindMapCanvas({
   const panning = React.useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
 
   const style = mindMapStyle(type);
-  // Double bubble is structured only once a second subject has been named, so
-  // this depends on the contents and not only on the type.
-  const structured = isStructured(type, nodes);
+  const structured = isStructured(type);
 
   /**
    * For the five structured types the position of a node is computed from the
@@ -289,7 +285,7 @@ export function MindMapCanvas({
    * with lines through it reads as a mistake rather than as either notation.
    */
   const marks = React.useMemo(() => notationFor(type, nodes, rects), [type, nodes, rects]);
-  const markedOnly = replacesEdges(type, nodes);
+  const markedOnly = replacesEdges(type);
 
   const routes = React.useMemo(() => {
     if (markedOnly) return [];
@@ -303,7 +299,7 @@ export function MindMapCanvas({
       const to = rects.get(node.id);
       if (!from || !to) continue;
 
-      const axis = edgeAxis(type, from, to);
+      const axis = edgeAxis(type);
       if (axis === "free") {
         const [a, b] = trimStraight(from, to, style.node === "circle");
         out.push({
@@ -731,53 +727,21 @@ export function MindMapCanvas({
 
             {/* Notation first, so a node always paints over its own mark rather
                 than a bracket cutting across the words it is bracketing. */}
-            {marks.map((mark) => {
-              if (mark.kind === "brace") {
-                return (
-                  <path
-                    key={mark.id}
-                    d={mark.d}
-                    fill="none"
-                    stroke={mindMapColor(type, 0.65)}
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                );
-              }
-              if (mark.kind === "line") {
-                return (
-                  <line
-                    key={mark.id}
-                    x1={mark.x0}
-                    y1={mark.y}
-                    x2={mark.x1}
-                    y2={mark.y}
-                    stroke={mindMapColor(type, 0.65)}
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                );
-              }
-              if (mark.kind === "link") {
-                return (
-                  <line
-                    key={mark.id}
-                    x1={mark.x1}
-                    y1={mark.y1}
-                    x2={mark.x2}
-                    y2={mark.y2}
-                    stroke={mindMapColor(type, 0.5)}
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                );
-              }
-              // A ring and a dashed frame used to be drawn here for the circle
-              // map. That map is a wheel of ring segments now and never reaches
-              // this code, so the branches went with it rather than sitting
-              // unreachable and looking maintained.
-              return null;
-            })}
+            {/* One kind of mark left. A bridge map's long line, a double bubble's
+                twin joins, and a circle map's ring and frame were all drawn here;
+                the first two types are gone and the third is a wheel with its own
+                module, so their branches went too rather than sitting unreachable
+                and looking maintained. */}
+            {marks.map((mark) => (
+              <path
+                key={mark.id}
+                d={mark.d}
+                fill="none"
+                stroke={mindMapColor(type, 0.65)}
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            ))}
 
             {routes.map((route) => (
               <path
@@ -1030,42 +994,6 @@ export function MindMapCanvas({
                             />
                           ))}
                         </div>
-
-                        {/* A double bubble cannot be drawn without knowing which
-                            node is the other subject and which qualities belong
-                            to both — parenthood cannot say it, because a shared
-                            quality touches two bubbles and a node has one
-                            parent. Naming a second subject is what turns this
-                            from a bubble map into a comparison, so the map
-                            rearranges itself the moment it happens. */}
-                        {type === MindMapType.DOUBLE_BUBBLE && !isCentre ? (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuLabel>Comparison</DropdownMenuLabel>
-                            <DropdownMenuItem
-                              onClick={() =>
-                                update(node.id, {
-                                  role: node.role === "subject" ? null : "subject",
-                                })
-                              }
-                            >
-                              <Columns2 />
-                              {node.role === "subject"
-                                ? "Not the other subject"
-                                : "The other subject"}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() =>
-                                update(node.id, {
-                                  role: node.role === "shared" ? null : "shared",
-                                })
-                              }
-                            >
-                              <Link2 />
-                              {node.role === "shared" ? "Belongs to one only" : "Shared by both"}
-                            </DropdownMenuItem>
-                          </>
-                        ) : null}
 
                         {!isCentre ? (
                           <>

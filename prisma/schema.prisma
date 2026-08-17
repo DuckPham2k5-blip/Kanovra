@@ -465,15 +465,16 @@ model Notification {
 /// The eight Thinking Maps. Each has its own structure, so the shape stored in
 /// `data` depends on this — see `lib/mind-maps.ts`, which is the one place
 /// that knows how to read and write each of them.
+/// Six of the eight Thinking Maps. Bridge and double bubble were removed
+/// outright — values, rows and code — rather than hidden, so nothing can create
+/// one and nothing has to keep rendering one.
 enum MindMapType {
   CIRCLE
   BUBBLE
-  DOUBLE_BUBBLE
   TREE
   FLOW
   MULTI_FLOW
   BRACE
-  BRIDGE
 }
 
 model MindMap {

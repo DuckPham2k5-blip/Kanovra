@@ -59,32 +59,6 @@ export function MindMapGlyph({
         </svg>
       );
 
-    case MindMapType.DOUBLE_BUBBLE:
-      return (
-        <svg {...common}>
-          <line x1="42" y1="40" x2="78" y2="40" stroke={line} strokeWidth="1" strokeDasharray="2 2" />
-          {/* Shared qualities sit between the two subjects. */}
-          <circle cx="60" cy="18" r="7" fill={strong} />
-          <circle cx="60" cy="62" r="7" fill={strong} />
-          {[
-            [20, 18],
-            [14, 40],
-            [20, 62],
-          ].map(([x, y]) => (
-            <circle key={`l${x}${y}`} cx={x} cy={y} r="6" fill={soft} />
-          ))}
-          {[
-            [100, 18],
-            [106, 40],
-            [100, 62],
-          ].map(([x, y]) => (
-            <circle key={`r${x}${y}`} cx={x} cy={y} r="6" fill={soft} />
-          ))}
-          <circle cx="42" cy="40" r="12" fill={soft} />
-          <circle cx="78" cy="40" r="12" fill={soft} />
-        </svg>
-      );
-
     case MindMapType.TREE:
       return (
         <svg {...common}>
@@ -163,23 +137,6 @@ export function MindMapGlyph({
           {[32, 48].map((y) => (
             <line key={y} x1="94" y1={y} x2="112" y2={y} stroke={line} strokeWidth="1.2" strokeDasharray="3 3" />
           ))}
-        </svg>
-      );
-
-    case MindMapType.BRIDGE:
-      return (
-        <svg {...common}>
-          <line x1="8" y1="44" x2="52" y2="44" stroke={strong} strokeWidth="2" />
-          <text x="14" y="60" fill={strong} fontSize="11" fontFamily="monospace">
-            RF
-          </text>
-          {/* The triangles are the bridge: each pair sits either side of one. */}
-          <path
-            d="M60 44h8l6-12 6 12h10l6-12 6 12h10"
-            stroke={line}
-            strokeWidth="1.6"
-            strokeLinejoin="round"
-          />
         </svg>
       );
   }

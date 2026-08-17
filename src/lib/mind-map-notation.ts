@@ -1,63 +1,44 @@
 import { MindMapType } from "@prisma/client";
 
 import type { CanvasNode } from "@/lib/mind-map-canvas";
-import { trimStraight, type Rect } from "@/lib/mind-map-edges";
-import { otherSubject } from "@/lib/mind-map-layout";
+import type { Rect } from "@/lib/mind-map-edges";
 
 /**
  * The marks that make a type look like itself.
  *
- * Three of the eight maps are not "boxes joined by lines" at all, and drawing
- * them that way is what made eight maps read as one drawing with eight colour
- * schemes:
+ * One type needs them now. A **brace map** is a bracket: one bracket per group,
+ * spanning the whole group, not one line per part. Drawn as edges it says "these
+ * three things each relate to that one thing", which is a tree map's sentence. A
+ * brace says "that thing *is* these three things", and the single spanning bracket
+ * is what carries the difference.
  *
- *   - A **brace map** is a bracket. One bracket per group, spanning the whole
- *     group — not one line per part. Drawn as edges it says "these three things
- *     each relate to that one thing", which is a tree map's sentence. A brace
- *     says "that thing *is* these three things", and the single spanning
- *     bracket is what carries the difference.
- *   - A **bridge map** is one long line with words astride it. The pairing is
- *     conveyed by standing above and below the same stretch of line, and adding
- *     connectors between the words asserts a link between the pairs that a
- *     bridge map does not claim.
- *   - A **circle map** is a circle inside a frame. The detail is *inside* the
- *     ring, not joined to the middle by spokes; the outer frame is where the
- *     frame of reference goes — how you know what you know.
+ * Bubble, tree, flow and multi-flow really are nodes joined by lines and get no
+ * marks. Circle is a radial wheel with its own module (`mind-map-radial.ts`) and
+ * never comes through here.
  *
- * Bubble, tree, flow and multi-flow really are nodes joined by lines, and get
- * no marks. Double bubble is not here yet: its notation needs to know which
- * node is the second subject and which qualities are shared by both, and there
- * is nowhere to say so yet.
+ * This module also drew a bridge map's long line and a double bubble's twin joins.
+ * Both types were removed from the product, and their `line` and `link` marks went
+ * with them rather than staying in the vocabulary unused.
  */
 
 export type Mark =
   /** A curly bracket, spanning `y0`..`y1`, its cusp pointing back at `for`. */
-  | { kind: "brace"; id: string; for: string; d: string; x: number; y0: number; y1: number }
-  | { kind: "line"; id: string; x0: number; x1: number; y: number }
-  /** A straight join between two bubbles, trimmed to both boundaries. */
-  | { kind: "link"; id: string; x1: number; y1: number; x2: number; y2: number };
+  { kind: "brace"; id: string; for: string; d: string; x: number; y0: number; y1: number };
 
 /** How far the curl of a bracket reaches. */
 const CURL = 16;
-/** How far a bridge map's line runs past its last pair. */
-const LINE_OVERHANG = 40;
 
 /**
  * True when a type expresses connection through its marks, so the per-edge
  * routes should not be drawn at all. Drawing both is the worst of the two: a
  * bracket with lines through it reads as a mistake rather than as either
  * notation.
+ *
+ * Brace is the only one left. Circle is absent by design rather than by oversight:
+ * it is a wheel of ring segments, which goes through neither edges nor marks.
  */
-export function replacesEdges(type: MindMapType, nodes?: CanvasNode[]): boolean {
-  if (type === MindMapType.DOUBLE_BUBBLE) {
-    // Only once there is a second subject. Before that the map is an ordinary
-    // bubble map and its parent-to-child edges are exactly right.
-    return !!nodes && !!otherSubject(nodes);
-  }
-  // Circle is not in this list any more and is not absent by oversight: it is
-  // drawn as a wheel of ring segments now (`mind-map-radial.ts`), which does not
-  // go through edges or marks at all.
-  return type === MindMapType.BRACE || type === MindMapType.BRIDGE;
+export function replacesEdges(type: MindMapType): boolean {
+  return type === MindMapType.BRACE;
 }
 
 function childrenOf(nodes: CanvasNode[], id: string) {
@@ -126,75 +107,6 @@ export function notationFor(
           y0,
           y1,
         });
-      }
-
-      return marks;
-    }
-
-    case MindMapType.BRIDGE: {
-      const factor = rects.get(root.id);
-      const pairs = childrenOf(nodes, root.id);
-      if (!factor || !pairs.length) return [];
-
-      const spanned = [
-        ...pairs.map((p) => rects.get(p.id)),
-        ...pairs.flatMap((p) => childrenOf(nodes, p.id).map((c) => rects.get(c.id))),
-      ].filter((r): r is Rect => !!r);
-      if (!spanned.length) return [];
-
-      return [
-        {
-          kind: "line",
-          id: "bridge-line",
-          x0: factor.x + factor.w / 2 + 8,
-          x1: Math.max(...spanned.map((r) => r.x + r.w / 2)) + LINE_OVERHANG,
-          // The layout puts the factor at the origin and stands every pair
-          // astride y = 0, so the line is the axis the map was built on.
-          y: 0,
-        },
-      ];
-    }
-
-    case MindMapType.DOUBLE_BUBBLE: {
-      const other = otherSubject(nodes);
-      if (!other) return [];
-
-      const a = rects.get(root.id);
-      const b = rects.get(other.id);
-      if (!a || !b) return [];
-
-      const marks: Mark[] = [];
-      const join = (id: string, from: Rect, to: Rect) => {
-        const [p, q] = trimStraight(from, to, true);
-        marks.push({ kind: "link", id, x1: p.x, y1: p.y, x2: q.x, y2: q.y });
-      };
-
-      const shared = nodes.filter(
-        (node) =>
-          node.role === "shared" && (node.parentId === root.id || node.parentId === other.id),
-      );
-      const sharedIds = new Set(shared.map((node) => node.id));
-
-      // A shared quality touches *both* bubbles. That second line is the whole
-      // reason this map cannot be drawn from parenthood alone, and it is the
-      // difference between a double bubble and two bubble maps side by side.
-      for (const node of shared) {
-        const rect = rects.get(node.id);
-        if (!rect) continue;
-        join(`db-a-${node.id}`, a, rect);
-        join(`db-b-${node.id}`, b, rect);
-      }
-
-      for (const node of nodes) {
-        if (sharedIds.has(node.id) || node.id === other.id || node.id === root.id) continue;
-        const rect = rects.get(node.id);
-        if (!rect) continue;
-
-        // Whichever subject it hangs off. Nothing joins the two subjects to each
-        // other: a double bubble compares them, it does not claim a relationship
-        // between them.
-        if (node.parentId === root.id) join(`db-a-${node.id}`, a, rect);
-        else if (node.parentId === other.id) join(`db-b-${node.id}`, b, rect);
       }
 
       return marks;

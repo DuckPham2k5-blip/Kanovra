@@ -108,17 +108,6 @@ function fixture(type: MindMapType): CanvasNode[] {
         node("p3c", "p3"),
       ];
 
-    case MindMapType.BRIDGE:
-      return [
-        node("factor", null, 1),
-        node("t1", "factor", 3),
-        node("b1", "t1"),
-        node("t2", "factor"),
-        node("b2", "t2", 2),
-        node("t3", "factor"),
-        node("b3", "t3"),
-      ];
-
     default:
       return [node("root", null, 1), node("a", "root"), node("b", "root")];
   }
@@ -141,7 +130,6 @@ const STRUCTURED = [
   MindMapType.FLOW,
   MindMapType.MULTI_FLOW,
   MindMapType.BRACE,
-  MindMapType.BRIDGE,
 ] as const;
 
 describe("routeEdge", () => {
@@ -284,9 +272,7 @@ describe("laid-out maps", () => {
       const to = rects.get(child.id);
       if (!from || !to) continue;
 
-      // Per edge, not per type: a bridge map runs along one axis and stacks its
-      // pairs across the other.
-      const axis = edgeAxis(type, from, to);
+      const axis = edgeAxis(type);
       expect(axis).not.toBe("free");
 
       const obstacles = [...rects.entries()]
@@ -306,8 +292,10 @@ describe("laid-out maps", () => {
     expect(crossings).toEqual([]);
   });
 
-  it("treats the three free canvases as free", () => {
-    for (const type of [MindMapType.CIRCLE, MindMapType.BUBBLE, MindMapType.DOUBLE_BUBBLE]) {
+  it("treats bubble as a free canvas, and circle as no canvas of this kind at all", () => {
+    // Circle answers "free" but nothing asks it: it is a radial wheel drawn by
+    // `mind-map-radial.ts`, which routes no edges.
+    for (const type of [MindMapType.CIRCLE, MindMapType.BUBBLE]) {
       expect(isStructured(type)).toBe(false);
       expect(edgeAxis(type)).toBe("free");
     }

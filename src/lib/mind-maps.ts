@@ -3,12 +3,12 @@ import { MindMapType } from "@prisma/client";
 /**
  * The map types.
  *
- * Eight to begin with — the Thinking Maps — of which six are offered now. Bridge
- * and double bubble were withdrawn; see `RETIRED_MAP_TYPES` for why their entries
- * are still here.
+ * Six of them. It began as the eight Thinking Maps; bridge and double bubble were
+ * withdrawn and then removed outright, values and rows and all, so nothing in here
+ * remembers them.
  *
  * Each one answers a different question, and that is the whole point of having
- * eight rather than one free-form canvas: choosing the map is choosing how to
+ * six rather than one free-form canvas: choosing the map is choosing how to
  * think about the thing. The descriptions below are written as that question,
  * not as a shape, so the picker helps someone decide rather than asking them to
  * recognise a diagram they may never have seen.
@@ -45,12 +45,6 @@ export const MIND_MAP_META: Record<MindMapType, MindMapMeta> = {
     question: "What words describe it?",
     hue: 190, // cyan
   },
-  DOUBLE_BUBBLE: {
-    type: MindMapType.DOUBLE_BUBBLE,
-    label: "Double bubble map",
-    question: "How are these two alike, and how do they differ?",
-    hue: 168, // teal
-  },
   TREE: {
     type: MindMapType.TREE,
     label: "Tree map",
@@ -75,35 +69,7 @@ export const MIND_MAP_META: Record<MindMapType, MindMapMeta> = {
     question: "What are the physical parts of this whole?",
     hue: 160, // green-teal
   },
-  BRIDGE: {
-    type: MindMapType.BRIDGE,
-    label: "Bridge map",
-    question: "What is the relating factor, and what else follows it?",
-    hue: 24, // orange
-  },
 };
-
-/**
- * Types withdrawn from the product.
- *
- * Kept in the Prisma enum on purpose. Rows of these types exist, and dropping an
- * enum value means deleting them — an irreversible answer to a question about the
- * *interface*. So they are absent from the picker, refused by the create action and
- * answered with a 404 by the map page, while the rows sit untouched until somebody
- * decides about them deliberately.
- *
- * `MIND_MAP_META` still carries entries for them, because a `Record` over the enum
- * has to be exhaustive and because a retired row still needs a label if anything
- * ever reports on it.
- */
-export const RETIRED_MAP_TYPES: ReadonlySet<MindMapType> = new Set([
-  MindMapType.BRIDGE,
-  MindMapType.DOUBLE_BUBBLE,
-]);
-
-export function isRetiredMapType(type: MindMapType) {
-  return RETIRED_MAP_TYPES.has(type);
-}
 
 export const MIND_MAP_ORDER: MindMapType[] = [
   MindMapType.CIRCLE,
@@ -279,8 +245,6 @@ const STYLES: Record<MindMapType, MindMapStyle> = {
   [MindMapType.CIRCLE]: { node: "circle", ring: false, edge: "solid" },
   // Qualities float around a subject; the links are loose associations.
   [MindMapType.BUBBLE]: { node: "circle", ring: false, edge: "dashed" },
-  // Two subjects, and the qualities each does or does not share.
-  [MindMapType.DOUBLE_BUBBLE]: { node: "circle", ring: false, edge: "solid" },
   // Groups and members: hierarchy, so square corners and right-angled joins.
   [MindMapType.TREE]: { node: "box", ring: false, edge: "elbow" },
   // One thing after another.
@@ -290,8 +254,6 @@ const STYLES: Record<MindMapType, MindMapStyle> = {
   // A whole divided into parts, which is a bracket — an actual one, spanning
   // each group, rather than an elbow per part.
   [MindMapType.BRACE]: { node: "box", ring: false, edge: "elbow" },
-  // Pairs strung along a line by one relating factor.
-  [MindMapType.BRIDGE]: { node: "pill", ring: false, edge: "solid" },
 };
 
 export function mindMapStyle(type: MindMapType): MindMapStyle {
