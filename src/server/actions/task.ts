@@ -1,13 +1,15 @@
 "use server";
 
-import { TaskStatus } from "@prisma/client";
+import { Prisma, TaskStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 
 import { ForbiddenError, getProjectContext, getTaskContext, requireUser } from "@/lib/auth";
 import { ORDER_STEP, PRIORITY_META } from "@/lib/constants";
 import { logActivity, notify, notifyMany, taskLink, taskWatchers } from "@/lib/events";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { restoreTasks, snapshotSchema, snapshotTasks } from "@/lib/task-snapshot";
 import { orderBetween } from "@/lib/utils";
 import {
   taskCreateSchema,
@@ -37,6 +39,49 @@ async function nextTaskNumber(projectId: string) {
 function revalidateProject(slug: string, projectId: string) {
   revalidatePath(`/w/${slug}/projects/${projectId}`, "layout");
   revalidatePath(`/w/${slug}`, "layout");
+}
+
+/** How long a deleted task stays recoverable. */
+const UNDO_WINDOW_HOURS = 24;
+
+/**
+ * Stashes what is about to be deleted, and returns the id the client hands back
+ * to undo it.
+ *
+ * Only the id crosses to the browser. Round-tripping the snapshot itself would
+ * let a crafted payload restore a comment under somebody else's name — the
+ * server wrote this row and the server is the only thing that reads it.
+ *
+ * Old rows are swept here rather than on a schedule: a delete is exactly the
+ * moment there is a workspace in hand and a reason to touch the table, and a
+ * project nobody deletes anything in does not accumulate.
+ */
+async function stashForUndo(
+  taskIds: string[],
+  ctx: { workspaceId: string; projectId: string; actorId: string; summary: string },
+) {
+  const snapshot = await snapshotTasks(taskIds);
+  if (!snapshot.tasks.length) return null;
+
+  const row = await prisma.deletedTask.create({
+    data: {
+      workspaceId: ctx.workspaceId,
+      projectId: ctx.projectId,
+      actorId: ctx.actorId,
+      summary: ctx.summary,
+      payload: snapshot as unknown as Prisma.InputJsonValue,
+    },
+    select: { id: true },
+  });
+
+  await prisma.deletedTask.deleteMany({
+    where: {
+      workspaceId: ctx.workspaceId,
+      createdAt: { lt: new Date(Date.now() - UNDO_WINDOW_HOURS * 3600_000) },
+    },
+  });
+
+  return row.id;
 }
 
 export async function createTask(input: unknown): Promise<ActionResult<{ id: string }>> {
@@ -419,7 +464,7 @@ export async function toggleTaskDone(taskId: string): Promise<ActionResult<{ don
   });
 }
 
-export async function deleteTask(input: unknown): Promise<ActionResult> {
+export async function deleteTask(input: unknown): Promise<ActionResult<{ undoId: string | null }>> {
   return withErrorHandling(async () => {
     const user = await requireUser();
     const data = parse(taskDeleteSchema, input);
@@ -432,6 +477,14 @@ export async function deleteTask(input: unknown): Promise<ActionResult> {
       throw new ForbiddenError();
     }
 
+    // Captured before the row goes, or there is nothing left to read.
+    const undoId = await stashForUndo([data.taskId], {
+      workspaceId: ctx.workspace.id,
+      projectId: ctx.task.projectId,
+      actorId: user.id,
+      summary: `${ctx.project.key}-${ctx.task.number}`,
+    });
+
     await prisma.task.delete({ where: { id: data.taskId } });
 
     await logActivity({
@@ -443,7 +496,53 @@ export async function deleteTask(input: unknown): Promise<ActionResult> {
     });
 
     revalidateProject(ctx.workspace.slug, ctx.task.projectId);
-    return ok(undefined);
+    return ok({ undoId });
+  });
+}
+
+/**
+ * Puts back what a delete stashed.
+ *
+ * Offered only to whoever deleted it. A restore is the other half of one
+ * person's action, not a general recovery tool — anybody who should be able to
+ * resurrect somebody else's deletion is asking for a different feature, with a
+ * different surface, that says whose work it is bringing back.
+ *
+ * Permission is re-checked against the project now rather than trusted from when
+ * the row was written: the window is a day long, and a role can change inside it.
+ */
+export async function restoreDeletedTasks(
+  input: unknown,
+): Promise<ActionResult<{ restored: number; skipped: number }>> {
+  return withErrorHandling(async () => {
+    const user = await requireUser();
+    const id = parse(z.string().min(1), input);
+
+    const row = await prisma.deletedTask.findUnique({ where: { id } });
+    if (!row || row.actorId !== user.id) return fail(NOT_FOUND);
+
+    const ctx = await getProjectContext(user.id, row.projectId);
+    if (!ctx) return fail(NOT_FOUND);
+    if (!can(ctx.role, "task:create")) throw new ForbiddenError();
+
+    const snapshot = parse(snapshotSchema, row.payload);
+    const counts = await restoreTasks(snapshot, row.projectId);
+
+    // The row goes whether or not everything landed. Leaving it would offer the
+    // same undo again, and the second press would find the tasks already back
+    // and report restoring nothing.
+    await prisma.deletedTask.delete({ where: { id } }).catch(() => {});
+
+    await logActivity({
+      workspaceId: row.workspaceId,
+      projectId: row.projectId,
+      actorId: user.id,
+      type: "TASK_UPDATED",
+      message: `${user.name} restored ${counts.restored} task(s)`,
+    });
+
+    revalidateProject(ctx.workspace.slug, row.projectId);
+    return ok(counts);
   });
 }
 
@@ -462,7 +561,7 @@ export async function deleteTask(input: unknown): Promise<ActionResult> {
  */
 export async function bulkDeleteTasks(
   input: unknown,
-): Promise<ActionResult<{ deleted: number; skipped: number }>> {
+): Promise<ActionResult<{ deleted: number; skipped: number; undoId: string | null }>> {
   return withErrorHandling(async () => {
     const user = await requireUser();
     const { taskIds } = parse(bulkTaskDeleteSchema, input);
@@ -470,6 +569,13 @@ export async function bulkDeleteTasks(
     const touched = new Map<string, { slug: string; projectId: string }>();
     let deleted = 0;
 
+    /*
+     * Two passes, because the snapshot has to be taken while the rows still
+     * exist and the permission answer decides which rows go into it. Collecting
+     * the allowed ones first means one stash for the whole selection — one row,
+     * one undo, one press to bring it all back.
+     */
+    const allowed: { taskId: string; ctx: TaskContext }[] = [];
     for (const taskId of taskIds) {
       const ctx = await getTaskContext(user.id, taskId);
       if (!ctx) continue;
@@ -478,8 +584,39 @@ export async function bulkDeleteTasks(
       if (!can(ctx.role, "task:delete") || (!isAuthor && !can(ctx.role, "comment:delete_any"))) {
         continue;
       }
+      allowed.push({ taskId, ctx });
+    }
 
-      await prisma.task.delete({ where: { id: taskId } });
+    // Everything in one selection shares a project in every surface that offers
+    // this, so the first is as good a home for the stash as any.
+    const home = allowed[0]?.ctx;
+    const undoId = home
+      ? await stashForUndo(
+          allowed.map((entry) => entry.taskId),
+          {
+            workspaceId: home.workspace.id,
+            projectId: home.task.projectId,
+            actorId: user.id,
+            summary: `${allowed.length} tasks`,
+          },
+        )
+      : null;
+
+    for (const { taskId, ctx } of allowed) {
+      /*
+       * `deleteMany` rather than `delete`, and the count is read rather than
+       * assumed.
+       *
+       * Selecting a task and one of its own subtasks is ordinary — they sit next
+       * to each other on the board. Deleting the parent cascades the child away,
+       * so by the time this loop reaches the child there is nothing there, and
+       * `delete` would throw on a row that is already gone exactly as it would
+       * on a real fault. `deleteMany` answers with zero for the first case and
+       * still raises the second, which is the difference worth keeping.
+       */
+      const { count } = await prisma.task.deleteMany({ where: { id: taskId } });
+      if (!count) continue;
+
       await logActivity({
         workspaceId: ctx.workspace.id,
         projectId: ctx.task.projectId,
@@ -496,7 +633,7 @@ export async function bulkDeleteTasks(
     }
 
     for (const { slug, projectId } of touched.values()) revalidateProject(slug, projectId);
-    return ok({ deleted, skipped: taskIds.length - deleted });
+    return ok({ deleted, skipped: taskIds.length - deleted, undoId });
   });
 }
 

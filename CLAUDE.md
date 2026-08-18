@@ -112,6 +112,19 @@ the dismiss layer. Stopping it there was tried and left every item inside the
 menu unreachable. The node's own handler already stops the press before the
 viewport can turn it into a pan, which is all a trigger ever needed.
 
+**Undoing a task delete stores a snapshot; it is not a soft delete.** The
+faithful design would be a `deletedAt` column, and it was measured and rejected:
+about forty reads would have to exclude it — 32 top-level queries plus the nested
+`_count.tasks`, `_count.subtasks` and `include: { subtasks }` sites that a Prisma
+client extension cannot reach. The hole that leaves is a project's task count
+quietly including deleted rows, spread over forty places where missing one is
+silent. `task-snapshot.ts` touches no read path: it captures the tree with its
+original ids and writes it back, skipping anything whose label, column or
+assignee has since gone, because a restore is a rescue. Only the row id crosses
+to the browser — round-tripping the payload would let a crafted one restore a
+comment under somebody else's name. Pinned by five tests against a real database
+that compare every column, since a restore losing one field is invisible.
+
 **Undo on a map is a stack of whole snapshots, keyed by a label.** The storing is
 trivial; what matters is *what counts as one step*. Typing reports per keystroke
 and a drag reports per frame, so every change carries a label and a matching
@@ -306,7 +319,7 @@ stack.
 ## State and what is left
 
 All application work asked for so far is committed to `main` and green:
-typecheck, lint, 183 tests, production build.
+typecheck, lint, 188 tests, production build.
 
 **Live updates: verified end to end on 2026-08-10**, in dev, with the owner
 driving the browser. What the run actually established:
@@ -415,10 +428,8 @@ without limit, rather than derived from depth.
 dependencies (blocked by / blocks), saved and shareable filter views, recurring
 tasks, actual time tracking (`estimate` exists, actuals do not), project
 templates, keyboard shortcuts beyond ⌘K, CSV export, public read-only share
-links. *(Multi-select and bulk actions are done, and undo exists on the map
-canvas — both have decisions recorded above. Undo for task deletes does not
-exist: it needs either a soft-delete column filtered by 32 read queries, or a
-snapshot of a tree that cascades to subtasks, comments and attachments.)*
+links. *(Multi-select and bulk actions, undo on the map canvas, and undo for a
+task delete are all done — see the decisions above.)*
 
 ---
 

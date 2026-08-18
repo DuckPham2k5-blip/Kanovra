@@ -128,6 +128,7 @@ model User {
   mindMaps           MindMap[]         @relation("MindMapAuthor")
   mindMapComments    MindMapComment[]  @relation("MindMapCommentAuthor")
   mindMapReads       MindMapCommentRead[]
+  deletedTasks       DeletedTask[]
   actedNotifications Notification[]    @relation("NotificationActor")
   invitationsSent    Invitation[]      @relation("InvitationInviter")
 
@@ -159,6 +160,7 @@ model Workspace {
   notifications Notification[]
   invitations   Invitation[]
   mindMaps      MindMap[]
+  deletedTasks  DeletedTask[]
 
   @@index([ownerId])
   @@index([slug])
@@ -563,4 +565,47 @@ model MindMapCommentRead {
   @@unique([userId, mapId, nodeId])
   @@index([mapId, userId])
   @@map("mind_map_comment_reads")
+}
+
+/// A task tree, kept just long enough to put it back.
+///
+/// Deleting a task cascades to its subtasks, labels, checklist items, comments
+/// and attachments, so undoing it means recreating all of them. Two ways were
+/// weighed. A `deletedAt` column would be more faithful — nothing is removed, so
+/// nothing has to be rebuilt — but every read of a task would have to exclude
+/// it, and there are about forty such reads once `_count.tasks` and nested
+/// `subtasks` includes are counted. A Prisma client extension reaches the
+/// top-level ones and not those, so the hole it leaves is a project's task count
+/// quietly including deleted rows. A wrong number in a chart is the failure this
+/// codebase keeps being bitten by, so the read path is left alone entirely and
+/// the rows are stashed here instead.
+///
+/// The payload is written by the server and read back by the server; the client
+/// only ever holds the row's id. That is deliberate: a snapshot round-tripped
+/// through the browser would let a crafted payload restore a comment under
+/// somebody else's name.
+///
+/// Attachment *files* are not touched by a task delete — only their rows are —
+/// so a restored attachment finds its bytes still on disk.
+model DeletedTask {
+  id          String @id @default(cuid())
+  workspaceId String
+  /// Where it came from. Restoring into a project that has since gone is refused.
+  projectId   String
+  /// Who deleted it. Only they are offered the undo.
+  actorId     String
+  /// A short label for the toast, so the client needs nothing from the payload.
+  summary     String
+  /// The task and its descendants, with their labels, checklist items, comments
+  /// and attachments. Activities are deliberately absent: a log is not undone.
+  payload     Json
+
+  createdAt DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User      @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  /// Swept by age on the next delete in the same workspace.
+  @@index([workspaceId, createdAt])
+  @@map("deleted_tasks")
 }

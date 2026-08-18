@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PRIORITY_META, TASK_STATUS_META } from "@/lib/constants";
-import { bulkDeleteTasks, bulkUpdateTasks } from "@/server/actions/task";
+import { bulkDeleteTasks, bulkUpdateTasks, restoreDeletedTasks } from "@/server/actions/task";
 import type { MemberDTO } from "@/types";
 
 /**
@@ -70,10 +70,44 @@ export function BulkBar({
        * leave three cards on screen with no explanation for why they did not
        * change.
        */
-      const counts = result.data as { updated?: number; deleted?: number; skipped?: number };
+      const counts = result.data as {
+        updated?: number;
+        deleted?: number;
+        skipped?: number;
+        undoId?: string | null;
+      };
       const done = counts?.updated ?? counts?.deleted ?? selected.length;
       const skipped = counts?.skipped ?? 0;
-      toast.success(skipped ? `${label}: ${done} done, ${skipped} skipped` : `${label}: ${done}`);
+      const text = skipped ? `${label}: ${done} done, ${skipped} skipped` : `${label}: ${done}`;
+
+      /*
+       * A delete comes back with a handle to put it all back, and the toast is
+       * the only place it is offered — a deleted task has no card left to hang a
+       * control on. The handle is an id: the snapshot itself stays on the
+       * server, so nothing here could restore a comment under somebody else's
+       * name even if it tried.
+       */
+      if (counts?.undoId) {
+        const undoId = counts.undoId;
+        toast.success(text, {
+          duration: 12_000,
+          action: {
+            label: "Undo",
+            onClick: () => {
+              void restoreDeletedTasks(undoId).then((back) => {
+                if (!back.success) {
+                  toast.error(back.error ?? "That could not be undone.");
+                  return;
+                }
+                toast.success(`Restored ${back.data.restored}`);
+                onDone();
+              });
+            },
+          },
+        });
+      } else {
+        toast.success(text);
+      }
 
       onClear();
       onDone();

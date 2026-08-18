@@ -40,7 +40,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { PRIORITY_META, PRIORITY_ORDER, TASK_STATUS_META, TASK_STATUS_ORDER } from "@/lib/constants";
 import { fromNow } from "@/lib/date";
 import { cn } from "@/lib/utils";
-import { deleteTask, duplicateTask, toggleTaskDone, updateTask } from "@/server/actions/task";
+import {
+  deleteTask,
+  duplicateTask,
+  restoreDeletedTasks,
+  toggleTaskDone,
+  updateTask,
+} from "@/server/actions/task";
 import type { LabelDTO, MemberDTO, TaskDetailDTO } from "@/types";
 
 const UNASSIGNED = "__none__";
@@ -117,7 +123,34 @@ export function TaskDetailSheet({
       toast.error(result.error);
       return;
     }
-    toast.success("Task deleted.");
+    /*
+     * The undo lives in the toast, because the panel is about to close and the
+     * card is about to go — there is nothing left on screen to attach it to.
+     * Twelve seconds rather than the default few: a delete is the one action
+     * where the regret arrives after the confirmation, not before it.
+     */
+    const undoId = result.data?.undoId;
+    if (undoId) {
+      toast.success("Task deleted.", {
+        duration: 12_000,
+        action: {
+          label: "Undo",
+          onClick: () => {
+            void restoreDeletedTasks(undoId).then((back) => {
+              if (!back.success) {
+                toast.error(back.error ?? "That could not be undone.");
+                return;
+              }
+              toast.success("Task restored.");
+              router.refresh();
+            });
+          },
+        },
+      });
+    } else {
+      toast.success("Task deleted.");
+    }
+
     close();
     router.refresh();
   }
