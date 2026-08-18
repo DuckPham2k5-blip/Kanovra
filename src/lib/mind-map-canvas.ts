@@ -256,6 +256,26 @@ export function rankScale(rank: number) {
 }
 
 /**
+ * How much bigger the controls hanging off a node are drawn.
+ *
+ * These are overlays — the `+`, the `…`, the comment badge, the resize grip —
+ * and the rule they must obey is that they grow *slower* than the node they hang
+ * off. Fixed-size, they shrink to specks on a large node. One-for-one, they grow
+ * until they cover it: a 10× node wore a 10× cluster that sat over the shape,
+ * hid the grip in its corner and gave the `…` a bounding box so large that its
+ * menu opened somewhere the pointer could not follow. Both failures have been
+ * reported, in that order.
+ *
+ * A square root sits between the two, and the cap catches the far end where even
+ * that outpaces what a control should be. The floor keeps them clickable on a
+ * node somebody has shrunk to a dot.
+ */
+export function controlScale(rank: number): number {
+  const scale = rankScale(Number.isFinite(rank) ? rank : 0);
+  return Math.min(Math.max(0.85, Math.sqrt(scale)), 4);
+}
+
+/**
  * The rank that draws a node `ratio` times the size `from` draws it — the inverse
  * of `rankScale`, and the whole arithmetic of the resize drag.
  *

@@ -29,6 +29,7 @@ import {
   DEFAULT_KIND,
   DEFAULT_WEIGHT,
   clampRank,
+  controlScale,
   newNodeId,
   nodeSize,
   rankFromRatio,
@@ -1231,18 +1232,12 @@ export function MindMapCanvas({
              * utilities and an inline `transform` would replace those outright —
              * which centres nothing and moves every control off its corner.
              *
-             * Only a floor, no ceiling. There used to be a ceiling of 3, on
-             * the reasoning that an enormous node would otherwise carry an
-             * enormous button — which was the wrong way round. A node dragged
-             * past about rank 6 crosses that ceiling easily, and from there the
-             * controls sat frozen while the shape kept growing, which is exactly
-             * the complaint they were added to fix. If the node really is that
-             * big, a button in proportion to it is the correct size.
-             *
-             * The floor stays: below it the controls become unclickable on a
-             * node someone has shrunk to a dot.
+             * The rule lives in `controlScale`, with a test, because it has
+             * been wrong twice in opposite directions — frozen at a hard
+             * ceiling, then growing one-for-one until the controls covered the
+             * node they belong to.
              */
-            const furniture = `${Math.max(0.85, shrink)}`;
+            const furniture = `${controlScale(node.rank)}`;
             return (
               <div
                 key={node.id}
@@ -1413,16 +1408,15 @@ export function MindMapCanvas({
                   </button>
                 ) : null}
 
-                {/* Every control here swallows its own `pointerdown`.
+                {/* The plain buttons here swallow their own `pointerdown`; the
+                    Radix triggers deliberately do not.
 
-                    They used to rely on the node's handler doing it for them,
-                    which worked and was the wrong shape: it makes each button's
-                    survival depend on a condition several levels up, and that
-                    condition has changed twice already — once when a type became
-                    a free canvas and once when an early `return` moved. Five
-                    dead-button reports in this project have had this one cause.
-                    Stopping the press where it lands costs a line and depends on
-                    nothing.
+                    A menu trigger's press is the library's to handle — it opens
+                    the menu, seeds focus and arms the dismiss layer — and
+                    stopping it there was tried and made the items inside the
+                    menu unreachable. The node's own handler already stops every
+                    press before the viewport can turn it into a pan, which is
+                    all the triggers ever needed.
 
                     Menus are mounted after hydration, never rendered on the
                     server. Radix numbers them with `useId`, which React derives
@@ -1460,7 +1454,6 @@ export function MindMapCanvas({
                           <button
                             type="button"
                             aria-label="Add a step or an explanation"
-                            onPointerDown={(event) => event.stopPropagation()}
                             className="rounded-full border bg-background p-1 shadow-sm"
                             style={{ borderColor: mindMapColor(type, 0.5) }}
                           >
@@ -1494,7 +1487,6 @@ export function MindMapCanvas({
                         <button
                           type="button"
                           aria-label="More for this node"
-                          onPointerDown={(event) => event.stopPropagation()}
                           className="rounded-full border bg-background p-1 shadow-sm"
                           style={{ borderColor: mindMapColor(type, 0.5) }}
                         >

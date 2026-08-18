@@ -6,6 +6,7 @@ import {
   RANK_MIN,
   RANK_RATIO,
   clampRank,
+  controlScale,
   nodeSize,
   parseCanvas,
   rankFromRatio,
@@ -190,6 +191,51 @@ describe("rankFromRatio", () => {
     for (const ratio of [0, -2, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(rankFromRatio(3, ratio)).toBe(3);
     }
+  });
+});
+
+/**
+ * The controls that hang off a node: the `+`, the `…`, the comment badge, the
+ * resize grip.
+ *
+ * This has been wrong twice, in opposite directions, and both were reported. A
+ * hard ceiling froze them on any node past about rank 6 — the exact complaint
+ * scaling was added to fix. Removing the ceiling was worse: an overlay that
+ * keeps pace with its host eventually covers it, and a 10× node wore a 10×
+ * cluster that sat over the shape and put the `…` menu out of reach.
+ *
+ * So the invariant, rather than the formula, is what these hold.
+ */
+describe("controlScale", () => {
+  it("grows with the node, so it never freezes into a speck", () => {
+    expect(controlScale(6)).toBeGreaterThan(controlScale(0));
+    expect(controlScale(12)).toBeGreaterThan(controlScale(6));
+  });
+
+  /*
+   * The one that matters. Chrome must lose ground to its host as the host grows,
+   * or it ends up on top of it — measured as a fraction of the node, a control
+   * has to get smaller, not stay level.
+   */
+  it("grows slower than the node it hangs off", () => {
+    for (const rank of [2, 6, 10, 16]) {
+      const node = rankScale(rank);
+      expect(controlScale(rank)).toBeLessThan(node);
+      expect(controlScale(rank) / node).toBeLessThan(controlScale(0) / rankScale(0));
+    }
+  });
+
+  it("stays clickable on a node shrunk to a dot, and bounded on a huge one", () => {
+    for (const rank of [-40, -12, -1, 0, 1, 12, 40]) {
+      const scale = controlScale(rank);
+      expect(scale).toBeGreaterThanOrEqual(0.85);
+      expect(scale).toBeLessThanOrEqual(4);
+      expect(Number.isFinite(scale)).toBe(true);
+    }
+  });
+
+  it("answers nonsense with the ordinary size rather than NaN", () => {
+    expect(controlScale(Number.NaN)).toBe(controlScale(0));
   });
 });
 
