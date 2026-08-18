@@ -49,6 +49,14 @@
     --chart-5: 333 71% 51%;
 
     --radius: 0.65rem;
+
+    /* The ring round the node *you* are holding on a map. White, as asked, and
+       the same on both themes — a teammate's ring takes its colour from their
+       own avatar palette instead, so the two can never be confused. On the light
+       theme the white is carried by a dark hairline drawn under it, which lives
+       with the ring in `mind-map-canvas.tsx` rather than here, because it is part
+       of the stack and not part of the colour. */
+    --tf-ring-self: #ffffff;
   }
 
   .dark {
@@ -368,6 +376,20 @@
      exactly what it did before. */
   .tf-map-node-text {
     align-content: center;
+  }
+
+  .tf-pop-in {
+    animation: tf-pop-in 180ms cubic-bezier(0.2, 1.5, 0.4, 1) both;
+  }
+
+  .tf-pop-out {
+    animation: tf-pop-out 140ms ease-in both;
+  }
+
+  /* A node holding comments this person has not read yet. */
+  .tf-unread {
+    animation: tf-unread-pulse 1.4s ease-in-out infinite;
+    border-color: hsl(0 84% 60%) !important;
   }
 
   /* Dotted backdrop for the marketing hero and empty states. */
@@ -911,6 +933,74 @@
   }
 }
 
+/* Pop in and out, for the emoji badge and the comment panel.
+
+   Written against the `scale` property rather than `transform`, because both
+   things this is used on are positioned with translate utilities and animating
+   `transform` would replace that positioning for the length of the animation —
+   the element would fly in from wherever the untranslated position happens to
+   be. Keeping the two properties separate means the animation cannot move
+   anything, only grow it. */
+@keyframes tf-pop-in {
+  from {
+    scale: 0.6;
+    opacity: 0;
+  }
+  70% {
+    scale: 1.06;
+  }
+  to {
+    scale: 1;
+    opacity: 1;
+  }
+}
+
+@keyframes tf-pop-out {
+  from {
+    scale: 1;
+    opacity: 1;
+  }
+  to {
+    scale: 0.7;
+    opacity: 0;
+  }
+}
+
+/* The reduced-motion halves of the two above: the same timings, the same
+   `both` fill, no change of size. */
+@keyframes tf-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes tf-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* The unread mark on a node with comments nobody has read yet.
+
+   Colour and width, not travel: the ring stays exactly where it is and only its
+   intensity moves, which is why it survives the reduced-motion rule below while
+   the map's entrance animation does not. */
+@keyframes tf-unread-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 hsl(0 84% 60% / 0.9);
+  }
+  50% {
+    box-shadow: 0 0 0 4px hsl(0 84% 60% / 0.15);
+  }
+}
+
 @keyframes tf-map-node-pop {
   from {
     transform: translate(-50%, -50%) scale(0.4);
@@ -1080,6 +1170,26 @@
     animation: none;
     opacity: 0.75;
   }
+
+  /* Pop keeps the fade and loses the scale. What the preference is about is
+     things changing size and position under the eye; an opacity ramp is neither,
+     and without it a panel would appear with no transition at all, which reads
+     as a glitch rather than as calm. */
+     Swapped to keyframes that touch opacity only, rather than pinning `scale`
+     alongside the original animation — an animation wins over a plain
+     declaration on the same property, so `scale: 1` here would have changed
+     nothing at all and the effect would have looked untouched by the
+     preference. */
+  .tf-pop-in {
+    animation: tf-fade-in 180ms ease-out both;
+  }
+  .tf-pop-out {
+    animation: tf-fade-out 140ms ease-in both;
+  }
+
+  /* The unread pulse stays. It is colour and it carries information — the whole
+     job of that mark is to be noticed by somebody who has not looked yet, and
+     turning it off silences the notification rather than calming it. */
 
   /* The newcomer ring stays lit — it carries information rather than
      decoration, and dropping it would mean the one person who asked for a

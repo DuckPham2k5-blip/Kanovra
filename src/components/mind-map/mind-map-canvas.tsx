@@ -2,8 +2,6 @@
 
 import { MindMapType } from "@prisma/client";
 import {
-  ChevronDown,
-  ChevronUp,
   Maximize2,
   MessageSquare,
   MoreHorizontal,
@@ -60,7 +58,7 @@ import {
   NODE_EMOJI,
   NODE_HUES,
 } from "@/lib/mind-maps";
-import { cn } from "@/lib/utils";
+import { cn, colorFromString } from "@/lib/utils";
 import { updateMindMapData } from "@/server/actions/mind-map";
 
 const MIN_SCALE = 0.2;
@@ -133,12 +131,17 @@ export function MindMapCanvas({
   const [openThread, setOpenThread] = React.useState<string | null>(null);
 
   /**
-   * The selected branch, on a radial map only.
+   * Whichever node this person is working on, on either drawing.
    *
-   * A wheel has nowhere to hang per-segment controls the way a box has corners,
-   * and putting a menu trigger on every segment would mean a wheel's worth of
-   * Radix `useId` counters — the exact shape that made the node menus warn. So one
-   * segment at a time carries the furniture, and clicking chooses which.
+   * On a wheel it decides which segment carries the furniture: a wheel has
+   * nowhere to hang per-segment controls the way a box has corners, and a menu
+   * trigger on every segment would be a wheel's worth of Radix `useId` counters —
+   * the exact shape that made the node menus warn.
+   *
+   * On the box canvas it does two further things: it lights the ring that tells
+   * the rest of the team where you are, and it is what Delete, `+` and `-` act
+   * on. One piece of state for both, because it is one idea — the thing you have
+   * hold of — and two would drift the first time only one of them was cleared.
    */
   const [selected, setSelected] = React.useState<string | null>(null);
 
@@ -151,6 +154,38 @@ export function MindMapCanvas({
    * disappears when told to would sit on that node until someone reloaded.
    */
   const watchers = useFocusGroups(`map:${mapId}:`);
+
+  /**
+   * The same watchers, most recently arrived first.
+   *
+   * Presence reports who is on a node and says nothing about when they got
+   * there — the server keeps one `focus` string per person, not a history — so
+   * the order has to be remembered here, by noticing who is new since the last
+   * time this ran. Newcomers go to the front; anyone still present keeps the
+   * place they had.
+   *
+   * That is what makes the name in a shared ring belong to whoever pressed most
+   * recently. And because `useFocusGroups` already leaves you out of its own
+   * answer, your arriving on a node somebody else is holding cannot displace
+   * their name: you were never in this list to push them down it.
+   *
+   * Writing to the ref from a memo is deliberate and safe: run twice on the same
+   * input — which Strict Mode does — the second pass finds every id already
+   * known, so it prepends nothing and preserves the order the first pass built.
+   */
+  const arrivals = React.useRef<Map<string, string[]>>(new Map());
+  const watchersByRecency = React.useMemo(() => {
+    const out = new Map<string, string[]>();
+    for (const [nodeId, here] of watchers) {
+      const before = arrivals.current.get(nodeId) ?? [];
+      out.set(nodeId, [
+        ...here.filter((id) => !before.includes(id)),
+        ...before.filter((id) => here.includes(id)),
+      ]);
+    }
+    arrivals.current = out;
+    return out;
+  }, [watchers]);
 
   const commentCounts = React.useMemo(() => {
     const out = new Map<string, number>();
@@ -174,7 +209,7 @@ export function MindMapCanvas({
    */
   const renderWatchers = React.useCallback(
     (nodeId: string) => {
-      const here = (watchers.get(nodeId) ?? [])
+      const here = (watchersByRecency.get(nodeId) ?? [])
         .map((id) => memberById.get(id))
         .filter((member): member is AvatarUser => !!member);
       if (!here.length) return null;
@@ -200,7 +235,62 @@ export function MindMapCanvas({
         </span>
       );
     },
-    [memberById, watchers],
+    [memberById, watchersByRecency],
+  );
+
+  /**
+   * The lit ring round a node, built as a stack of box-shadows.
+   *
+   * Yours is white, and everyone else's is the colour their avatar already falls
+   * back to (`colorFromString`), so a person is the same colour here as they are
+   * anywhere else in the app without a colour ever being stored for them.
+   *
+   * Rings stack outward by growing the spread, and CSS paints the first shadow
+   * in the list on top — so the list runs innermost first and nobody's ring is
+   * hidden behind somebody else's. The white one takes a dark hairline under it,
+   * because white on the light theme is otherwise a ring you cannot see, and the
+   * point of the ring is being seen.
+   */
+  const ringFor = React.useCallback(
+    (nodeId: string, mine: boolean) => {
+      const here = watchersByRecency.get(nodeId) ?? [];
+      if (!mine && !here.length) return undefined;
+
+      const rings: string[] = [];
+      let spread = 2;
+
+      if (mine) {
+        rings.push(`0 0 0 ${spread + 1}px rgba(0, 0, 0, 0.28)`);
+        rings.push(`0 0 0 ${spread}px var(--tf-ring-self)`);
+        spread += 4;
+      }
+      for (const id of here) {
+        rings.push(`0 0 0 ${spread}px ${colorFromString(id)}`);
+        spread += 4;
+      }
+
+      // The bloom that makes it read as lit rather than as one more border.
+      const glow = mine ? "var(--tf-ring-self)" : colorFromString(here[0]);
+      rings.push(`0 0 ${spread * 2}px ${Math.round(spread / 2)}px ${glow}`);
+      return rings.join(", ");
+    },
+    [watchersByRecency],
+  );
+
+  /**
+   * Who is on a node, most recent first, as a plain string for a `title`.
+   *
+   * A native tooltip rather than a Radix one: this is a hover hint per node on a
+   * canvas of arbitrarily many, which is the exact shape that turns Radix's
+   * `useId` counter into a page of hydration warnings here.
+   */
+  const watcherNames = React.useCallback(
+    (nodeId: string) =>
+      (watchersByRecency.get(nodeId) ?? [])
+        .map((id) => memberById.get(id)?.name)
+        .filter(Boolean)
+        .join(", "),
+    [memberById, watchersByRecency],
   );
 
   /**
@@ -426,19 +516,20 @@ export function MindMapCanvas({
    * Clamped to the range the schema accepts, so a long press on "bigger" cannot
    * write a node the parser will later reject.
    *
-   * Kept now that the corner can be dragged, because a drag is a mouse and only a
-   * mouse. Removing these would leave anyone working from the keyboard with no
-   * way to resize a node at all, which is a worse bug than the one that started
-   * this — it would at least be silent rather than looking broken.
+   * It has left the `…` menu, where it read as clutter beside a grip that does
+   * the same job with one gesture. It stays here because a drag is a mouse and
+   * only a mouse: `+` and `-` on a selected node are the whole of the keyboard
+   * route, and without them somebody who cannot use a pointer could not resize a
+   * node at all — a worse bug than the one that started this, and a silent one.
    */
-  function resizeNode(id: string, step: number) {
+  const resizeNode = React.useCallback((id: string, step: number) => {
     setNodes((prev) =>
       prev.map((n) => (n.id === id ? { ...n, rank: clampRank(n.rank + step) } : n)),
     );
     setDirty(true);
-  }
+  }, []);
 
-  function remove(id: string) {
+  const remove = React.useCallback((id: string) => {
     // Children are re-parented to their grandparent rather than deleted with
     // it. Losing a branch because its middle node went is the kind of thing
     // people only notice after they have saved.
@@ -450,7 +541,48 @@ export function MindMapCanvas({
         .map((n) => (n.parentId === id ? { ...n, parentId: target.parentId } : n));
     });
     setDirty(true);
-  }
+  }, []);
+
+  /**
+   * The keyboard, on whichever node is selected: Delete removes it, `+` and `-`
+   * resize it.
+   *
+   * On `window` rather than on the viewport, because the viewport only receives
+   * keys while it holds focus and clicking a node puts focus in that node's
+   * textarea — so a listener there would answer for every node except the one
+   * somebody just clicked.
+   *
+   * Which is also the hazard: any key press aimed at a text field has to be left
+   * alone, or typing a `-` into a label silently shrinks the box it is being
+   * typed into, and Delete eats the node instead of a character. The guard is on
+   * the event's own target, so it holds for the map title and the comment box
+   * too, not just for node labels.
+   */
+  React.useEffect(() => {
+    if (!canEdit || !selected) return;
+
+    function onKey(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, [contenteditable='true']")) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (!selected) return;
+
+      if (event.key === "Delete" || event.key === "Backspace") {
+        event.preventDefault();
+        remove(selected);
+        setSelected(null);
+      } else if (event.key === "+" || event.key === "=") {
+        event.preventDefault();
+        resizeNode(selected, 1);
+      } else if (event.key === "-" || event.key === "_") {
+        event.preventDefault();
+        resizeNode(selected, -1);
+      }
+    }
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [canEdit, selected, remove, resizeNode]);
 
   /**
    * Splits a branch into `count` narrower ones.
@@ -575,6 +707,15 @@ export function MindMapCanvas({
      * to start a drag is a separate decision, taken below.
      */
     event.stopPropagation();
+
+    /*
+     * Selected before any question about permission or type, because selection
+     * is not an edit. A reader gets the same lit ring the author does, the ring
+     * is what tells their teammates where they are looking, and a structured map
+     * has nodes worth pointing at even though none of them can be dragged.
+     */
+    setSelected(node.id);
+
     if (!canEdit || structured) return;
 
     const target = event.target as HTMLElement;
@@ -622,6 +763,10 @@ export function MindMapCanvas({
    */
   function onViewportPointerDown(event: React.PointerEvent) {
     if (dragging.current || resizing.current) return;
+    // Pressing the empty plane is how you let go of a node. Without this the
+    // ring stays lit on whatever was touched last and Delete still points at it,
+    // which is a loaded key aimed at something nobody is looking at.
+    setSelected(null);
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     panning.current = { x: event.clientX, y: event.clientY, ox: offset.x, oy: offset.y };
   }
@@ -882,6 +1027,10 @@ export function MindMapCanvas({
             return (
               <div
                 key={node.id}
+                // Who else is here, most recent first. Empty for a node nobody
+                // else is on, and never listing you — a tooltip naming yourself
+                // on the node you just clicked says nothing you do not know.
+                title={watcherNames(node.id) || undefined}
                 onPointerDown={(event) => onNodePointerDown(event, node)}
                 // Pressing anywhere on a node is enough to count as being on it.
                 // Waiting for the text box to take focus would leave anyone who
@@ -924,6 +1073,12 @@ export function MindMapCanvas({
                   // centre's 0.7, so the hierarchy survives being legible.
                   borderColor: nodeBorderColor(type, node.hue, isCentre ? 0.7 : 0.55),
                   borderWidth: node.hue !== null && node.hue !== undefined ? 2 : isCentre ? 2 : 1.5,
+                  // The lit ring: yours white, everyone else's their own colour.
+                  // A box-shadow rather than an extra element, so it follows the
+                  // node's own corner radius without anything restating it — and
+                  // so it cannot sit over the node and swallow a click.
+                  boxShadow: ringFor(node.id, selected === node.id),
+                  transition: "box-shadow 160ms ease",
                 }}
               >
                 {style.ring ? (
@@ -944,7 +1099,12 @@ export function MindMapCanvas({
                     down. */}
                 {node.emoji ? (
                   <span
-                    className="pointer-events-none absolute -left-1 -top-2 select-none rounded-full bg-background/85 px-1 leading-tight shadow-sm backdrop-blur"
+                    // Keyed on the glyph so changing it replays the pop. Without
+                    // the key React reuses the element, the animation has already
+                    // finished on it, and picking a new emoji swaps the character
+                    // with no acknowledgement that anything happened.
+                    key={node.emoji}
+                    className="tf-pop-in pointer-events-none absolute -left-1 -top-2 select-none rounded-full bg-background/85 px-1 leading-tight shadow-sm backdrop-blur"
                     style={{ fontSize: `${Math.max(0.8, shrink) * 90}%` }}
                   >
                     {node.emoji}
@@ -994,7 +1154,13 @@ export function MindMapCanvas({
                     }
                     onClick={() => setOpenThread(node.id)}
                     className={cn(
-                      "absolute -bottom-2.5 -right-2 flex items-center gap-0.5 rounded-full border bg-background px-1.5 py-0.5 text-[10px] font-semibold shadow-sm",
+                      // The left edge, at the node's own middle. Every other
+                      // corner is taken — emoji top left, controls top right,
+                      // watchers bottom left, the resize grip bottom right — and
+                      // this is the side the request asked for. Being on the
+                      // midline also means it does not move as the node's corners
+                      // do when it is resized.
+                      "absolute -left-3 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-full border bg-background px-1.5 py-0.5 text-[10px] font-semibold shadow-sm",
                       // A node nobody has said anything about does not advertise
                       // the fact; the button appears on hover instead.
                       threadSize === 0 &&
@@ -1003,7 +1169,9 @@ export function MindMapCanvas({
                     style={{
                       borderColor: mindMapColor(type, 0.5),
                       scale: furniture,
-                      transformOrigin: "bottom right",
+                      // Pinned by its left edge, so growing with the node pushes
+                      // it outward rather than back under the node's own border.
+                      transformOrigin: "left center",
                     }}
                   >
                     <MessageSquare className="size-3" />
@@ -1057,18 +1225,11 @@ export function MindMapCanvas({
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" className="w-60">
-                        {/* This node's own size, which had no control anywhere
-                            until now — rank was set when the node was made and
-                            never again. */}
-                        <DropdownMenuLabel>Size of this node</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => resizeNode(node.id, 1)}>
-                          <ChevronUp /> Make it bigger
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => resizeNode(node.id, -1)}>
-                          <ChevronDown /> Make it smaller
-                        </DropdownMenuItem>
-
-                        <DropdownMenuSeparator />
+                        {/* Size is not on this menu. It is the grip on the
+                            node's corner, and on the keyboard it is `+` and `-`
+                            with the node selected. Two menu items saying what a
+                            visible handle already says is clutter on a menu that
+                            has real choices to offer. */}
                         <DropdownMenuLabel>Emoji</DropdownMenuLabel>
                         {/* A grid inside the menu rather than a submenu per
                             emoji: twenty-four items as menu rows is a scroll,
@@ -1128,6 +1289,22 @@ export function MindMapCanvas({
                             />
                           ))}
                         </div>
+
+                        {/* Comments reachable from the menu as well as from the
+                            badge. The badge is the one that can *tell* you there
+                            is something to read; the menu is where somebody goes
+                            looking when there is nothing on the node yet, and a
+                            control that only appears on hover once a thread
+                            exists is not somewhere anybody starts one. */}
+                        {savedIds.has(node.id) && canComment ? (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => setOpenThread(node.id)}>
+                              <MessageSquare />
+                              {threadSize > 0 ? `Comments (${threadSize})` : "Add a comment"}
+                            </DropdownMenuItem>
+                          </>
+                        ) : null}
 
                         {!isCentre ? (
                           <>
