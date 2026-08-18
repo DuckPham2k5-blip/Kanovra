@@ -45,6 +45,31 @@ export function MindMapList({
   const [only, setOnly] = React.useState<MindMapType | null>(null);
 
   /**
+   * Whether the history is showing at all.
+   *
+   * Closed to start. The page's job on arrival is the six types — that is what
+   * somebody coming here to *make* something needs — and a list of fifty-nine
+   * rows above the fold buries them. The chips stay visible either way, so the
+   * page still says out loud how many maps exist and of what kind; opening one is
+   * a single click, and clicking it again puts the list away.
+   */
+  const [open, setOpen] = React.useState(false);
+
+  /**
+   * A chip is both the filter and the switch. Pressing the one already showing
+   * closes the list; pressing any other opens it on that type. One control, and
+   * the thing it does is the thing you were looking at.
+   */
+  function choose(type: MindMapType | null) {
+    if (open && only === type) {
+      setOpen(false);
+      return;
+    }
+    setOnly(type);
+    setOpen(true);
+  }
+
+  /**
    * "3 hours ago" is computed after hydration, never on the server.
    *
    * `fromNow` reads the clock at the moment it renders, so the server's answer
@@ -91,38 +116,42 @@ export function MindMapList({
           <span className="font-normal text-muted-foreground">({maps.length})</span>
         </h2>
 
-        <div className="relative w-full sm:w-64">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search by title"
-            aria-label="Search your maps by title"
-            className="pl-8"
-          />
-        </div>
+        {/* No search box over a list that is not showing. */}
+        {open ? (
+          <div className="relative w-full sm:w-64">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search by title"
+              aria-label="Search your maps by title"
+              className="pl-8"
+            />
+          </div>
+        ) : null}
       </div>
 
       {/* Counts on the chips, so the page says how many of each there are without
           anybody having to open anything. That number being invisible is most of
           what made fifty-nine maps feel like none. */}
       <div className="flex flex-wrap gap-1.5">
-        <FilterChip active={only === null} onClick={() => setOnly(null)}>
+        <FilterChip active={open && only === null} expanded={open && only === null} onClick={() => choose(null)}>
           All {maps.length}
         </FilterChip>
         {MIND_MAP_ORDER.filter((type) => counts.has(type)).map((type) => (
           <FilterChip
             key={type}
-            active={only === type}
+            active={open && only === type}
+            expanded={open && only === type}
             color={mindMapColor(type)}
-            onClick={() => setOnly(only === type ? null : type)}
+            onClick={() => choose(type)}
           >
             {MIND_MAP_META[type].label} {counts.get(type)}
           </FilterChip>
         ))}
       </div>
 
-      {shown.length === 0 ? (
+      {!open ? null : shown.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
           No map here matches “{query}”.
         </p>
@@ -165,11 +194,14 @@ export function MindMapList({
 
 function FilterChip({
   active,
+  expanded,
   color,
   onClick,
   children,
 }: {
   active: boolean;
+  /** Also the disclosure state: this chip is the one holding the list open. */
+  expanded: boolean;
   color?: string;
   onClick: () => void;
   children: React.ReactNode;
@@ -179,6 +211,7 @@ function FilterChip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
+      aria-expanded={expanded}
       className={cn(
         "rounded-full border px-2.5 py-1 text-xs transition-colors",
         active ? "bg-foreground text-background" : "hover:bg-muted",

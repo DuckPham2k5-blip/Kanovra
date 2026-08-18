@@ -354,6 +354,22 @@
     animation: tf-map-node-pop 320ms cubic-bezier(0.2, 1.5, 0.4, 1) 340ms both;
   }
 
+  /* A node's label, centred in its shape both ways.
+
+     The horizontal half is `text-align`; the vertical half is `align-content`,
+     which a textarea honours because it is a block container. The alternative
+     was padding computed from the line count, which is a guess that goes wrong
+     the moment the text wraps, and the one after that was measuring the DOM and
+     feeding the measurement back into the render that produced it.
+
+     The box stays a fixed size — the edge router steers around these numbers, so
+     text is still allowed to scroll and never to reshape its own node. Where
+     `align-content` is unsupported the text simply sits at the top, which is
+     exactly what it did before. */
+  .tf-map-node-text {
+    align-content: center;
+  }
+
   /* Dotted backdrop for the marketing hero and empty states. */
   .tf-dots {
     background-image: radial-gradient(circle at 1px 1px, hsl(var(--border)) 1px, transparent 0);

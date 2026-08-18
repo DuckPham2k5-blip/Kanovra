@@ -863,6 +863,22 @@ export function MindMapCanvas({
             // that provably misses a box misses the wrong box.
             const { w, h } = nodeSize(type, node.rank);
             const threadSize = commentCounts.get(node.id) ?? 0;
+            /*
+             * The hover controls are a fixed pixel size while the node they hang
+             * off is not, so on a node dragged several ranks up they shrink into
+             * specks in its corner and on a small one they swamp it.
+             *
+             * Scaling the wrapper keeps every icon, border, padding and gap
+             * inside in proportion without restating a single one of them. The
+             * CSS `scale` property rather than a `transform`, because these
+             * elements are already positioned with Tailwind's translate
+             * utilities and an inline `transform` would replace those outright —
+             * which centres nothing and moves every control off its corner.
+             *
+             * Clamped: rank has no upper bound, and a rank-12 node would
+             * otherwise carry a `+` button wider than most whole nodes.
+             */
+            const furniture = `${clamp(shrink, 0.85, 3)}`;
             return (
               <div
                 key={node.id}
@@ -891,13 +907,23 @@ export function MindMapCanvas({
                   width: w,
                   height: h,
                   fontSize: `${Math.max(0.68, shrink) * 100}%`,
-                  background: mindMapColor(type, isCentre ? 0.24 : 0.12),
+                  // A bubble map's children are not subordinate to its centre —
+                  // the centre is the thing and every bubble round it is one of
+                  // its qualities, all of equal standing. Fading them was reading
+                  // as a hierarchy the type does not have. Everywhere else the
+                  // lighter fill still says "this hangs off that".
+                  background: mindMapColor(type, isCentre || type === MindMapType.BUBBLE ? 0.24 : 0.12),
                   // A node's own hue if it has been given one, otherwise the
                   // map's. Only the border is tinted: colouring the fill as well
                   // put nine differently-coloured washes on one backdrop and the
                   // map stopped reading as a single drawing.
-                  borderColor: nodeBorderColor(type, node.hue, isCentre ? 0.7 : 0.35),
-                  borderWidth: node.hue !== null && node.hue !== undefined ? 2 : isCentre ? 2 : 1,
+                  //
+                  // 0.35 was too faint to find the edge of a box against the
+                  // wash it sits on — a shape you cannot see the extent of reads
+                  // as a smudge rather than as a box. Still well under the
+                  // centre's 0.7, so the hierarchy survives being legible.
+                  borderColor: nodeBorderColor(type, node.hue, isCentre ? 0.7 : 0.55),
+                  borderWidth: node.hue !== null && node.hue !== undefined ? 2 : isCentre ? 2 : 1.5,
                 }}
               >
                 {style.ring ? (
@@ -939,7 +965,12 @@ export function MindMapCanvas({
                   placeholder={isCentre ? "Main title" : "…"}
                   onChange={(event) => update(node.id, { text: event.target.value })}
                   className={cn(
-                    "h-full w-full resize-none bg-transparent text-center text-[1em] leading-snug outline-none placeholder:text-muted-foreground",
+                    // `tf-map-node-text` centres the words vertically as well as
+                    // horizontally. A textarea fills its box and starts at the
+                    // top, which put every one-line label against the ceiling of
+                    // its own shape — most visible on a circle, where the top of
+                    // the box is the narrowest part of the drawing.
+                    "tf-map-node-text h-full w-full resize-none bg-transparent text-center text-[1em] leading-snug outline-none placeholder:text-muted-foreground",
                     isCentre && "font-semibold",
                   )}
                 />
@@ -948,7 +979,12 @@ export function MindMapCanvas({
                     it. Both sit outside the box: inside, they would compete with
                     the words on a node that may be several ranks small, and the
                     box is a fixed size the router depends on. */}
-                <span className="absolute -bottom-3 left-1">{renderWatchers(node.id)}</span>
+                <span
+                  className="absolute -bottom-3 left-1"
+                  style={{ scale: furniture, transformOrigin: "bottom left" }}
+                >
+                  {renderWatchers(node.id)}
+                </span>
 
                 {savedIds.has(node.id) && (threadSize > 0 || (mounted && canComment)) ? (
                   <button
@@ -964,7 +1000,11 @@ export function MindMapCanvas({
                       threadSize === 0 &&
                         "opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100",
                     )}
-                    style={{ borderColor: mindMapColor(type, 0.5) }}
+                    style={{
+                      borderColor: mindMapColor(type, 0.5),
+                      scale: furniture,
+                      transformOrigin: "bottom right",
+                    }}
                   >
                     <MessageSquare className="size-3" />
                     {threadSize > 0 ? threadSize : null}
@@ -980,7 +1020,10 @@ export function MindMapCanvas({
                     overwrites it with its own. Nothing is lost, because these
                     appear on hover and nobody hovers during hydration. */}
                 {canEdit && mounted ? (
-                  <div className="absolute -right-2 -top-2 flex gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                  <div
+                    className="absolute -right-2 -top-2 flex gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+                    style={{ scale: furniture, transformOrigin: "top right" }}
+                  >
                     {/* One press, one node. This was a menu of three sizes for
                         the child about to be created, and it was the wrong place
                         to ask: the options sat under a `+`, described a node that
@@ -1121,6 +1164,10 @@ export function MindMapCanvas({
                       left: round ? "85.4%" : "100%",
                       top: round ? "85.4%" : "100%",
                       borderColor: mindMapColor(type, 0.5),
+                      // Grows with the node like the rest of the furniture. Its
+                      // origin is the centre, which is where the translate
+                      // utilities have already put it.
+                      scale: furniture,
                     }}
                   >
                     <Maximize2 className="size-3 rotate-90" />
