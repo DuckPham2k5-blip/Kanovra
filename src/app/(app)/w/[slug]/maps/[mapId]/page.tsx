@@ -31,7 +31,7 @@ export default async function MapPage({
   const meta = MIND_MAP_META[map.type];
   const canvas = parseCanvas(map.data);
 
-  const [comments, members] = await Promise.all([
+  const [comments, members, reads] = await Promise.all([
     prisma.mindMapComment.findMany({
       where: { mapId: map.id },
       orderBy: { createdAt: "asc" },
@@ -49,6 +49,12 @@ export default async function MapPage({
     prisma.workspaceMember.findMany({
       where: { workspaceId: workspace.id },
       select: { user: { select: { id: true, name: true, imageUrl: true } } },
+    }),
+    // Only this reader's rows. Everyone else's "read" is their business, and
+    // fetching the table would grow with the team for no one's benefit.
+    prisma.mindMapCommentRead.findMany({
+      where: { mapId: map.id, userId: user.id },
+      select: { nodeId: true, readAt: true },
     }),
   ]);
 
@@ -103,6 +109,10 @@ export default async function MapPage({
           mine: comment.author.id === user.id,
         }))}
         members={members.map((member) => member.user)}
+        // Serialised, because this crosses into a client component and a `Date`
+        // that arrives there is one more value that has to render identically on
+        // the server and at hydration.
+        reads={Object.fromEntries(reads.map((row) => [row.nodeId, row.readAt.toISOString()]))}
       />
     </div>
   );

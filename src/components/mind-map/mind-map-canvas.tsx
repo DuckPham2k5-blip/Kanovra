@@ -59,6 +59,7 @@ import {
   NODE_HUES,
 } from "@/lib/mind-maps";
 import { cn, colorFromString } from "@/lib/utils";
+import { markNodeCommentsRead } from "@/server/actions/mind-map-comment";
 import { updateMindMapData } from "@/server/actions/mind-map";
 
 const MIN_SCALE = 0.2;
@@ -95,6 +96,7 @@ export function MindMapCanvas({
   canComment,
   comments,
   members,
+  reads,
 }: {
   mapId: string;
   type: MindMapType;
@@ -105,6 +107,8 @@ export function MindMapCanvas({
   canComment: boolean;
   comments: NodeComment[];
   members: AvatarUser[];
+  /** When this reader last opened each node's thread, by node id, as ISO. */
+  reads: Record<string, string>;
 }) {
   const router = useRouter();
 
@@ -198,6 +202,45 @@ export function MindMapCanvas({
     }
     return out;
   }, [comments]);
+
+  /**
+   * Comments on each node that this person has not seen.
+   *
+   * Your own are never unread — you wrote them. Everything else counts as unread
+   * until you have opened that node's thread *since* it was posted, which is why
+   * the row stores a time and not a flag: a reply after your last look has to be
+   * able to make a node unread again.
+   */
+  const unreadCounts = React.useMemo(() => {
+    const out = new Map<string, number>();
+    for (const comment of comments) {
+      if (comment.mine) continue;
+      const seenAt = reads[comment.nodeId];
+      if (seenAt && new Date(comment.createdAt) <= new Date(seenAt)) continue;
+      out.set(comment.nodeId, (out.get(comment.nodeId) ?? 0) + 1);
+    }
+    return out;
+  }, [comments, reads]);
+
+  /**
+   * Threads opened in this session, cleared straight away rather than waiting
+   * for the server.
+   *
+   * The mark is written without revalidating — re-rendering the page underneath
+   * a panel that has just opened is a visible jolt for a change the reader
+   * already knows about — so nothing else would clear the pulse until the next
+   * navigation, and it would go on flashing at somebody who is reading it.
+   */
+  const [seenNow, setSeenNow] = React.useState<Set<string>>(new Set());
+
+  const openComments = React.useCallback(
+    (nodeId: string) => {
+      setOpenThread(nodeId);
+      setSeenNow((prev) => new Set(prev).add(nodeId));
+      void markNodeCommentsRead({ mapId, nodeId });
+    },
+    [mapId],
+  );
 
   const memberById = React.useMemo(
     () => new Map(members.map((member) => [member.id, member])),
@@ -1159,6 +1202,9 @@ export function MindMapCanvas({
             // that provably misses a box misses the wrong box.
             const { w, h } = nodeSize(type, node.rank);
             const threadSize = commentCounts.get(node.id) ?? 0;
+            // Cleared optimistically the moment the panel opens; the server call
+            // that persists it deliberately does not revalidate.
+            const unread = seenNow.has(node.id) ? 0 : (unreadCounts.get(node.id) ?? 0);
             /*
              * The hover controls are a fixed pixel size while the node they hang
              * off is not, so on a node dragged several ranks up they shrink into
@@ -1303,9 +1349,13 @@ export function MindMapCanvas({
                   <button
                     type="button"
                     aria-label={
-                      threadSize > 0 ? `${threadSize} comments on this node` : "Comment on this node"
+                      unread > 0
+                        ? `${unread} unread of ${threadSize} comments on this node`
+                        : threadSize > 0
+                          ? `${threadSize} comments on this node`
+                          : "Comment on this node"
                     }
-                    onClick={() => setOpenThread(node.id)}
+                    onClick={() => openComments(node.id)}
                     className={cn(
                       // The left edge, at the node's own middle. Every other
                       // corner is taken — emoji top left, controls top right,
@@ -1318,6 +1368,8 @@ export function MindMapCanvas({
                       // the fact; the button appears on hover instead.
                       threadSize === 0 &&
                         "opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100",
+                      // Something here has been said since you last looked.
+                      unread > 0 && "tf-unread",
                     )}
                     style={{
                       borderColor: mindMapColor(type, 0.5),
@@ -1328,7 +1380,13 @@ export function MindMapCanvas({
                     }}
                   >
                     <MessageSquare className="size-3" />
-                    {threadSize > 0 ? threadSize : null}
+                    {/* The unread count while there is one, the whole thread
+                        otherwise. The number and the red ring then say the same
+                        thing — "three new" — which is how the notification bell
+                        in this app already behaves. A badge whose pulse means
+                        "new" beside a number meaning "in total" invites reading
+                        the total as the new. */}
+                    {unread > 0 ? unread : threadSize > 0 ? threadSize : null}
                   </button>
                 ) : null}
 
@@ -1481,7 +1539,7 @@ export function MindMapCanvas({
                         {savedIds.has(node.id) && canComment ? (
                           <>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => setOpenThread(node.id)}>
+                            <DropdownMenuItem onClick={() => openComments(node.id)}>
                               <MessageSquare />
                               {threadSize > 0 ? `Comments (${threadSize})` : "Add a comment"}
                             </DropdownMenuItem>

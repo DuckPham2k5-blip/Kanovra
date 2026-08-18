@@ -115,3 +115,44 @@ export async function deleteMindMapComment(commentId: string): Promise<ActionRes
     return ok(undefined);
   });
 }
+
+/**
+ * Records that this person has now read the discussion on a node.
+ *
+ * An upsert on `(userId, mapId, nodeId)`, so opening a thread twice is one row
+ * and the second open simply moves the timestamp forward. That is also why the
+ * row stores a time rather than a flag: a reply posted after you last looked has
+ * to be able to make an already-read node unread again, and a boolean cannot say
+ * that without somebody clearing it for every reader when a comment is written.
+ *
+ * Membership is checked the same way as writing a comment — through
+ * `mapContext`, which answers the same "not found" for a map in somebody else's
+ * workspace as for a map that does not exist. No permission beyond membership:
+ * marking something read is a statement about yourself.
+ *
+ * Deliberately does **not** revalidate. This fires when a panel opens, and
+ * re-rendering the page underneath the panel that just opened is a visible jolt
+ * for a change the reader already knows about — the badge is updated in the
+ * browser, and the next real navigation picks up the row.
+ */
+export async function markNodeCommentsRead(input: unknown): Promise<ActionResult> {
+  return withErrorHandling(async () => {
+    const user = await requireUser();
+    const { mapId, nodeId } = parse(
+      z.object({ mapId: z.string().min(1), nodeId: z.string().min(1).max(64) }),
+      input,
+    );
+
+    const ctx = await mapContext(user.id, mapId);
+    if (!ctx) return fail(NOT_FOUND);
+
+    const readAt = new Date();
+    await prisma.mindMapCommentRead.upsert({
+      where: { userId_mapId_nodeId: { userId: user.id, mapId, nodeId } },
+      create: { userId: user.id, mapId, nodeId, readAt },
+      update: { readAt },
+    });
+
+    return ok(undefined);
+  });
+}

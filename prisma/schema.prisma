@@ -127,6 +127,7 @@ model User {
   notifications      Notification[]    @relation("NotificationRecipient")
   mindMaps           MindMap[]         @relation("MindMapAuthor")
   mindMapComments    MindMapComment[]  @relation("MindMapCommentAuthor")
+  mindMapReads       MindMapCommentRead[]
   actedNotifications Notification[]    @relation("NotificationActor")
   invitationsSent    Invitation[]      @relation("InvitationInviter")
 
@@ -495,6 +496,7 @@ model MindMap {
   project   Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
   createdBy User             @relation("MindMapAuthor", fields: [createdById], references: [id], onDelete: Cascade)
   comments  MindMapComment[]
+  reads     MindMapCommentRead[]
 
   @@index([workspaceId])
   @@index([projectId])
@@ -531,4 +533,34 @@ model MindMapComment {
   @@index([mapId])
   @@index([mapId, nodeId])
   @@map("mind_map_comments")
+}
+
+/// How far one person has read the discussion on one node of one map.
+///
+/// A row per reader per node, not a flag on the comment: "read" is a fact about
+/// a person, and two people looking at the same thread have different answers.
+/// A timestamp rather than a boolean for the same reason the map's own comments
+/// are timestamped — a new reply after you last looked has to be able to make an
+/// already-read node unread again, which a boolean cannot express without being
+/// reset by whoever writes the reply.
+///
+/// `nodeId` points into `MindMap.data` by the node's client-generated id, with no
+/// foreign key to enforce, exactly as `MindMapComment` does. A row whose node has
+/// gone is harmless: nothing looks it up, and it disappears with the map.
+model MindMapCommentRead {
+  id     String @id @default(cuid())
+  userId String
+  mapId  String
+  /// The `id` of a node inside `MindMap.data`, not a row anywhere.
+  nodeId String
+  /// When this person last opened that node's thread.
+  readAt DateTime @default(now())
+
+  user User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  map  MindMap @relation(fields: [mapId], references: [id], onDelete: Cascade)
+
+  /// One row per person per node. The upsert on open depends on it.
+  @@unique([userId, mapId, nodeId])
+  @@index([mapId, userId])
+  @@map("mind_map_comment_reads")
 }
