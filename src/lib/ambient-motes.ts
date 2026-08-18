@@ -152,5 +152,5 @@ export function moteRadius(roll: number, dark: boolean): number {
  * worth of work for something nobody looks at directly.
  */
 export function moteCount(width: number, height: number): number {
-  return Math.max(28, Math.min(150, Math.round((width * height) / 16000)));
+  return Math.max(40, Math.min(200, Math.round((width * height) / 9500)));
 }

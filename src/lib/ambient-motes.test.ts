@@ -187,8 +187,17 @@ describe("moteRadius", () => {
 
 describe("moteCount", () => {
   it("scales with area but refuses to run away with a big screen", () => {
-    expect(moteCount(390, 780)).toBe(28);
-    expect(moteCount(1440, 900)).toBeGreaterThan(28);
-    expect(moteCount(3840, 2160)).toBe(150);
+    expect(moteCount(390, 780)).toBe(40);
+    expect(moteCount(1440, 900)).toBeGreaterThan(40);
+    expect(moteCount(3840, 2160)).toBe(200);
+  });
+
+  // Denser than it started, on the owner's word that it looked sparse — but a
+  // field, not a blizzard. Pinned as a range so neither a later thinning nor a
+  // later doubling passes unnoticed.
+  it("puts a laptop screen in the low hundreds, not the low tens", () => {
+    const laptop = moteCount(1440, 900);
+    expect(laptop).toBeGreaterThan(120);
+    expect(laptop).toBeLessThan(180);
   });
 });

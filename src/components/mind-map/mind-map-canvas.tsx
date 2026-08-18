@@ -580,15 +580,29 @@ export function MindMapCanvas({
       }
     }
 
-    // Below-right of its parent, then nudged clear of anything already there —
-    // two nodes stacked exactly on top of each other read as one, and the
-    // second is only discovered by dragging the first.
-    //
-    // Clearance is measured against both boxes rather than a fixed 60×50, which
-    // let a large node land on top of a small one and still count as clear.
+    /*
+     * Below-right of its parent, then nudged clear of anything already there —
+     * two nodes stacked exactly on top of each other read as one, and the second
+     * is only discovered by dragging the first.
+     *
+     * Clearance is measured against both boxes rather than a fixed 60×50, which
+     * let a large node land on top of a small one and still count as clear.
+     *
+     * An explanation on a flow map goes straight *down* instead, because that is
+     * what it means: it hangs off the bottom edge of its step. The wrapped layout
+     * used to place these, and it stopped when flow became a free canvas — so
+     * every explanation started landing below-right like an ordinary child, with
+     * its connector leaving the side of the box the sketch draws it under. A
+     * regression from making the type draggable, not from the drawing.
+     */
     const box = nodeSize(type, rank);
-    const x = parent.x + nodeSize(type, parent.rank).w / 2 + 70 + box.w / 2;
-    let y = parent.y + 150;
+    const under = type === MindMapType.FLOW && kind === "note";
+    const x = under
+      ? parent.x
+      : parent.x + nodeSize(type, parent.rank).w / 2 + 70 + box.w / 2;
+    let y = under
+      ? parent.y + nodeSize(type, parent.rank).h / 2 + 54 + box.h / 2
+      : parent.y + 150;
     while (
       nodes.some((n) => {
         const other = nodeSize(type, n.rank);
@@ -1217,10 +1231,18 @@ export function MindMapCanvas({
              * utilities and an inline `transform` would replace those outright —
              * which centres nothing and moves every control off its corner.
              *
-             * Clamped: rank has no upper bound, and a rank-12 node would
-             * otherwise carry a `+` button wider than most whole nodes.
+             * Only a floor, no ceiling. There used to be a ceiling of 3, on
+             * the reasoning that an enormous node would otherwise carry an
+             * enormous button — which was the wrong way round. A node dragged
+             * past about rank 6 crosses that ceiling easily, and from there the
+             * controls sat frozen while the shape kept growing, which is exactly
+             * the complaint they were added to fix. If the node really is that
+             * big, a button in proportion to it is the correct size.
+             *
+             * The floor stays: below it the controls become unclickable on a
+             * node someone has shrunk to a dot.
              */
-            const furniture = `${clamp(shrink, 0.85, 3)}`;
+            const furniture = `${Math.max(0.85, shrink)}`;
             return (
               <div
                 key={node.id}
@@ -1355,6 +1377,7 @@ export function MindMapCanvas({
                           ? `${threadSize} comments on this node`
                           : "Comment on this node"
                     }
+                    onPointerDown={(event) => event.stopPropagation()}
                     onClick={() => openComments(node.id)}
                     className={cn(
                       // The left edge, at the node's own middle. Every other
@@ -1390,7 +1413,18 @@ export function MindMapCanvas({
                   </button>
                 ) : null}
 
-                {/* Menus are mounted after hydration, never rendered on the
+                {/* Every control here swallows its own `pointerdown`.
+
+                    They used to rely on the node's handler doing it for them,
+                    which worked and was the wrong shape: it makes each button's
+                    survival depend on a condition several levels up, and that
+                    condition has changed twice already — once when a type became
+                    a free canvas and once when an early `return` moved. Five
+                    dead-button reports in this project have had this one cause.
+                    Stopping the press where it lands costs a line and depends on
+                    nothing.
+
+                    Menus are mounted after hydration, never rendered on the
                     server. Radix numbers them with `useId`, which React derives
                     from position in the tree, so the ids only agree if the server
                     and client build an identical tree — and a canvas of twenty
@@ -1426,6 +1460,7 @@ export function MindMapCanvas({
                           <button
                             type="button"
                             aria-label="Add a step or an explanation"
+                            onPointerDown={(event) => event.stopPropagation()}
                             className="rounded-full border bg-background p-1 shadow-sm"
                             style={{ borderColor: mindMapColor(type, 0.5) }}
                           >
@@ -1445,6 +1480,7 @@ export function MindMapCanvas({
                       <button
                         type="button"
                         aria-label="Add a connected node"
+                        onPointerDown={(event) => event.stopPropagation()}
                         onClick={() => addChild(node, node.rank)}
                         className="rounded-full border bg-background p-1 shadow-sm"
                         style={{ borderColor: mindMapColor(type, 0.5) }}
@@ -1458,6 +1494,7 @@ export function MindMapCanvas({
                         <button
                           type="button"
                           aria-label="More for this node"
+                          onPointerDown={(event) => event.stopPropagation()}
                           className="rounded-full border bg-background p-1 shadow-sm"
                           style={{ borderColor: mindMapColor(type, 0.5) }}
                         >
