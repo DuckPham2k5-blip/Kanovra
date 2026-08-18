@@ -264,9 +264,7 @@ stack.
 ## State and what is left
 
 All application work asked for so far is committed to `main` and green:
-typecheck, lint, 160 tests. The production build was last run green at
-`ce794c0`; the sixth pass has not been through one, because the dev server has
-been running throughout.
+typecheck, lint, 160 tests, production build.
 
 **Live updates: verified end to end on 2026-08-10**, in dev, with the owner
 driving the browser. What the run actually established:
@@ -680,16 +678,23 @@ show it.
   hidden, so `requestAnimationFrame` never fires and canvas work stays unverifiable
   there.
 
-**Verified:** typecheck, lint, 160 tests, both new flow layouts rendered to a
-picture and looked at, and — in a browser — that the page returns 200, the mote
-canvas mounts at the right size, `align-content: center` applies to a node label,
-and the pop animation degrades to fade under the reduced-motion preference.
-**Not verified:** anything needing a pointer or a signed-in session, and no
-production build since the dev server was running throughout.
+**Unread comments.** `MindMapCommentRead` is a row per reader per node, holding a
+timestamp rather than a flag: a reply after your last look has to make a node
+unread again, and a boolean cannot say that without being reset for every reader
+whenever anybody writes. The badge shows the unread count while there is one and
+the whole thread otherwise, so the number and the red pulse mean the same thing.
+Marking read does **not** revalidate — re-rendering the page under a panel that
+just opened is a jolt for a change the reader already knows about — so the pulse
+is cleared in the browser instead, or it flashes at the person reading it.
 
-**Still outstanding from that list:** marking a node's comments as read, which
-needs a `MindMapCommentRead` table. `prisma generate` cannot run while the dev
-server holds the query engine, so it waits for the server to be stopped.
+**Verified:** typecheck, lint, 160 tests, a production build, both new flow
+layouts rendered to a picture and looked at, the new table inspected in Postgres,
+and — in a browser — that the page returns 200, the mote canvas mounts at the
+right size, `align-content: center` applies to a node label, and the pop
+animation degrades to fade under the reduced-motion preference.
+**Not verified:** anything needing a pointer or a signed-in session. The unread
+pulse in particular needs a comment written by somebody else, which has never
+been possible here — every teammate so far has been simulated.
 
 ---
 
