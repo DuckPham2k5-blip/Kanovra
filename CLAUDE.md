@@ -112,6 +112,17 @@ the dismiss layer. Stopping it there was tried and left every item inside the
 menu unreachable. The node's own handler already stops the press before the
 viewport can turn it into a pan, which is all a trigger ever needed.
 
+**Undo on a map is a stack of whole snapshots, keyed by a label.** The storing is
+trivial; what matters is *what counts as one step*. Typing reports per keystroke
+and a drag reports per frame, so every change carries a label and a matching
+label within 700ms extends the step rather than adding one — a word is one undo,
+a drag is one undo. The window moves with the run, or a long drag breaks into
+pieces. `undo-history.ts` holds it with tests that assert the shape of a step.
+Text fields keep the browser's own Ctrl+Z, because inside a half-typed label that
+is what the key means. The seeding pass that backfills flow and multi-flow
+coordinates is deliberately *not* recorded — it is a migration, and undoing it
+would drop every node onto the origin.
+
 **A bulk edit reuses `updateTask`'s body, and is one request.**
 `applyTaskUpdate` in `server/actions/task.ts` holds everything one update does
 minus the auth and the revalidate; the single and bulk paths both call it. The
@@ -295,7 +306,7 @@ stack.
 ## State and what is left
 
 All application work asked for so far is committed to `main` and green:
-typecheck, lint, 172 tests, production build.
+typecheck, lint, 183 tests, production build.
 
 **Live updates: verified end to end on 2026-08-10**, in dev, with the owner
 driving the browser. What the run actually established:
@@ -403,8 +414,11 @@ without limit, rather than derived from depth.
 **Known feature gaps** versus comparable products, in no particular order: task
 dependencies (blocked by / blocks), saved and shareable filter views, recurring
 tasks, actual time tracking (`estimate` exists, actuals do not), project
-templates, keyboard shortcuts beyond ⌘K, undo, CSV export, public read-only share
-links. *(Multi-select and bulk actions are done — see the decision above.)*
+templates, keyboard shortcuts beyond ⌘K, CSV export, public read-only share
+links. *(Multi-select and bulk actions are done, and undo exists on the map
+canvas — both have decisions recorded above. Undo for task deletes does not
+exist: it needs either a soft-delete column filtered by 32 read queries, or a
+snapshot of a tree that cascades to subtasks, comments and attachments.)*
 
 ---
 
