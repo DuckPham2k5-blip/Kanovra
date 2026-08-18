@@ -1,7 +1,7 @@
-import type { MindMapType } from "@prisma/client";
 import type { Metadata } from "next";
 
 import { MindMapGallery } from "@/components/mind-map/mind-map-gallery";
+import { MindMapList } from "@/components/mind-map/mind-map-list";
 import { PageHeader } from "@/components/shared/page-header";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -15,22 +15,26 @@ export default async function MapsPage({ params }: { params: Promise<{ slug: str
   const maps = await prisma.mindMap.findMany({
     where: { workspaceId: workspace.id },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, title: true, type: true },
+    select: { id: true, title: true, type: true, updatedAt: true },
   });
 
   /*
-   * Grouped by type rather than listed above the picker.
+   * Listed below the types, not hidden behind them.
    *
-   * A flat list of everything ever made pushes the types down the page
-   * and answers a question nobody asked — you arrive here wanting a *kind* of
-   * map, and your earlier ones matter only once you have decided which kind.
-   * Behind the `…` on each card they are exactly one click away from the
-   * moment they become relevant.
+   * These used to be grouped onto a `…` on each type card, on the reasoning that
+   * you arrive here wanting a *kind* of map and your earlier ones matter only
+   * after you have chosen the kind. That holds for the visit where you are making
+   * something and fails completely for the visit where you are going back to a
+   * map you already drew — and nothing on the page told the two apart. Six cards
+   * that all mean "make a new one", with fifty-nine existing maps and no sign on
+   * screen that any of them were there, read as a section where clicking anything
+   * refuses to open a map.
+   *
+   * `updatedAt` is serialised here rather than passed as a Date: it crosses into
+   * a client component, where a Date survives the boundary but arrives as one
+   * more thing that has to match between the server render and hydration.
    */
-  const existing: Partial<Record<MindMapType, { id: string; title: string }[]>> = {};
-  for (const map of maps) {
-    (existing[map.type] ??= []).push({ id: map.id, title: map.title });
-  }
+  const entries = maps.map((map) => ({ ...map, updatedAt: map.updatedAt.toISOString() }));
 
   return (
     <div>
@@ -40,7 +44,8 @@ export default async function MapsPage({ params }: { params: Promise<{ slug: str
       />
 
       <div className="p-4 sm:p-6">
-        <MindMapGallery workspaceSlug={slug} workspaceId={workspace.id} existing={existing} />
+        <MindMapGallery workspaceSlug={slug} workspaceId={workspace.id} />
+        <MindMapList workspaceSlug={slug} maps={entries} />
       </div>
     </div>
   );

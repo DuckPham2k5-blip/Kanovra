@@ -28,12 +28,9 @@ import { createMindMap } from "@/server/actions/mind-map";
 export function MindMapGallery({
   workspaceSlug,
   workspaceId,
-  existing,
 }: {
   workspaceSlug: string;
   workspaceId: string;
-  /** Maps already in the workspace, grouped by type, newest first. */
-  existing: Partial<Record<MindMapType, { id: string; title: string }[]>>;
 }) {
   const router = useRouter();
   const [chosen, setChosen] = React.useState<MindMapType | null>(null);
@@ -65,14 +62,7 @@ export function MindMapGallery({
     <>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {MIND_MAP_ORDER.map((type) => (
-          <MindMapTypeCard
-            key={type}
-            type={type}
-            onSelect={setChosen}
-            disabled={busy}
-            existing={existing[type] ?? []}
-            workspaceSlug={workspaceSlug}
-          />
+          <MindMapTypeCard key={type} type={type} onSelect={setChosen} disabled={busy} />
         ))}
       </div>
 
