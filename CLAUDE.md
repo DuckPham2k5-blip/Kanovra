@@ -264,7 +264,7 @@ stack.
 ## State and what is left
 
 All application work asked for so far is committed to `main` and green:
-typecheck, lint, 160 tests, production build.
+typecheck, lint, 163 tests, production build.
 
 **Live updates: verified end to end on 2026-08-10**, in dev, with the owner
 driving the browser. What the run actually established:
@@ -634,6 +634,7 @@ bubble `role` acceptable and its alternative not.
 
 **A flow map wraps and doubles back**, on a width budget rather than a step count,
 because node size is free and four large boxes are wider than eight ordinary ones.
+(That wrap is now only the *seed* — see the seventh pass.)
 Explanations hang in a column under their step, and **a second explanation attaches
 to the first, not to the step** — two connectors leaving one edge makes the router
 take the second out and around, which draws a loop into the box from the side.
@@ -695,6 +696,57 @@ animation degrades to fade under the reduced-motion preference.
 **Not verified:** anything needing a pointer or a signed-in session. The unread
 pulse in particular needs a comment written by somebody else, which has never
 been possible here — every teammate so far has been simulated.
+
+---
+
+## Built after the seventh pass (2026-08-18)
+
+Four follow-ups after the owner saw the sixth pass running.
+
+**The motes are stars.** Brightness peaks at 0.95 on dark with a halo and a white
+core on the largest few; sizes are biased small, because a uniform spread reads as
+confetti rather than as a sky. Each twinkles on its own rate — one shared rate
+makes the whole field pulse as a single object.
+
+**On the light theme they are flatly black**, not a dark mix of the accent: on a
+pale page the accent at any weight is a smudge of colour where the effect wants a
+speck of ink. `moteInk` is a function with its own test precisely because that is
+a rule somebody later tidies into a mix for consistency.
+
+**Flow maps are a free canvas too.** The wrap is a good starting arrangement and a
+bad rule — a procedure has steps that belong side by side and asides that belong
+out of the way, and a width budget cannot tell which is which. `layoutNodes` still
+draws the wrapped rows once to seed a map whose nodes all sit at the origin, the
+same mechanism multi-flow uses. Only tree and brace are laid out now.
+
+**A circle map's segments carry their own outline.** The padding between them is a
+gap, and a gap separates two shapes only while what shows through is a different
+colour from both — on a wheel of one hue, neighbours met across a few pixels that
+read as part of whichever was darker, so a branch and its child looked like one
+wedge.
+
+**The node resize handle is invisible.** Same corner, same drag, no button — the
+`nwse-resize` cursor is the affordance, as on a window or a textarea. It stays an
+*element* rather than a hit test inside the node's own `pointerdown`, because it
+needs the pointer capture and has to swallow the press before the viewport turns
+it into a pan.
+
+### Trap found this pass
+
+- **A canvas sized from `window.innerWidth` on mount is 0×0 forever in a
+  background tab.** A page loading in a tab that is not visible gets a viewport of
+  zero, sizes to zero, and never hears another `resize` — *showing* a tab fires no
+  resize event. Measure the parent with a `ResizeObserver`, which fires when the
+  element first **gains** a size; ignore zero rather than storing it, and skip an
+  unchanged size so a slow window drag does not rebuild the field every frame.
+  Found by opening the page and reading `width: 0px` off the element, not by
+  reasoning about it.
+
+**Verified:** typecheck, lint, 163 tests, a production build, and the canvas
+sizing checked in a real browser before and after the fix. **Not verified:** the
+motes moving or their colours — the preview pane does not composite, so
+`requestAnimationFrame` never runs there, which is why direction, brightness and
+ink are unit-tested instead.
 
 ---
 
