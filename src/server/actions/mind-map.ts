@@ -149,20 +149,32 @@ export async function updateMindMapData(input: unknown): Promise<ActionResult> {
     });
 
     /*
-     * Comments on nodes that no longer exist go with them.
+     * Comments on a node that is gone are kept, not deleted.
      *
-     * `MindMapComment.nodeId` points into this JSON, and there is no foreign key
-     * to cascade because the node is not a row. Left alone, deleting a node
-     * would leave its discussion in the table unreachable — and if that id were
-     * ever reused, the old conversation would reappear under a new node.
+     * They used to be swept here, on the reasoning that a save is a deliberate
+     * act: remove a box, decide you meant it, press Save, and the conversation
+     * about that box goes with it. Autosave removes the deliberate act. The same
+     * sweep now runs a second or so after a box disappears, which turns a
+     * mis-click into a silently destroyed thread — and nobody is looking at a
+     * comment panel at the moment they delete the node it belongs to, so nobody
+     * sees it happen.
      *
-     * Done on save rather than on delete because deleting a node is a local edit
-     * to an unsaved document: someone who removes a box and then closes the tab
-     * without saving still has the box, and should still have its comments.
+     * So an orphan is hidden rather than destroyed: `nodeId` points at nothing in
+     * the document, the canvas has no node to draw its badge on, and the row sits
+     * in the table where it can be recovered. Nothing reads it, so nothing shows
+     * it — and if the box comes back by undo or by a reload of an older save, its
+     * discussion is still there.
+     *
+     * The old note here also worried that a reused node id would resurrect a
+     * stale conversation under a new node, and keeping orphans does leave that
+     * open. It is not imaginary: `newNodeId` is a base-36 timestamp plus a
+     * counter that restarts with the page, so two people creating a node in the
+     * same millisecond on freshly loaded tabs can collide. It needs that
+     * coincidence *and* one of the two ids to belong to a deleted node that had
+     * comments. Against that, the failure being traded away — a mis-click
+     * quietly destroying a thread, on a timer, with nobody watching — is both
+     * likelier and worse, because it cannot be undone and this can.
      */
-    await prisma.mindMapComment.deleteMany({
-      where: { mapId, nodeId: { notIn: parsed.data.nodes.map((node) => node.id) } },
-    });
 
     revalidatePath(`/w/${map.workspace.slug}/maps/${mapId}`);
     return ok(undefined);

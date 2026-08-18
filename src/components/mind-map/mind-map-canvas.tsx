@@ -17,7 +17,6 @@ import {
   type NodeComment,
 } from "@/components/mind-map/mind-map-node-comments";
 import { UserAvatar, type AvatarUser } from "@/components/shared/user-avatar";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -77,9 +76,13 @@ const MAX_SCALE = 3;
  * exactly those three faults. They arrived as three complaints and were one
  * decision.
  *
- * Saving stays explicit. These are documents people think in, and an autosave
- * firing mid-sentence turns every half-formed idea into something the whole
- * team can see.
+ * Saving is automatic, a second or so after the typing stops. It used to be
+ * explicit, on the reasoning that these are documents people think in and an
+ * autosave firing mid-sentence turns every half-formed idea into something the
+ * whole team can see. That reasoning still holds; it was outweighed by the
+ * failure at the other end, which is a map whose work is gone because nobody
+ * pressed a button. See `save` for what the change costs when two people are on
+ * one map at once.
  */
 export function MindMapCanvas({
   mapId,
@@ -833,34 +836,122 @@ export function MindMapCanvas({
     setOffset({ x: (el?.clientWidth ?? 0) / 2, y: (el?.clientHeight ?? 0) / 2 });
   }
 
-  async function save() {
+  /**
+   * The document as it stands, and a counter that moves on every edit.
+   *
+   * A save is asynchronous, and anything typed while it is in flight belongs to
+   * the *next* save. Without the counter the completion handler clears `dirty`
+   * unconditionally and those keystrokes are marked saved without ever having
+   * been sent — the one failure autosave exists to prevent, reintroduced by
+   * autosave itself.
+   */
+  const doc = React.useRef({ nodes, radial });
+  const edits = React.useRef(0);
+  const savedEdits = React.useRef(0);
+  React.useEffect(() => {
+    doc.current = { nodes, radial };
+    edits.current += 1;
+  }, [nodes, radial]);
+
+  /**
+   * Node ids as of the last time the server was asked to re-render.
+   *
+   * `router.refresh()` on every autosave would refetch the whole page a second
+   * after each keystroke. It is only needed when the *set* of saved nodes has
+   * changed, because that is what `savedIds` gates the comment control on — a
+   * node has to exist in the saved map before it can be commented on. Text,
+   * position, colour and size need no refresh at all.
+   */
+  const refreshedIds = React.useRef<string>("");
+
+  const save = React.useCallback(async () => {
+    const at = edits.current;
     setBusy(true);
     try {
       // `radial` goes with the nodes. Left out, a rotation survives on screen
       // until the next reload and then quietly reverts, which reads as the save
       // having failed at something else entirely.
-      const result = await updateMindMapData({ mapId, data: { nodes, radial } });
+      const result = await updateMindMapData({ mapId, data: doc.current });
       if (!result.success) {
         toast.error(result.error);
         return;
       }
-      setDirty(false);
+
+      savedEdits.current = at;
+      // Only if nothing was typed while that was in the air.
+      if (edits.current === at) setDirty(false);
       setFresh(new Set());
-      toast.success("Map saved.");
-      router.refresh();
+
+      const ids = doc.current.nodes
+        .map((node) => node.id)
+        .sort()
+        .join(",");
+      if (ids !== refreshedIds.current) {
+        refreshedIds.current = ids;
+        router.refresh();
+      }
     } finally {
       setBusy(false);
     }
-  }
+  }, [mapId, router]);
+
+  /**
+   * Autosave, debounced.
+   *
+   * This reverses a decision this file used to state at the top: saving was
+   * explicit because "an autosave firing mid-sentence turns every half-formed
+   * idea into something the whole team can see". That is still true, and the
+   * owner has asked for autosave anyway — a map whose work is lost because
+   * nobody pressed a button is the worse of the two.
+   *
+   * The timer restarts on every change, so it fires once the typing stops rather
+   * than every 1.2 seconds while it continues. There is no toast: one per save
+   * would be a notification every time somebody pauses to think.
+   *
+   * The trade being accepted, plainly: a save writes the whole document, so two
+   * people editing one map now overwrite each other continuously instead of
+   * rarely. Explicit saving was what kept that rare. Nothing here fixes it —
+   * that needs per-node merging, which is a different piece of work.
+   */
+  React.useEffect(() => {
+    if (!canEdit || !dirty || busy) return;
+    const timer = setTimeout(() => void save(), 1200);
+    return () => clearTimeout(timer);
+  }, [canEdit, dirty, busy, nodes, radial, save]);
+
+  /**
+   * The two ways a page ends.
+   *
+   * Leaving by a link unmounts this component, and there is still time to write:
+   * the request outlives the render tree. Closing the tab does not — a Server
+   * Action cannot be awaited from `beforeunload` — so that case can only warn,
+   * and the browser shows its own dialog.
+   */
+  const pending = React.useRef({ dirty, save });
+  pending.current = { dirty, save };
+  React.useEffect(() => {
+    function onBeforeUnload(event: BeforeUnloadEvent) {
+      if (!pending.current.dirty) return;
+      event.preventDefault();
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      if (pending.current.dirty) void pending.current.save();
+    };
+  }, []);
 
   return (
     <div className="relative min-h-0 flex-1">
       {/* Floating rather than in a row of its own: on a full-screen canvas the
           pixels belong to the map. */}
       <div className="pointer-events-none absolute right-4 top-4 z-10 flex items-center gap-2">
-        {dirty ? (
+        {/* What the save button used to say, without the button. Three states
+            rather than two, because "nothing to do" and "written just now" feel
+            different to somebody who has stopped typing to check. */}
+        {canEdit ? (
           <span className="rounded-full border bg-background/90 px-2.5 py-1 text-xs text-muted-foreground backdrop-blur">
-            Unsaved changes
+            {busy ? "Saving…" : dirty ? "Unsaved changes" : "Saved"}
           </span>
         ) : null}
         <button
@@ -871,15 +962,6 @@ export function MindMapCanvas({
         >
           {Math.round(scale * 100)}%
         </button>
-        {canEdit ? (
-          <Button
-            className="pointer-events-auto"
-            disabled={busy || !dirty}
-            onClick={() => void save()}
-          >
-            Save map
-          </Button>
-        ) : null}
       </div>
 
       <div

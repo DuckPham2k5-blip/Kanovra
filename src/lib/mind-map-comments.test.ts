@@ -7,11 +7,19 @@ import { prisma } from "@/lib/prisma";
  * What happens to a node's comments when the node goes.
  *
  * `MindMapComment.nodeId` points into a JSON column, so there is no foreign key
- * to cascade — the node is not a row. The cleanup is a `deleteMany` run when a
- * map is saved, and it has one genuinely surprising case: Prisma's `notIn: []`
- * matches *everything*, the opposite of `in: []`. Getting that backwards either
- * leaves every comment orphaned forever or deletes all of them on the next save,
- * and neither shows up until somebody notices a conversation missing.
+ * to cascade — the node is not a row. Saving used to sweep the orphans with a
+ * `deleteMany`, whose genuinely surprising case was Prisma's `notIn: []`
+ * matching *everything*, the opposite of `in: []`.
+ *
+ * That sweep is gone. It was safe while a save took a deliberate press and is
+ * not safe on a 1.2-second timer: the same query would fire a moment after a
+ * mis-click, destroying a thread nobody was looking at. An orphan is now hidden
+ * instead — nothing reads a comment whose node is not in the document — and the
+ * row survives to be recovered.
+ *
+ * The rule is pinned in that direction rather than left untested, because it is
+ * still true that getting it wrong either way stays invisible until somebody
+ * notices a conversation missing.
  *
  * Skipped when there is no database configured — someone checked the repo out
  * and ran the tests. Configured but unreachable is a failure, not a skip: that
@@ -26,7 +34,7 @@ let mapId = "";
 let userId = "";
 let workspaceId = "";
 
-describe.skipIf(!CONFIGURED)("mind map comment cleanup", () => {
+describe.skipIf(!CONFIGURED)("mind map comments when a node goes", () => {
   beforeAll(async () => {
     const user = await prisma.user.create({
       data: { clerkId: `${TAG}-clerk`, email: `${TAG}@example.test`, name: "Cleanup Fixture" },
@@ -70,11 +78,25 @@ describe.skipIf(!CONFIGURED)("mind map comment cleanup", () => {
     });
   }
 
-  /** Exactly the query `updateMindMapData` runs after a save. */
-  async function pruneTo(surviving: string[]) {
-    await prisma.mindMapComment.deleteMany({
-      where: { mapId, nodeId: { notIn: surviving } },
-    });
+  /**
+   * What a save now leaves behind.
+   *
+   * `updateMindMapData` used to run `deleteMany({ nodeId: { notIn: surviving } })`
+   * here, and these tests pinned it — including the `notIn: []` case, which
+   * matches everything and is the exact opposite of `in: []`.
+   *
+   * That query is gone. It was safe while saving took a deliberate press: remove
+   * a box, decide you meant it, press Save. Autosave fires a second after the
+   * box disappears, which would turn a mis-click into a destroyed thread on a
+   * timer, with nobody watching — you are not looking at a comment panel at the
+   * moment you delete the node it hangs off.
+   *
+   * So the rule inverted, and it is pinned in that direction rather than left
+   * untested. Getting this wrong in either direction is invisible until somebody
+   * notices a conversation missing, which is the whole reason this file exists.
+   */
+  async function afterSaveWith(surviving: string[]) {
+    await updateMapData(surviving);
     const left = await prisma.mindMapComment.findMany({
       where: { mapId },
       select: { nodeId: true },
@@ -82,22 +104,39 @@ describe.skipIf(!CONFIGURED)("mind map comment cleanup", () => {
     return left.map((row) => row.nodeId).sort();
   }
 
-  it("keeps the comments whose node survived and drops the rest", async () => {
+  /** The half of `updateMindMapData` that touches this map's rows. */
+  async function updateMapData(nodeIds: string[]) {
+    await prisma.mindMap.update({
+      where: { id: mapId },
+      data: {
+        data: {
+          nodes: nodeIds.map((id) => ({ id, text: "", x: 0, y: 0, parentId: null, rank: 0 })),
+        },
+      },
+    });
+  }
+
+  it("keeps a comment whose node has gone, so a mis-click can be undone", async () => {
     await seed(["keep", "keep", "gone", "also-gone"]);
-    expect(await pruneTo(["keep", "other"])).toEqual(["keep", "keep"]);
+    expect(await afterSaveWith(["keep", "other"])).toEqual([
+      "also-gone",
+      "gone",
+      "keep",
+      "keep",
+    ]);
   });
 
   it("leaves everything alone when every node is still there", async () => {
     await seed(["a", "b"]);
-    expect(await pruneTo(["a", "b"])).toEqual(["a", "b"]);
+    expect(await afterSaveWith(["a", "b"])).toEqual(["a", "b"]);
   });
 
-  it("deletes every comment when the map is saved with no nodes at all", async () => {
-    // The `notIn: []` case. Semantically right — no nodes means no node
-    // comments — but it is the opposite of how `in: []` behaves, so it is pinned
-    // here rather than left to be rediscovered.
+  it("keeps them even when the map is saved with no nodes at all", async () => {
+    // This was the `notIn: []` case, and it deleted every comment in the map.
+    // An empty document is exactly when somebody has cleared the canvas by
+    // accident, which is the worst possible moment to also drop the discussion.
     await seed(["a", "b"]);
-    expect(await pruneTo([])).toEqual([]);
+    expect(await afterSaveWith([])).toEqual(["a", "b"]);
   });
 
   it("takes its comments with it when the map is deleted", async () => {
