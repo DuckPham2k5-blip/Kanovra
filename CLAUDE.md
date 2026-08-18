@@ -264,7 +264,9 @@ stack.
 ## State and what is left
 
 All application work asked for so far is committed to `main` and green:
-typecheck, lint, 151 tests, production build.
+typecheck, lint, 160 tests. The production build was last run green at
+`ce794c0`; the sixth pass has not been through one, because the dev server has
+been running throughout.
 
 **Live updates: verified end to end on 2026-08-10**, in dev, with the owner
 driving the browser. What the run actually established:
@@ -601,6 +603,93 @@ drag smooth**. The build was run with the port-3000 check and `npm run build` in
 one command, so nothing could start between them; that gap is the whole of the
 trap recorded above. **Not verified:** the drag on a structured type, where the
 frozen-centre trade-off is the one that could still feel loose.
+
+---
+
+## Built after the sixth pass (2026-08-18)
+
+Fifteen adjustments asked for in one list, delivered in five commits. What is
+worth knowing before changing any of it back:
+
+**Saving is automatic now, and that reversed a decision this project had made on
+purpose.** The old note — still worth reading, at the top of `mind-map-canvas.tsx`
+— was that an autosave firing mid-sentence turns every half-formed idea into
+something the whole team can see. It was outweighed by the failure at the other
+end, which actually happened. Two costs came with it and neither is fixed:
+
+- **Two people on one map now overwrite each other continuously**, because a save
+  writes the whole document and the explicit press was what made that rare. Real
+  merging is per-node and is separate work.
+- **Comments are no longer deleted when their node goes.** The sweep on save was
+  safe when a save was deliberate; on a 1.2s timer it would destroy a thread a
+  moment after a mis-click with nobody watching. An orphan is hidden instead —
+  nothing reads a comment whose node is absent — and the row stays recoverable.
+  `mind-map-comments.test.ts` pins the rule in the new direction against a real
+  database. The `notIn: []` trap below is now history rather than live code.
+
+**A node has a `kind` (`step` / `note`), and only a flow map reads it.** A flow
+map needs two sorts of child, and `parentId` cannot express the difference: the
+chain has to *be* a chain in the parent links, or the arrows — drawn parent to
+child — fan out of the first box instead of running through them. A scalar on the
+node, not a second parent link; that distinction is what made the old double
+bubble `role` acceptable and its alternative not.
+
+**A flow map wraps and doubles back**, on a width budget rather than a step count,
+because node size is free and four large boxes are wider than eight ordinary ones.
+Explanations hang in a column under their step, and **a second explanation attaches
+to the first, not to the step** — two connectors leaving one edge makes the router
+take the second out and around, which draws a loop into the box from the side.
+
+**Multi-flow is a free canvas.** Alternating branches left and right by insertion
+order meant the layout decided which of somebody's causes were causes. Position
+carries the meaning on that type, and the arrowhead is already chosen from which
+side a node ended up on. `layoutNodes` no longer gates on `isStructured` because
+it is still needed once, to seed a map whose nodes all sit at the origin — without
+that, switching to free stacks the map on one point and reads as a wipe.
+
+**The ring round a node is a box-shadow on the node itself**, not an extra
+element: it follows the corner radius with nothing restating it, and it cannot
+cover the node and swallow a click. Yours is white with a dark hairline under it
+(white on the light theme is invisible otherwise); everyone else's is
+`colorFromString`, the same colour their avatar already falls back to.
+
+**Ambient motes live in `lib/ambient-motes.ts`, tested, with the canvas loop as a
+thin shell.** A `requestAnimationFrame` loop cannot be checked: it does not run in
+a hidden tab and paints nothing a test can read. The one bug it had was a
+*direction* — both themes shared a destination, so the dark theme spawned motes at
+the bloom and pulled them back into it. It ran, it drew, and no still frame would
+show it.
+
+### Traps found this pass
+
+- **Neither lint nor typecheck reads CSS.** A comment in `globals.css` closed
+  early, left prose sitting as raw CSS, failed the postcss build and served every
+  page a 500 — while `npm run lint`, `npm run typecheck` and all 151 tests stayed
+  green. Only loading the page found it. Check comment balance after editing that
+  file, or open the app.
+- **Tailwind tree-shakes unused classes inside `@layer components`.** A class
+  written ahead of its usage computes as though it does not exist, which looks
+  exactly like a broken rule. Confirmed by probing `animation-name` in the browser.
+- **`prefers-reduced-motion` overrides cannot pin a property the animation
+  animates.** `scale: 1` beside a running `scale` keyframe changes nothing —
+  animations beat plain declarations. The reduced-motion variant needs its own
+  keyframes.
+- **The assistant's browser can reach the marketing page**, which renders the same
+  ambient layer and needs no Clerk session. That is the one route available for
+  looking at shell-level CSS. It still cannot composite frames while the pane is
+  hidden, so `requestAnimationFrame` never fires and canvas work stays unverifiable
+  there.
+
+**Verified:** typecheck, lint, 160 tests, both new flow layouts rendered to a
+picture and looked at, and — in a browser — that the page returns 200, the mote
+canvas mounts at the right size, `align-content: center` applies to a node label,
+and the pop animation degrades to fade under the reduced-motion preference.
+**Not verified:** anything needing a pointer or a signed-in session, and no
+production build since the dev server was running throughout.
+
+**Still outstanding from that list:** marking a node's comments as read, which
+needs a `MindMapCommentRead` table. `prisma generate` cannot run while the dev
+server holds the query engine, so it waits for the server to be stopped.
 
 ---
 
