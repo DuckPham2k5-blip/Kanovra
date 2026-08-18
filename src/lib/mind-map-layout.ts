@@ -72,10 +72,13 @@ export function isStructured(type: MindMapType) {
     // order they were added. That rule decided which of somebody's causes were
     // causes: add a third one and it lands on the effect side because it happens
     // to be third. Position carries the meaning on this type — the arrowhead is
-    // already chosen from which side a node ended up on — so the arrangement is
-    // the author's, and `layoutNodes` still knows the old shape purely to seed a
-    // map that has never been arranged.
+    // already chosen from which side a node ended up on.
     case MindMapType.MULTI_FLOW:
+    // Flow followed, for a plainer reason: the wrap is a good *starting*
+    // arrangement and a bad rule. A procedure has steps that belong beside each
+    // other and asides that belong out of the way, and a width budget cannot
+    // know which is which.
+    case MindMapType.FLOW:
       return false;
     default:
       return true;

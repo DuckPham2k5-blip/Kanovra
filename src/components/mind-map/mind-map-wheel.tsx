@@ -668,11 +668,23 @@ function Segment({
 
   return (
     <g className="cursor-pointer" onPointerDown={(event) => event.stopPropagation()} onClick={onSelect}>
+      {/* Every segment carries its own outline, not only the selected one.
+
+          The padding between segments is a *gap*, and a gap only separates two
+          shapes while the thing behind it is a different colour from both. On a
+          wheel where each ring is a shade of one hue, neighbouring segments meet
+          across a few pixels of backdrop that reads as part of whichever of them
+          is darker — so a branch and its child looked like one continuous wedge.
+          The outline is the same hue drawn light, so it draws the boundary
+          without introducing a second colour to a drawing built on one.
+
+          Selection still overrides it with white, which is why this is one
+          `stroke` chosen two ways rather than a second path underneath. */}
       <path
         d={d}
         fill={fill}
-        stroke={selected ? "hsl(0 0% 100% / 0.9)" : "transparent"}
-        strokeWidth={selected ? 2.5 : 0}
+        stroke={selected ? "hsl(0 0% 100% / 0.9)" : `hsl(${hue} 70% 88% / 0.45)`}
+        strokeWidth={selected ? 2.5 : 1}
       />
       {place.orientation === "none" ? null : (
         <text

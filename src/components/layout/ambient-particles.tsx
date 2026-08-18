@@ -7,6 +7,7 @@ import {
   moteAlpha,
   moteAt,
   moteCount,
+  moteInk,
   motePath,
   type MotePath,
 } from "@/lib/ambient-motes";
@@ -71,6 +72,8 @@ export function AmbientParticles() {
       size: number;
       /** Phase offset so they do not all breathe together. */
       phase: number;
+      /** Its own twinkle rate, so the field does not pulse as one. */
+      twinkle: number;
     };
 
     let motes: Mote[] = [];
@@ -96,14 +99,37 @@ export function AmbientParticles() {
       mote.path = motePath(bloomBox(width, rem), Math.random() * Math.PI * 2, reach, dark);
       mote.t = seeded ? Math.random() : 0;
       mote.speed = 0.02 + Math.random() * 0.05;
-      mote.size = 0.8 + Math.random() * 1.4;
+      // Biased small: a sky is mostly faint pinpricks with a few bright ones,
+      // and a uniform spread reads as confetti rather than as stars.
+      mote.size = 0.7 + Math.pow(Math.random(), 2.4) * 2.6;
       mote.phase = Math.random() * Math.PI * 2;
+      mote.twinkle = 0.6 + Math.random() * 1.1;
     }
 
+    /**
+     * Sizes the canvas to the layer it fills, and rebuilds the field.
+     *
+     * Measured from the parent rather than from `window.innerWidth`, and driven
+     * by a `ResizeObserver` rather than the window's `resize` event, because of
+     * a real failure: a page that loads while its tab is in the background gets
+     * a viewport of zero, sizes everything to zero, and then never hears a
+     * `resize` — showing a tab does not fire one. The layer stayed blank until
+     * somebody happened to drag the window. Caught by opening the page and
+     * finding `width: 0px` on the element.
+     *
+     * Zero is therefore ignored rather than stored, and an unchanged size is
+     * skipped so a slow window drag does not respawn the whole field per frame.
+     */
     function resize() {
+      const box = canvas.parentElement?.getBoundingClientRect();
+      const nextW = Math.round(box?.width || window.innerWidth);
+      const nextH = Math.round(box?.height || window.innerHeight);
+      if (!nextW || !nextH) return;
+      if (nextW === width && nextH === height) return;
+
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      width = window.innerWidth;
-      height = window.innerHeight;
+      width = nextW;
+      height = nextH;
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
       canvas.style.width = `${width}px`;
@@ -117,6 +143,7 @@ export function AmbientParticles() {
           speed: 0,
           size: 0,
           phase: 0,
+          twinkle: 1,
         };
         spawn(mote, true);
         return mote;
@@ -138,7 +165,21 @@ export function AmbientParticles() {
       }
 
       ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = accent;
+
+      /*
+       * Stars, not dots. The glow is a canvas shadow of the mote's own colour,
+       * which is what turns a flat 2px circle into something with a halo — and it
+       * is set once for the whole field rather than per mote, because changing
+       * `shadowBlur` between fills is one of the more expensive things a 2D
+       * context can be asked to do.
+       *
+       * No halo on the light theme. Black ink glowing black over a pale page is a
+       * grey smear, and the point there is a crisp speck.
+       */
+      const ink = moteInk(dark, accent);
+      ctx.fillStyle = ink;
+      ctx.shadowColor = dark ? ink : "transparent";
+      ctx.shadowBlur = dark ? 8 : 0;
 
       const still = calm.matches;
 
@@ -156,17 +197,31 @@ export function AmbientParticles() {
         const t = still ? 0.5 : mote.t;
         const at = moteAt(mote.path, t);
 
-        // The breathe, which is all that is left of the animation under reduced
-        // motion and a small shimmer on top of the travel otherwise.
-        const breathe = 0.75 + 0.25 * Math.sin(now / 900 + mote.phase);
+        // The twinkle: each mote on its own rate, or the whole sky pulses as one
+        // object and reads as a single flashing thing rather than as many. Under
+        // reduced motion this is all that is left of the animation, which is why
+        // it goes deep enough to be worth watching on its own.
+        const twinkle = 0.55 + 0.45 * Math.sin((now / 900) * mote.twinkle + mote.phase);
 
-        ctx.globalAlpha = moteAlpha(t, dark) * breathe;
+        ctx.globalAlpha = moteAlpha(t, dark) * twinkle;
         ctx.beginPath();
         ctx.arc(at.x, at.y, mote.size, 0, Math.PI * 2);
         ctx.fill();
+
+        // A white core on the brightest few, which is what makes a star look lit
+        // from inside rather than painted on. Only worth drawing where there is a
+        // dark sky behind it.
+        if (dark && mote.size > 2.2) {
+          ctx.fillStyle = "#ffffff";
+          ctx.beginPath();
+          ctx.arc(at.x, at.y, mote.size * 0.38, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = ink;
+        }
       }
 
       ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
       frame = requestAnimationFrame(draw);
     }
 
@@ -191,12 +246,16 @@ export function AmbientParticles() {
 
     resize();
     start();
-    window.addEventListener("resize", resize);
+
+    // Fires when the layer first gains a size as well as when it changes, which
+    // is the whole point — a background tab has neither until it is shown.
+    const observer = new ResizeObserver(() => resize());
+    if (canvas.parentElement) observer.observe(canvas.parentElement);
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       stop();
-      window.removeEventListener("resize", resize);
+      observer.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);

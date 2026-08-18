@@ -6,6 +6,7 @@ import {
   moteAlpha,
   moteAt,
   moteCount,
+  moteInk,
   motePath,
 } from "@/lib/ambient-motes";
 
@@ -99,9 +100,21 @@ describe("moteAlpha", () => {
     for (let t = -0.5; t <= 1.5; t += 0.05) {
       const value = moteAlpha(t, true);
       expect(value).toBeGreaterThanOrEqual(0);
-      expect(value).toBeLessThanOrEqual(0.55);
+      expect(value).toBeLessThanOrEqual(0.95);
       expect(Number.isFinite(value)).toBe(true);
     }
+  });
+
+  /*
+   * These are meant to read as stars. At the brightness they started with, a
+   * mote over a near-black backdrop was a smudge — the complaint that produced
+   * this number. Light stays lower because black ink on a pale page is already
+   * high contrast and matching it there gives a field of hard dots competing
+   * with the text.
+   */
+  it("is brighter on the dark theme than on the light one", () => {
+    expect(moteAlpha(0.5, true)).toBeGreaterThan(moteAlpha(0.5, false));
+    expect(moteAlpha(0.5, true)).toBeGreaterThan(0.9);
   });
 
   it("answers a nonsense position with nothing rather than NaN", () => {
@@ -110,6 +123,25 @@ describe("moteAlpha", () => {
     // while looking like a layer that is simply switched off.
     expect(moteAlpha(Number.NaN, true)).toBe(0);
     expect(moteAlpha(Number.POSITIVE_INFINITY, false)).toBe(0);
+  });
+});
+
+describe("moteInk", () => {
+  /*
+   * The light theme is black, flatly — not a dark mix of the accent. Against a
+   * pale backdrop the accent at any weight reads as a smudge of colour rather
+   * than as a point of ink, and the effect is meant to be points. Pinned because
+   * this is the kind of rule that gets "tidied" into a mix by somebody making
+   * the two themes look consistent.
+   */
+  it("is black on the light theme whatever the accent is", () => {
+    for (const accent of ["rgb(108, 63, 243)", "#14b8a6", "hsl(38 95% 44%)"]) {
+      expect(moteInk(false, accent)).toBe("#000000");
+    }
+  });
+
+  it("takes the page's own accent on the dark theme", () => {
+    expect(moteInk(true, "rgb(108, 63, 243)")).toBe("rgb(108, 63, 243)");
   });
 });
 

@@ -22,6 +22,17 @@ export type MotePath = { from: Point; to: Point };
 const FADE_IN = 0.18;
 const FADE_OUT = 0.3;
 
+/**
+ * How bright a mote gets at its peak.
+ *
+ * Dark is nearly opaque: these are meant to read as stars, and a star at 55%
+ * over a near-black backdrop is a smudge. Light is lower because black ink on a
+ * pale page is already high contrast — matching the dark figure there would give
+ * a field of hard dots competing with the text.
+ */
+const PEAK_DARK = 0.95;
+const PEAK_LIGHT = 0.5;
+
 /** How deep inside the bloom the outward-bound motes begin. */
 const INNER = 0.18;
 
@@ -87,7 +98,23 @@ export function moteAlpha(t: number, dark: boolean): number {
   const clamped = Math.max(0, Math.min(1, t));
   const up = Math.min(1, clamped / FADE_IN);
   const down = Math.min(1, (1 - clamped) / FADE_OUT);
-  return up * down * (dark ? 0.55 : 0.4);
+  return up * down * (dark ? PEAK_DARK : PEAK_LIGHT);
+}
+
+/**
+ * What colour a mote is drawn in.
+ *
+ * Dark takes the page accent, so the field belongs to the page the way the bloom
+ * and the arcs do. Light is **black**, flatly, and not a dark mix of the accent:
+ * against a pale backdrop the accent at any weight reads as a smudge of colour
+ * rather than as a point of ink, and the whole effect is meant to be points.
+ *
+ * A rule with its own function because it is the kind of thing that gets
+ * "tidied" into `dark ? accent : mix(accent)` by somebody making the two themes
+ * look consistent, which is exactly the change that breaks it.
+ */
+export function moteInk(dark: boolean, accent: string): string {
+  return dark ? accent : "#000000";
 }
 
 /**

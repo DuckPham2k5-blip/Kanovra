@@ -2,7 +2,6 @@
 
 import { MindMapType } from "@prisma/client";
 import {
-  Maximize2,
   MessageSquare,
   MoreHorizontal,
   Plus,
@@ -513,26 +512,27 @@ export function MindMapCanvas({
   }, []);
 
   /**
-   * Gives a multi-flow map coordinates the first time it is opened as a free
-   * canvas.
+   * Gives a map coordinates the first time it is opened as a free canvas.
    *
-   * Its positions used to be computed on every render and never stored, so every
-   * node on an existing one still holds the `x: 0, y: 0` it was created with.
-   * Simply switching the type to free would stack the whole map on the origin,
-   * which reads as the map having been wiped. Seeding from the arrangement it
-   * used to draw means it opens looking exactly as it did before, and is
-   * draggable from there.
+   * Flow and multi-flow both had their positions computed on every render and
+   * never stored, so every node on an existing one still holds the `x: 0, y: 0`
+   * it was created with. Simply switching them to free would stack the whole map
+   * on the origin, which reads as the map having been wiped. Seeding from the
+   * arrangement each type used to draw — the wrapped rows for a flow, causes and
+   * effects for a multi-flow — means it opens looking exactly as it did before,
+   * and is draggable from there.
    *
-   * Runs once, and only when *every* node is still at the origin — anything else
+   * Runs once, and only when *every* node is still at the origin. Anything else
    * is an arrangement somebody made, including one they made by dragging
    * everything into a pile.
    */
   const seeded = React.useRef(false);
   React.useEffect(() => {
-    if (seeded.current || type !== MindMapType.MULTI_FLOW || !canEdit) return;
+    const seedable = type === MindMapType.MULTI_FLOW || type === MindMapType.FLOW;
+    if (seeded.current || !seedable || !canEdit) return;
     if (nodes.length < 2 || nodes.some((node) => node.x !== 0 || node.y !== 0)) return;
 
-    const arrangement = layoutNodes(MindMapType.MULTI_FLOW, nodes);
+    const arrangement = layoutNodes(type, nodes);
     if (!arrangement.size) return;
 
     seeded.current = true;
@@ -1562,33 +1562,36 @@ export function MindMapCanvas({
                   </div>
                 ) : null}
 
-                {/* Drag the corner to resize. No `mounted` gate: this is a plain
-                    button, not a Radix menu, so it carries none of the `useId`
-                    counting behind the hydration warnings.
+                {/* Drag the corner to resize.
 
-                    A round node's bounding box corner is outside the circle, so
-                    the grip would float unattached in the gap. It sits on the
-                    shape itself instead — 45° round the rim, which is that same
-                    corner pulled in to where the ink actually is. */}
+                    No visible handle any more. It was a bordered button with a
+                    diagonal arrow in it, and it read as one more thing cluttering
+                    a corner that already has three — the shape itself is what you
+                    reach for, the way you resize a window or a textarea, and the
+                    `nwse-resize` cursor is the affordance that says so.
+
+                    Still an element rather than a hit test inside the node's own
+                    `pointerdown`, for two reasons that have both cost time here:
+                    it takes the pointer capture, and it swallows the press before
+                    the viewport can turn it into a pan. Invisible, not absent.
+
+                    A round node's bounding-box corner is outside the circle, so
+                    the zone would sit in the gap where there is nothing to grab.
+                    It goes on the shape instead — 45° round the rim, which is
+                    that same corner pulled in to where the ink actually is. */}
                 {canEdit ? (
-                  <button
-                    type="button"
-                    aria-label="Drag to resize this node"
-                    title="Drag to resize"
+                  <span
+                    role="presentation"
                     onPointerDown={(event) => onResizePointerDown(event, node)}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize touch-none rounded-full border bg-background p-1 opacity-0 shadow-sm transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+                    className="absolute size-6 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize touch-none"
                     style={{
                       left: round ? "85.4%" : "100%",
                       top: round ? "85.4%" : "100%",
-                      borderColor: mindMapColor(type, 0.5),
-                      // Grows with the node like the rest of the furniture. Its
-                      // origin is the centre, which is where the translate
-                      // utilities have already put it.
+                      // Grows with the node, so the reach stays the same
+                      // proportion of the shape at every size.
                       scale: furniture,
                     }}
-                  >
-                    <Maximize2 className="size-3 rotate-90" />
-                  </button>
+                  />
                 ) : null}
               </div>
             );
