@@ -96,6 +96,22 @@ slow glyph breathe stay on; the ripple, which scales across the screen, does
 not. The owner's machine has reduced motion enabled, which silently disabled
 three requested effects until this was split.
 
+**A node's controls grow slower than the node.** `controlScale` in
+`mind-map-canvas.ts`, with a test that asserts the invariant rather than the
+formula. The `+`, the `…`, the comment badge and the resize grip are *overlays*,
+and this has been wrong twice in opposite directions: fixed-size froze them into
+specks on a large node, and scaling one-for-one grew them until they covered the
+node — hiding the grip in its corner and giving the `…` a bounding box so large
+that Radix opened its menu out of the pointer's reach. A square root, floored and
+capped, sits between the two.
+
+**A Radix menu trigger keeps its own `pointerdown`.** The rule that every control
+over the canvas must swallow its press applies to plain buttons; a trigger's
+press belongs to the library, which uses it to open the menu, seed focus and arm
+the dismiss layer. Stopping it there was tried and left every item inside the
+menu unreachable. The node's own handler already stops the press before the
+viewport can turn it into a pan, which is all a trigger ever needed.
+
 **A bulk edit reuses `updateTask`'s body, and is one request.**
 `applyTaskUpdate` in `server/actions/task.ts` holds everything one update does
 minus the auth and the revalidate; the single and bulk paths both call it. The
@@ -279,7 +295,7 @@ stack.
 ## State and what is left
 
 All application work asked for so far is committed to `main` and green:
-typecheck, lint, 168 tests, production build.
+typecheck, lint, 172 tests, production build.
 
 **Live updates: verified end to end on 2026-08-10**, in dev, with the owner
 driving the browser. What the run actually established:
