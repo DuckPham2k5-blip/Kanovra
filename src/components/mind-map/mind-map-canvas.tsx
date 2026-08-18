@@ -5,7 +5,9 @@ import {
   MessageSquare,
   MoreHorizontal,
   Plus,
+  Redo2,
   Trash2,
+  Undo2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
@@ -50,6 +52,7 @@ import {
 import { isStructured, layoutNodes } from "@/lib/mind-map-layout";
 import { notationFor, replacesEdges } from "@/lib/mind-map-notation";
 import { setPresenceFocus, useFocusGroups } from "@/lib/presence";
+import { emptyHistory, record, redo, undo } from "@/lib/undo-history";
 import {
   MIND_MAP_META,
   mindMapColor,
@@ -64,6 +67,9 @@ import { updateMindMapData } from "@/server/actions/mind-map";
 
 const MIN_SCALE = 0.2;
 const MAX_SCALE = 3;
+
+/** What one undo step restores: the whole document, nodes and wheel together. */
+type Snapshot = { nodes: CanvasNode[]; radial: RadialSettings };
 
 /**
  * The map as an endless sheet.
@@ -119,6 +125,43 @@ export function MindMapCanvas({
   const [busy, setBusy] = React.useState(false);
 
   /**
+   * The undo stack, holding whole snapshots of the document.
+   *
+   * This exists because autosave took away the safety net that used to stand in
+   * for it: while a save was a deliberate press, a wrong move was survivable by
+   * simply not saving and reloading. On a 1.2 second timer it is committed
+   * before anybody has decided anything.
+   *
+   * Per canvas and not persisted. Undo is a property of *this* editing session —
+   * a shared stack would let one person walk back somebody else's work, and a
+   * stack that survived a reload would offer to undo something the person
+   * reading it never did.
+   */
+  const [history, setHistory] = React.useState(() => emptyHistory<Snapshot>());
+
+  /*
+   * The document as of this render, for `remember` to snapshot.
+   *
+   * Written during render rather than in an effect, because an effect-backed ref
+   * lags by one commit — `remember` would store the state before the *previous*
+   * change, and undo would land one step too far back. The same pattern the
+   * autosave flush uses a few hundred lines down, for the same reason.
+   */
+  const live = React.useRef<Snapshot>({ nodes: [], radial: initialRadial });
+
+  /**
+   * Records the document as it stands, just before something changes it.
+   *
+   * The label decides what counts as one step: everything reported under the
+   * same label in quick succession folds together, so a word typed into a node
+   * is one undo and a drag is one undo rather than one per frame. See
+   * `undo-history.ts` — the rule lives there, with tests.
+   */
+  const remember = React.useCallback((label: string) => {
+    setHistory((prev) => record(prev, live.current, label, Date.now()));
+  }, []);
+
+  /**
    * Where a radial map's wheel starts and how much of the circle it uses.
    *
    * Part of the document, not of the view: rotating the wheel changes which
@@ -128,6 +171,8 @@ export function MindMapCanvas({
    */
   const [radial, setRadial] = React.useState<RadialSettings>(initialRadial);
   const isRadial = type === MindMapType.CIRCLE;
+
+  live.current = { nodes, radial };
 
   // Gates the per-node menus. See the note at the trigger: Radix's `useId`
   // counter drifts between the server render and hydration on a page with many
@@ -555,7 +600,8 @@ export function MindMapCanvas({
     };
   }
 
-  function update(id: string, patch: Partial<CanvasNode>) {
+  function update(id: string, patch: Partial<CanvasNode>, label = `edit:${id}`) {
+    remember(label);
     setNodes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n)));
     setDirty(true);
   }
@@ -626,6 +672,7 @@ export function MindMapCanvas({
       weight: DEFAULT_WEIGHT,
       thickness: RING_THICKNESS,
     };
+    remember("add");
     setNodes((prev) => [...prev, node]);
     setFresh((prev) => new Set(prev).add(node.id));
     setDirty(true);
@@ -651,13 +698,15 @@ export function MindMapCanvas({
    * node at all — a worse bug than the one that started this, and a silent one.
    */
   const resizeNode = React.useCallback((id: string, step: number) => {
+    remember(`size:${id}`);
     setNodes((prev) =>
       prev.map((n) => (n.id === id ? { ...n, rank: clampRank(n.rank + step) } : n)),
     );
     setDirty(true);
-  }, []);
+  }, [remember]);
 
   const remove = React.useCallback((id: string) => {
+    remember(`remove:${id}`);
     // Children are re-parented to their grandparent rather than deleted with
     // it. Losing a branch because its middle node went is the kind of thing
     // people only notice after they have saved.
@@ -669,7 +718,52 @@ export function MindMapCanvas({
         .map((n) => (n.parentId === id ? { ...n, parentId: target.parentId } : n));
     });
     setDirty(true);
+  }, [remember]);
+
+  /** One step back or forward, from the shortcut or from the buttons. */
+  const stepHistory = React.useCallback((forward: boolean) => {
+    setHistory((prev) => {
+      const step = forward
+        ? redo(prev, live.current, Date.now())
+        : undo(prev, live.current, Date.now());
+      if (!step) return prev;
+
+      setNodes(step.state.nodes);
+      setRadial(step.state.radial);
+      setDirty(true);
+      return step.history;
+    });
   }, []);
+
+  /**
+   * Undo and redo, on the whole document.
+   *
+   * Separate from the selection shortcuts below because it does not need one —
+   * you undo what just happened, not what you happen to be holding.
+   *
+   * Left alone inside a text field, where the browser's own undo already works
+   * on the characters and is what somebody pressing Ctrl+Z in a half-typed label
+   * means. Taking it over there would make the shortcut walk the whole map back
+   * a step instead of removing a letter, which is a much larger surprise than
+   * not being able to undo the map from inside a textarea.
+   */
+  React.useEffect(() => {
+    if (!canEdit) return;
+
+    function onKey(event: KeyboardEvent) {
+      if (!event.ctrlKey && !event.metaKey) return;
+      if (event.key.toLowerCase() !== "z" && event.key.toLowerCase() !== "y") return;
+
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, [contenteditable='true']")) return;
+
+      event.preventDefault();
+      stepHistory(event.key.toLowerCase() === "y" || event.shiftKey);
+    }
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [canEdit, stepHistory]);
 
   /**
    * The keyboard, on whichever node is selected: Delete removes it, `+` and `-`
@@ -721,6 +815,7 @@ export function MindMapCanvas({
    * it is the operation the whole share-based model exists to make safe.
    */
   function splitInto(parent: CanvasNode, count: number) {
+    remember(`split:${parent.id}`);
     const made: CanvasNode[] = [];
     for (let i = 0; i < count; i += 1) {
       made.push({
@@ -753,6 +848,7 @@ export function MindMapCanvas({
    * arranged.
    */
   function addBranch(beside: CanvasNode) {
+    remember("add");
     const parentId = beside.parentId ?? beside.id;
     const node: CanvasNode = {
       id: newNodeId(),
@@ -765,6 +861,7 @@ export function MindMapCanvas({
       weight: 1,
       thickness: RING_THICKNESS,
     };
+    remember("add");
     setNodes((prev) => [...prev, node]);
     setFresh((prev) => new Set(prev).add(node.id));
     setDirty(true);
@@ -772,6 +869,8 @@ export function MindMapCanvas({
 
   /** Wider or narrower, as a proportion of what it already has. */
   function reweight(id: string, factor: number) {
+    // Dragging a boundary reports every frame, so one label holds the gesture.
+    remember(`weight:${id}`);
     setNodes((prev) =>
       prev.map((n) =>
         n.id === id ? { ...n, weight: clamp(n.weight * factor, 0.05, 200) } : n,
@@ -790,6 +889,7 @@ export function MindMapCanvas({
 
   /** Thickness set outright, for a drag that already knows the answer. */
   function setThickness(id: string, px: number) {
+    remember(`reach:${id}`);
     setNodes((prev) =>
       prev.map((n) => (n.id === id ? { ...n, thickness: clamp(px, 24, 2000) } : n)),
     );
@@ -804,6 +904,7 @@ export function MindMapCanvas({
    * has a total that matches neither state and the shared edge visibly twitches.
    */
   function setWeights(updates: { id: string; weight: number }[]) {
+    remember(`weight:${updates[0]?.id ?? "many"}`);
     const byUpdate = new Map(updates.map((u) => [u.id, u.weight]));
     setNodes((prev) =>
       prev.map((n) => {
@@ -908,7 +1009,11 @@ export function MindMapCanvas({
     if (resize) {
       const point = toWorld(event);
       const distance = Math.hypot(point.x - resize.cx, point.y - resize.cy);
-      update(resize.id, { rank: rankFromRatio(resize.rank, distance / resize.distance) });
+      update(
+        resize.id,
+        { rank: rankFromRatio(resize.rank, distance / resize.distance) },
+        `size:${resize.id}`,
+      );
       return;
     }
 
@@ -924,7 +1029,7 @@ export function MindMapCanvas({
     const drag = dragging.current;
     if (!drag) return;
     const point = toWorld(event);
-    update(drag.id, { x: point.x - drag.dx, y: point.y - drag.dy });
+    update(drag.id, { x: point.x - drag.dx, y: point.y - drag.dy }, `move:${drag.id}`);
   }
 
   function endDrag() {
@@ -1081,6 +1186,35 @@ export function MindMapCanvas({
             {busy ? "Saving…" : dirty ? "Unsaved changes" : "Saved"}
           </span>
         ) : null}
+        {canEdit ? (
+          <span className="pointer-events-auto flex items-center gap-1 rounded-full border bg-background/90 px-1 py-0.5 backdrop-blur">
+            {/* Visible as well as bound to a key. A shortcut nobody is told about
+                is a shortcut nobody uses, and this one exists because autosave
+                took away the old way of undoing a mistake — reloading without
+                saving. */}
+            <button
+              type="button"
+              onClick={() => stepHistory(false)}
+              disabled={!history.past.length}
+              title="Undo (Ctrl+Z)"
+              aria-label="Undo"
+              className="rounded-full p-1 text-muted-foreground disabled:opacity-35"
+            >
+              <Undo2 className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => stepHistory(true)}
+              disabled={!history.future.length}
+              title="Redo (Ctrl+Shift+Z)"
+              aria-label="Redo"
+              className="rounded-full p-1 text-muted-foreground disabled:opacity-35"
+            >
+              <Redo2 className="size-3.5" />
+            </button>
+          </span>
+        ) : null}
+
         <button
           type="button"
           onClick={reset}
@@ -1127,12 +1261,14 @@ export function MindMapCanvas({
               onReweight={reweight}
               onResize={resize}
               onRotate={(degrees) => {
+                remember("rotate");
                 setRadial((prev) => ({ ...prev, start: prev.start + degrees }));
                 setDirty(true);
               }}
               onSetThickness={setThickness}
               onSetWeights={setWeights}
               onCommitRotation={(start) => {
+                remember("rotate");
                 setRadial((prev) => ({ ...prev, start }));
                 setDirty(true);
               }}
@@ -1339,7 +1475,9 @@ export function MindMapCanvas({
                   // lengths, by which point the author has no idea which node.
                   maxLength={160}
                   placeholder={isCentre ? "Main title" : "…"}
-                  onChange={(event) => update(node.id, { text: event.target.value })}
+                  onChange={(event) =>
+                    update(node.id, { text: event.target.value }, `text:${node.id}`)
+                  }
                   className={cn(
                     // `tf-map-node-text` centres the words vertically as well as
                     // horizontally. A textarea fills its box and starts at the
@@ -1532,7 +1670,7 @@ export function MindMapCanvas({
                             type="button"
                             aria-label="Use the map's colour"
                             title="Map colour"
-                            onClick={() => update(node.id, { hue: null })}
+                            onClick={() => update(node.id, { hue: null }, `style:${node.id}`)}
                             className={cn(
                               "size-5 rounded-full border-2",
                               node.hue === null || node.hue === undefined
@@ -1547,7 +1685,7 @@ export function MindMapCanvas({
                               type="button"
                               aria-label={label}
                               title={label}
-                              onClick={() => update(node.id, { hue })}
+                              onClick={() => update(node.id, { hue }, `style:${node.id}`)}
                               className={cn(
                                 "size-5 rounded-full border-2",
                                 node.hue === hue
