@@ -96,6 +96,21 @@ slow glyph breathe stay on; the ripple, which scales across the screen, does
 not. The owner's machine has reduced motion enabled, which silently disabled
 three requested effects until this was split.
 
+**A bulk edit reuses `updateTask`'s body, and is one request.**
+`applyTaskUpdate` in `server/actions/task.ts` holds everything one update does
+minus the auth and the revalidate; the single and bulk paths both call it. The
+write is the easy half — what drifts in a parallel implementation is moving the
+card to a column whose status matches, stamping `completedAt`, and the activity
+and notification fan-out that makes a change visible to whoever is watching.
+One request rather than a client loop, because Server Actions are rate-limited
+per signed-in user in middleware and a loop over twenty cards spends twenty of
+that allowance, so the tail of a selection fails silently. Sequential, not
+parallel: twenty concurrent transactions on one project is a deadlock waiting for
+a slow database. A stale id is skipped and counted rather than failing the batch;
+**delete** checks permission per task, so a mixed selection is partly deletable —
+refusing the lot makes it useless on a shared board and deleting everything is a
+quiet privilege escalation.
+
 **The logger redacts by value as well as by key name.** Key-based redaction
 missed `DATABASE_URL`, whose name matches no secret pattern while its value
 carries a password — and a Prisma connection error quotes that whole string
@@ -370,10 +385,10 @@ could not do. Node size is chosen when a node is made, in either direction
 without limit, rather than derived from depth.
 
 **Known feature gaps** versus comparable products, in no particular order: task
-dependencies (blocked by / blocks), multi-select and bulk actions, saved and
-shareable filter views, recurring tasks, actual time tracking (`estimate`
-exists, actuals do not), project templates, keyboard shortcuts beyond ⌘K, undo,
-CSV export, public read-only share links.
+dependencies (blocked by / blocks), saved and shareable filter views, recurring
+tasks, actual time tracking (`estimate` exists, actuals do not), project
+templates, keyboard shortcuts beyond ⌘K, undo, CSV export, public read-only share
+links. *(Multi-select and bulk actions are done — see the decision above.)*
 
 ---
 
