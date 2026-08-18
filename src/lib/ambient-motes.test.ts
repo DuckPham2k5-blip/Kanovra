@@ -8,6 +8,7 @@ import {
   moteCount,
   moteInk,
   motePath,
+  moteRadius,
 } from "@/lib/ambient-motes";
 
 /**
@@ -117,6 +118,17 @@ describe("moteAlpha", () => {
     expect(moteAlpha(0.5, true)).toBeGreaterThan(0.9);
   });
 
+  /*
+   * The light theme's first attempt was half the dark theme's brightness, and it
+   * was reported as looking like dirt on the screen. Black on a pale page is the
+   * strongest mark available, so it needs to be far fainter than that — not a
+   * little under. Pinned as a ratio so a later "let us even these up" cannot
+   * quietly undo it.
+   */
+  it("keeps the light theme far fainter, not slightly", () => {
+    expect(moteAlpha(0.5, false)).toBeLessThan(moteAlpha(0.5, true) * 0.3);
+  });
+
   it("answers a nonsense position with nothing rather than NaN", () => {
     // A frame delta of zero, a resize mid-flight — anything that divides badly
     // upstream arrives here, and `NaN` as a canvas alpha silently paints nothing
@@ -142,6 +154,34 @@ describe("moteInk", () => {
 
   it("takes the page's own accent on the dark theme", () => {
     expect(moteInk(true, "rgb(108, 63, 243)")).toBe("rgb(108, 63, 243)");
+  });
+});
+
+describe("moteRadius", () => {
+  it("is markedly smaller on the light theme at every roll", () => {
+    for (const roll of [0, 0.25, 0.5, 0.75, 1]) {
+      const dark = moteRadius(roll, true);
+      const light = moteRadius(roll, false);
+      expect(light).toBeLessThan(dark);
+      expect(light).toBeLessThan(1.5);
+    }
+  });
+
+  it("is biased small, so a sky is pinpricks with a few bright ones", () => {
+    // Half the rolls land under a fifth of the range they could reach.
+    const mid = moteRadius(0.5, true);
+    const top = moteRadius(1, true);
+    const floor = moteRadius(0, true);
+    expect(mid - floor).toBeLessThan((top - floor) * 0.25);
+  });
+
+  it("grows with the roll and never goes negative or NaN", () => {
+    expect(moteRadius(1, true)).toBeGreaterThan(moteRadius(0, true));
+    for (const roll of [-3, 4, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const value = moteRadius(roll, false);
+      expect(Number.isFinite(value)).toBe(true);
+      expect(value).toBeGreaterThan(0);
+    }
   });
 });
 

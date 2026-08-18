@@ -9,6 +9,7 @@ import {
   moteCount,
   moteInk,
   motePath,
+  moteRadius,
   type MotePath,
 } from "@/lib/ambient-motes";
 
@@ -69,7 +70,9 @@ export function AmbientParticles() {
       /** Distance along its own path, 0 at the spawn edge and 1 at the target. */
       t: number;
       speed: number;
-      size: number;
+      /** Fixed 0–1 roll; the drawn radius is derived from it every frame, so a
+          theme switch resizes the whole field at once. */
+      roll: number;
       /** Phase offset so they do not all breathe together. */
       phase: number;
       /** Its own twinkle rate, so the field does not pulse as one. */
@@ -99,9 +102,7 @@ export function AmbientParticles() {
       mote.path = motePath(bloomBox(width, rem), Math.random() * Math.PI * 2, reach, dark);
       mote.t = seeded ? Math.random() : 0;
       mote.speed = 0.02 + Math.random() * 0.05;
-      // Biased small: a sky is mostly faint pinpricks with a few bright ones,
-      // and a uniform spread reads as confetti rather than as stars.
-      mote.size = 0.7 + Math.pow(Math.random(), 2.4) * 2.6;
+      mote.roll = Math.random();
       mote.phase = Math.random() * Math.PI * 2;
       mote.twinkle = 0.6 + Math.random() * 1.1;
     }
@@ -141,7 +142,7 @@ export function AmbientParticles() {
           path: { from: { x: 0, y: 0 }, to: { x: 0, y: 0 } },
           t: 0,
           speed: 0,
-          size: 0,
+          roll: 0,
           phase: 0,
           twinkle: 1,
         };
@@ -203,18 +204,21 @@ export function AmbientParticles() {
         // it goes deep enough to be worth watching on its own.
         const twinkle = 0.55 + 0.45 * Math.sin((now / 900) * mote.twinkle + mote.phase);
 
+        const radius = moteRadius(mote.roll, dark);
+
         ctx.globalAlpha = moteAlpha(t, dark) * twinkle;
         ctx.beginPath();
-        ctx.arc(at.x, at.y, mote.size, 0, Math.PI * 2);
+        ctx.arc(at.x, at.y, radius, 0, Math.PI * 2);
         ctx.fill();
 
         // A white core on the brightest few, which is what makes a star look lit
         // from inside rather than painted on. Only worth drawing where there is a
-        // dark sky behind it.
-        if (dark && mote.size > 2.2) {
+        // dark sky behind it — on the light theme these are specks of ink, and a
+        // white middle would just hollow them out.
+        if (dark && radius > 2.2) {
           ctx.fillStyle = "#ffffff";
           ctx.beginPath();
-          ctx.arc(at.x, at.y, mote.size * 0.38, 0, Math.PI * 2);
+          ctx.arc(at.x, at.y, radius * 0.38, 0, Math.PI * 2);
           ctx.fill();
           ctx.fillStyle = ink;
         }

@@ -31,7 +31,16 @@ const FADE_OUT = 0.3;
  * a field of hard dots competing with the text.
  */
 const PEAK_DARK = 0.95;
-const PEAK_LIGHT = 0.5;
+/*
+ * Light is much fainter than dark, not merely a little.
+ *
+ * At 0.5 the black specks read as dirt on the screen rather than as anything
+ * deliberate — reported in exactly those words. Black on a pale page is the
+ * highest-contrast mark there is, so the number that looks restrained on a dark
+ * backdrop is aggressive here; the two themes need different figures, not one
+ * shared figure with a small adjustment.
+ */
+const PEAK_LIGHT = 0.2;
 
 /** How deep inside the bloom the outward-bound motes begin. */
 const INNER = 0.18;
@@ -115,6 +124,25 @@ export function moteAlpha(t: number, dark: boolean): number {
  */
 export function moteInk(dark: boolean, accent: string): string {
   return dark ? accent : "#000000";
+}
+
+/**
+ * How big one mote is drawn, from its own fixed roll of the dice.
+ *
+ * Biased small in both themes: a sky is mostly faint pinpricks with a few bright
+ * ones, and a uniform spread reads as confetti. The light theme is smaller again
+ * for the same reason it is fainter — black on a pale page is the strongest mark
+ * available, and at the dark theme's sizes it reads as grit.
+ *
+ * Takes the roll rather than returning a random number, so the caller can keep
+ * one value per mote and ask again every frame. That is what lets a theme switch
+ * resize the whole field at once instead of leaving the old sizes in place until
+ * each mote happens to die and respawn.
+ */
+export function moteRadius(roll: number, dark: boolean): number {
+  const clamped = Number.isFinite(roll) ? Math.max(0, Math.min(1, roll)) : 0.5;
+  const curve = Math.pow(clamped, 2.4);
+  return dark ? 0.7 + curve * 2.6 : 0.4 + curve * 0.9;
 }
 
 /**
