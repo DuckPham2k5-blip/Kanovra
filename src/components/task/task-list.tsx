@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { DueBadge, LabelChip, PriorityBadge, StatusBadge } from "@/components/shared/badges";
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { BulkBar } from "@/components/task/bulk-bar";
 import { TaskDialog } from "@/components/task/task-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,6 +59,22 @@ export function TaskList({
   emptyHint?: string;
 }) {
   const router = useRouter();
+
+  /**
+   * The rows picked out for a bulk edit, and where the last pick was.
+   *
+   * The anchor is an index into the *filtered* list, not an id, because that is
+   * what a Shift range means to somebody looking at the screen: everything
+   * between the two rows they can see. Holding an id would make the range depend
+   * on the underlying order, which the filters have already changed.
+   */
+  const [selected, setSelected] = React.useState<ReadonlySet<string>>(() => new Set());
+  const anchor = React.useRef<number | null>(null);
+
+  const clearSelection = React.useCallback(() => {
+    setSelected(new Set());
+    anchor.current = null;
+  }, []);
   const searchParams = useSearchParams();
 
   const [query, setQuery] = React.useState("");
@@ -104,6 +121,52 @@ export function TaskList({
     }
     return sorted;
   }, [tasks, query, status, priority, assignee, labelId, sort]);
+
+  const toggleSelect = React.useCallback((taskId: string, index: number) => {
+    anchor.current = index;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(taskId)) next.add(taskId);
+      return next;
+    });
+  }, []);
+
+  /** Everything between the last row picked and this one, added to what is there. */
+  const selectRange = React.useCallback(
+    (index: number) => {
+      const from = anchor.current;
+      if (from === null) {
+        toggleSelect(filtered[index].id, index);
+        return;
+      }
+      const [lo, hi] = from <= index ? [from, index] : [index, from];
+      setSelected((prev) => {
+        const next = new Set(prev);
+        for (let i = lo; i <= hi; i += 1) next.add(filtered[i].id);
+        return next;
+      });
+    },
+    [filtered, toggleSelect],
+  );
+
+  // Escape lets go, and a changed filter drops anything no longer on screen —
+  // acting on a row you can no longer see is the whole hazard of a selection
+  // that outlives its view.
+  React.useEffect(() => {
+    if (!selected.size) return;
+    const visible = new Set(filtered.map((task) => task.id));
+    const kept = [...selected].filter((id) => visible.has(id));
+    if (kept.length !== selected.size) setSelected(new Set(kept));
+  }, [filtered, selected]);
+
+  React.useEffect(() => {
+    if (!selected.size) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") clearSelection();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected.size, clearSelection]);
 
   const activeFilters =
     (status !== ALL ? 1 : 0) +
@@ -270,14 +333,47 @@ export function TaskList({
         <div className="overflow-hidden rounded-lg border">
           {filtered.map((task, index) => {
             const done = task.status === TaskStatus.DONE;
+            const picked = selected.has(task.id);
             return (
               <div
                 key={task.id}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/50",
+                  "group/row flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/50",
                   index > 0 && "border-t",
+                  picked && "bg-primary/10 hover:bg-primary/15",
                 )}
+                onClick={(event) => {
+                  // Ctrl or ⌘ picks one; Shift takes everything between this row
+                  // and the last one picked, which is what anybody who has used
+                  // a file list will try first.
+                  if (!canEdit) return;
+                  if (event.shiftKey) {
+                    event.preventDefault();
+                    selectRange(index);
+                  } else if (event.ctrlKey || event.metaKey) {
+                    event.preventDefault();
+                    toggleSelect(task.id, index);
+                  }
+                }}
               >
+                {canEdit ? (
+                  <span
+                    className={cn(
+                      "-ml-1 transition-opacity",
+                      picked || selected.size
+                        ? "opacity-100"
+                        : "opacity-0 group-hover/row:opacity-100",
+                    )}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <Checkbox
+                      checked={picked}
+                      onCheckedChange={() => toggleSelect(task.id, index)}
+                      aria-label={`Select ${task.title}`}
+                    />
+                  </span>
+                ) : null}
+
                 <Checkbox
                   checked={done}
                   disabled={!canEdit}
@@ -332,6 +428,14 @@ export function TaskList({
           })}
         </div>
       )}
+
+      <BulkBar
+        selected={[...selected]}
+        members={members}
+        canEdit={canEdit}
+        onClear={clearSelection}
+        onDone={() => router.refresh()}
+      />
 
       {projectId ? (
         <TaskDialog

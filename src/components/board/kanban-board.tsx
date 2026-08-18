@@ -25,6 +25,7 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { BoardColumn } from "@/components/board/board-column";
+import { BulkBar } from "@/components/task/bulk-bar";
 import { ColumnDialog } from "@/components/board/column-dialog";
 import { TaskCardContent } from "@/components/board/task-card";
 import { TaskDialog } from "@/components/task/task-dialog";
@@ -82,6 +83,35 @@ export function KanbanBoard({
     { open: false },
   );
   const [columnToDelete, setColumnToDelete] = React.useState<ColumnDTO | null>(null);
+
+  /**
+   * The cards picked out for a bulk edit.
+   *
+   * A set of ids rather than a flag on each card, because the cards live in
+   * `grouped` and a drag rebuilds that structure — a flag would have to survive
+   * every reorder, and the one that did not would be a card that silently left
+   * the selection.
+   */
+  const [selected, setSelected] = React.useState<ReadonlySet<string>>(() => new Set());
+  const toggleSelect = React.useCallback((taskId: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(taskId)) next.add(taskId);
+      return next;
+    });
+  }, []);
+  const clearSelection = React.useCallback(() => setSelected(new Set()), []);
+
+  // Escape lets go of everything, which is the only way out that does not
+  // involve finding each selected card again.
+  React.useEffect(() => {
+    if (!selected.size) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") clearSelection();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected.size, clearSelection]);
 
   // Re-sync whenever the server sends fresh data (router.refresh, navigation…).
   React.useEffect(() => {
@@ -265,6 +295,8 @@ export function KanbanBoard({
                 projectKey={projectKey}
                 canEdit={canEdit}
                 onOpenTask={onOpenTask}
+                selectedIds={selected}
+                onToggleSelect={canEdit ? toggleSelect : undefined}
                 onAddTask={(columnId) => setTaskDialog({ open: true, columnId })}
                 onEditColumn={(c) => setColumnDialog({ open: true, column: c })}
                 onDeleteColumn={setColumnToDelete}
@@ -311,6 +343,17 @@ export function KanbanBoard({
         onOpenChange={(open) => setColumnDialog({ open, column: columnDialog.column })}
         projectId={projectId}
         column={columnDialog.column}
+      />
+
+      <BulkBar
+        selected={[...selected]}
+        members={members}
+        canEdit={canEdit}
+        onClear={clearSelection}
+        // The board keeps its own copy of the tasks so a drag can be optimistic;
+        // a bulk edit writes behind that copy, so the server has to be asked
+        // again or the cards keep showing what they said before.
+        onDone={() => router.refresh()}
       />
 
       <ConfirmDialog

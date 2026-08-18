@@ -112,6 +112,31 @@ export const taskUpdateSchema = z.object({
   labelIds: z.array(z.string().min(1)).optional(),
 });
 
+/**
+ * The same edit applied to many tasks at once.
+ *
+ * A subset of `taskUpdateSchema`, deliberately: title, description and estimate
+ * are per-task facts and setting them across a selection is a mistake somebody
+ * makes once. What is left is the four things a bulk selection is actually for.
+ *
+ * The cap is not arithmetic hygiene — each task is a separate permission check,
+ * transaction, activity row and notification fan-out, so a selection of a
+ * thousand is a thousand of each, arriving as one click with no progress and no
+ * way to stop it.
+ */
+export const bulkTaskUpdateSchema = z.object({
+  taskIds: z.array(z.string().min(1)).min(1).max(100),
+  status: z.nativeEnum(TaskStatus).optional(),
+  priority: z.nativeEnum(Priority).optional(),
+  assigneeId: z.string().min(1).nullish(),
+  dueDate: optionalDate,
+});
+
+/** The tasks to remove, from a selection. Same cap and the same reason. */
+export const bulkTaskDeleteSchema = z.object({
+  taskIds: z.array(z.string().min(1)).min(1).max(100),
+});
+
 /** Payload emitted by the Kanban board after a drag ends. */
 export const taskMoveSchema = z.object({
   taskId: z.string().min(1),

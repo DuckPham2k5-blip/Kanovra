@@ -13,7 +13,10 @@ import {
   taskCreateSchema,
   taskDeleteSchema,
   taskMoveSchema,
+  bulkTaskDeleteSchema,
+  bulkTaskUpdateSchema,
   taskUpdateSchema,
+  type TaskUpdateInput,
 } from "@/lib/validations";
 import { fail, NOT_FOUND, ok, parse, withErrorHandling, type ActionResult } from "@/server/action-result";
 
@@ -111,6 +114,127 @@ export async function createTask(input: unknown): Promise<ActionResult<{ id: str
   });
 }
 
+type TaskContext = NonNullable<Awaited<ReturnType<typeof getTaskContext>>>;
+type Actor = Awaited<ReturnType<typeof requireUser>>;
+
+/**
+ * Everything one task update does, minus the auth and the revalidate.
+ *
+ * Pulled out so a bulk edit runs the *same* path rather than a second one beside
+ * it. The write is the easy half; what would drift in a parallel implementation
+ * is the rest — moving the card to a column whose status matches, stamping
+ * `completedAt`, and the activity rows and notifications that make a change
+ * visible to the people watching the task. A bulk edit that quietly skips those
+ * is a bulk edit nobody hears about.
+ *
+ * The caller checks permission and revalidates: one selection is one revalidate,
+ * not one per task.
+ */
+async function applyTaskUpdate(user: Actor, ctx: TaskContext, data: TaskUpdateInput) {
+  const before = ctx.task;
+  const statusChanged = data.status !== undefined && data.status !== before.status;
+  const nowDone = data.status === TaskStatus.DONE;
+
+  // Keep the card on a column whose status matches its new lifecycle state.
+  let columnId = before.columnId;
+  if (statusChanged) {
+    const match = await prisma.boardColumn.findFirst({
+      where: { projectId: before.projectId, status: data.status },
+      orderBy: { order: "asc" },
+      select: { id: true },
+    });
+    if (match) columnId = match.id;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.task.update({
+      where: { id: data.taskId },
+      data: {
+        ...(data.title !== undefined ? { title: data.title } : {}),
+        ...(data.description !== undefined ? { description: data.description || null } : {}),
+        ...(data.status !== undefined ? { status: data.status, columnId } : {}),
+        ...(data.priority !== undefined ? { priority: data.priority } : {}),
+        ...(data.assigneeId !== undefined ? { assigneeId: data.assigneeId ?? null } : {}),
+        ...(data.startDate !== undefined ? { startDate: data.startDate ?? null } : {}),
+        ...(data.dueDate !== undefined ? { dueDate: data.dueDate ?? null } : {}),
+        ...(data.estimate !== undefined ? { estimate: data.estimate ?? null } : {}),
+        ...(statusChanged ? { completedAt: nowDone ? new Date() : null } : {}),
+      },
+    });
+
+    if (data.labelIds) {
+      await tx.taskLabel.deleteMany({ where: { taskId: data.taskId } });
+      if (data.labelIds.length) {
+        await tx.taskLabel.createMany({
+          data: data.labelIds.map((labelId) => ({ taskId: data.taskId, labelId })),
+        });
+      }
+    }
+  });
+
+  const ref = `${ctx.project.key}-${before.number}`;
+  const link = taskLink(ctx.workspace.slug, before.projectId, before.id);
+
+  // Activity + notification fan-out for the changes people care about.
+  if (statusChanged) {
+    await logActivity({
+      workspaceId: ctx.workspace.id,
+      projectId: before.projectId,
+      taskId: before.id,
+      actorId: user.id,
+      type: nowDone ? "TASK_COMPLETED" : before.status === TaskStatus.DONE ? "TASK_REOPENED" : "TASK_UPDATED",
+      message: `${user.name} changed the status of ${ref}`,
+      metadata: { from: before.status, to: data.status },
+    });
+    if (nowDone) {
+      await notifyMany(await taskWatchers(before.id), {
+        workspaceId: ctx.workspace.id,
+        actorId: user.id,
+        type: "TASK_COMPLETED",
+        title: `${ref} is done`,
+        body: before.title,
+        link,
+      });
+    }
+  }
+
+  if (data.assigneeId !== undefined && data.assigneeId !== before.assigneeId) {
+    await logActivity({
+      workspaceId: ctx.workspace.id,
+      projectId: before.projectId,
+      taskId: before.id,
+      actorId: user.id,
+      type: data.assigneeId ? "TASK_ASSIGNED" : "TASK_UNASSIGNED",
+      message: data.assigneeId
+        ? `${user.name} assigned ${ref} to someone`
+        : `${user.name} unassigned ${ref}`,
+    });
+    if (data.assigneeId) {
+      await notify({
+        userId: data.assigneeId,
+        workspaceId: ctx.workspace.id,
+        actorId: user.id,
+        type: "TASK_ASSIGNED",
+        title: "A task was assigned to you",
+        body: `${ref}: ${before.title}`,
+        link,
+      });
+    }
+  }
+
+  if (data.priority !== undefined && data.priority !== before.priority) {
+    await logActivity({
+      workspaceId: ctx.workspace.id,
+      projectId: before.projectId,
+      taskId: before.id,
+      actorId: user.id,
+      type: "TASK_UPDATED",
+      message: `${user.name} set the priority of ${ref} to ${PRIORITY_META[data.priority].label}`,
+    });
+  }
+
+}
+
 export async function updateTask(input: unknown): Promise<ActionResult> {
   return withErrorHandling(async () => {
     const user = await requireUser();
@@ -121,110 +245,61 @@ export async function updateTask(input: unknown): Promise<ActionResult> {
     if (!can(ctx.role, "task:update")) throw new ForbiddenError();
     if (data.assigneeId !== undefined && !can(ctx.role, "task:assign")) throw new ForbiddenError();
 
-    const before = ctx.task;
-    const statusChanged = data.status !== undefined && data.status !== before.status;
-    const nowDone = data.status === TaskStatus.DONE;
+    await applyTaskUpdate(user, ctx, data);
 
-    // Keep the card on a column whose status matches its new lifecycle state.
-    let columnId = before.columnId;
-    if (statusChanged) {
-      const match = await prisma.boardColumn.findFirst({
-        where: { projectId: before.projectId, status: data.status },
-        orderBy: { order: "asc" },
-        select: { id: true },
-      });
-      if (match) columnId = match.id;
-    }
-
-    await prisma.$transaction(async (tx) => {
-      await tx.task.update({
-        where: { id: data.taskId },
-        data: {
-          ...(data.title !== undefined ? { title: data.title } : {}),
-          ...(data.description !== undefined ? { description: data.description || null } : {}),
-          ...(data.status !== undefined ? { status: data.status, columnId } : {}),
-          ...(data.priority !== undefined ? { priority: data.priority } : {}),
-          ...(data.assigneeId !== undefined ? { assigneeId: data.assigneeId ?? null } : {}),
-          ...(data.startDate !== undefined ? { startDate: data.startDate ?? null } : {}),
-          ...(data.dueDate !== undefined ? { dueDate: data.dueDate ?? null } : {}),
-          ...(data.estimate !== undefined ? { estimate: data.estimate ?? null } : {}),
-          ...(statusChanged ? { completedAt: nowDone ? new Date() : null } : {}),
-        },
-      });
-
-      if (data.labelIds) {
-        await tx.taskLabel.deleteMany({ where: { taskId: data.taskId } });
-        if (data.labelIds.length) {
-          await tx.taskLabel.createMany({
-            data: data.labelIds.map((labelId) => ({ taskId: data.taskId, labelId })),
-          });
-        }
-      }
-    });
-
-    const ref = `${ctx.project.key}-${before.number}`;
-    const link = taskLink(ctx.workspace.slug, before.projectId, before.id);
-
-    // Activity + notification fan-out for the changes people care about.
-    if (statusChanged) {
-      await logActivity({
-        workspaceId: ctx.workspace.id,
-        projectId: before.projectId,
-        taskId: before.id,
-        actorId: user.id,
-        type: nowDone ? "TASK_COMPLETED" : before.status === TaskStatus.DONE ? "TASK_REOPENED" : "TASK_UPDATED",
-        message: `${user.name} changed the status of ${ref}`,
-        metadata: { from: before.status, to: data.status },
-      });
-      if (nowDone) {
-        await notifyMany(await taskWatchers(before.id), {
-          workspaceId: ctx.workspace.id,
-          actorId: user.id,
-          type: "TASK_COMPLETED",
-          title: `${ref} is done`,
-          body: before.title,
-          link,
-        });
-      }
-    }
-
-    if (data.assigneeId !== undefined && data.assigneeId !== before.assigneeId) {
-      await logActivity({
-        workspaceId: ctx.workspace.id,
-        projectId: before.projectId,
-        taskId: before.id,
-        actorId: user.id,
-        type: data.assigneeId ? "TASK_ASSIGNED" : "TASK_UNASSIGNED",
-        message: data.assigneeId
-          ? `${user.name} assigned ${ref} to someone`
-          : `${user.name} unassigned ${ref}`,
-      });
-      if (data.assigneeId) {
-        await notify({
-          userId: data.assigneeId,
-          workspaceId: ctx.workspace.id,
-          actorId: user.id,
-          type: "TASK_ASSIGNED",
-          title: "A task was assigned to you",
-          body: `${ref}: ${before.title}`,
-          link,
-        });
-      }
-    }
-
-    if (data.priority !== undefined && data.priority !== before.priority) {
-      await logActivity({
-        workspaceId: ctx.workspace.id,
-        projectId: before.projectId,
-        taskId: before.id,
-        actorId: user.id,
-        type: "TASK_UPDATED",
-        message: `${user.name} set the priority of ${ref} to ${PRIORITY_META[data.priority].label}`,
-      });
-    }
-
-    revalidateProject(ctx.workspace.slug, before.projectId);
+    revalidateProject(ctx.workspace.slug, ctx.task.projectId);
     return ok(undefined);
+  });
+}
+
+/**
+ * One edit, applied to a selection.
+ *
+ * Sequential rather than parallel, and one action rather than one call per task.
+ * Server Actions are rate-limited per signed-in user in middleware, so a client
+ * loop over twenty cards is twenty requests against that allowance and the tail
+ * of the selection silently fails — which looks like "bulk edit only works
+ * sometimes". Sequential because each task writes activity and notifications,
+ * and twenty concurrent transactions on one project is a deadlock waiting for
+ * somebody's slow database.
+ *
+ * A task that has vanished, or that belongs to a workspace this person is not in,
+ * is skipped rather than failing the batch: the selection was assembled from a
+ * page that may be seconds out of date, and losing nineteen good edits to one
+ * stale id is the wrong answer. Permission is *not* skipped — that throws, since
+ * a selection is all in reach or none of it is.
+ *
+ * Revalidation is per project touched, not per task, which matters because a
+ * selection made in "My tasks" can span several.
+ */
+export async function bulkUpdateTasks(
+  input: unknown,
+): Promise<ActionResult<{ updated: number; skipped: number }>> {
+  return withErrorHandling(async () => {
+    const user = await requireUser();
+    const { taskIds, ...patch } = parse(bulkTaskUpdateSchema, input);
+
+    const touched = new Map<string, { slug: string; projectId: string }>();
+    let updated = 0;
+
+    for (const taskId of taskIds) {
+      const ctx = await getTaskContext(user.id, taskId);
+      if (!ctx) continue;
+      if (!can(ctx.role, "task:update")) throw new ForbiddenError();
+      if (patch.assigneeId !== undefined && !can(ctx.role, "task:assign")) {
+        throw new ForbiddenError();
+      }
+
+      await applyTaskUpdate(user, ctx, { ...patch, taskId });
+      updated += 1;
+      touched.set(ctx.task.projectId, {
+        slug: ctx.workspace.slug,
+        projectId: ctx.task.projectId,
+      });
+    }
+
+    for (const { slug, projectId } of touched.values()) revalidateProject(slug, projectId);
+    return ok({ updated, skipped: taskIds.length - updated });
   });
 }
 
@@ -373,6 +448,58 @@ export async function deleteTask(input: unknown): Promise<ActionResult> {
 }
 
 /** Copies a task (fields, labels and checklist) into the same column. */
+/**
+ * Removes a selection.
+ *
+ * The permission rule is the per-task one, applied per task: a member may delete
+ * what they wrote, and somebody else's needs admin. So a mixed selection is
+ * *partly* deletable, and this deletes that part rather than refusing the lot —
+ * refusing would make the feature unusable on any shared board, and deleting
+ * everything would be a quiet privilege escalation.
+ *
+ * The count comes back so the caller can say "6 of 9 deleted" instead of
+ * reporting success and leaving three cards on screen with no explanation.
+ */
+export async function bulkDeleteTasks(
+  input: unknown,
+): Promise<ActionResult<{ deleted: number; skipped: number }>> {
+  return withErrorHandling(async () => {
+    const user = await requireUser();
+    const { taskIds } = parse(bulkTaskDeleteSchema, input);
+
+    const touched = new Map<string, { slug: string; projectId: string }>();
+    let deleted = 0;
+
+    for (const taskId of taskIds) {
+      const ctx = await getTaskContext(user.id, taskId);
+      if (!ctx) continue;
+
+      const isAuthor = ctx.task.createdById === user.id;
+      if (!can(ctx.role, "task:delete") || (!isAuthor && !can(ctx.role, "comment:delete_any"))) {
+        continue;
+      }
+
+      await prisma.task.delete({ where: { id: taskId } });
+      await logActivity({
+        workspaceId: ctx.workspace.id,
+        projectId: ctx.task.projectId,
+        actorId: user.id,
+        type: "TASK_DELETED",
+        message: `${user.name} deleted ${ctx.project.key}-${ctx.task.number}: ${ctx.task.title}`,
+      });
+
+      deleted += 1;
+      touched.set(ctx.task.projectId, {
+        slug: ctx.workspace.slug,
+        projectId: ctx.task.projectId,
+      });
+    }
+
+    for (const { slug, projectId } of touched.values()) revalidateProject(slug, projectId);
+    return ok({ deleted, skipped: taskIds.length - deleted });
+  });
+}
+
 export async function duplicateTask(taskId: string): Promise<ActionResult<{ id: string }>> {
   return withErrorHandling(async () => {
     const user = await requireUser();

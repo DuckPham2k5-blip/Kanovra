@@ -24,6 +24,8 @@ export function BoardColumn({
   projectKey,
   canEdit,
   onOpenTask,
+  selectedIds,
+  onToggleSelect,
   onAddTask,
   onEditColumn,
   onDeleteColumn,
@@ -33,6 +35,8 @@ export function BoardColumn({
   projectKey: string;
   canEdit: boolean;
   onOpenTask: (taskId: string) => void;
+  selectedIds?: ReadonlySet<string>;
+  onToggleSelect?: (taskId: string) => void;
   onAddTask: (columnId: string) => void;
   onEditColumn: (column: ColumnDTO) => void;
   onDeleteColumn: (column: ColumnDTO) => void;
@@ -135,6 +139,9 @@ export function BoardColumn({
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map((task) => (
             <SortableTaskCard
+              selected={selectedIds?.has(task.id)}
+              selecting={!!selectedIds?.size}
+              onToggleSelect={onToggleSelect}
               key={task.id}
               task={task}
               projectKey={projectKey}
