@@ -422,6 +422,16 @@
   /* Sits low enough that its bright centre clears the 4rem top bar — at
      `top: -18rem` the peak landed 16px from the top of the viewport, hidden
      behind the chrome, which is why the colour change was invisible. */
+  /* The mote field. Fills the ambient layer, which is already `fixed inset-0
+     z-0 pointer-events-none`, so this inherits all of that and adds nothing —
+     in particular it must not reach for a negative z-index, which would drop it
+     into the root stacking context and paint it behind the shell's own opaque
+     background, invisible at any opacity. That mistake cost three wrong
+     diagnoses the last time it was made here. */
+  .tf-ambient-particles {
+    @apply absolute inset-0 h-full w-full;
+  }
+
   .tf-ambient-bloom {
     @apply absolute left-1/2 h-[44rem] w-[70rem] -translate-x-1/2;
     top: -13rem;
@@ -1174,7 +1184,8 @@
   /* Pop keeps the fade and loses the scale. What the preference is about is
      things changing size and position under the eye; an opacity ramp is neither,
      and without it a panel would appear with no transition at all, which reads
-     as a glitch rather than as calm. */
+     as a glitch rather than as calm.
+
      Swapped to keyframes that touch opacity only, rather than pinning `scale`
      alongside the original animation — an animation wins over a plain
      declaration on the same property, so `scale: 1` here would have changed

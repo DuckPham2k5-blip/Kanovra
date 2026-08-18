@@ -1,3 +1,4 @@
+import { AmbientParticles } from "@/components/layout/ambient-particles";
 import { cn } from "@/lib/utils";
 
 /**
@@ -58,6 +59,12 @@ export function AmbientBackdrop({
 
       {/* Horizon streak — the bright sliver under the hero. */}
       <div className="tf-ambient-horizon" />
+
+      {/* Drifting motes, above the wash and below nothing — the arcs are
+          hairlines and reading them through a scattering of 1px dots is fine,
+          while putting the motes underneath the bloom would hide most of them in
+          the one part of the screen they are all heading for. */}
+      <AmbientParticles />
     </div>
   );
 }
