@@ -48,6 +48,13 @@ export const RANK_RATIO = 1.22;
 export const RANK_MIN = -40;
 export const RANK_MAX = 40;
 
+/**
+ * What a node is, when its type cares. Exported for the same reason as the
+ * constants above: the schema defaults to it and so does every place that builds
+ * a node by hand, and a literal repeated in both is a literal that drifts.
+ */
+export const DEFAULT_KIND = "step" as const;
+
 export const canvasNodeSchema = z.object({
   id: z.string().min(1).max(64),
   text: z.string().trim().max(160).default(""),
@@ -110,6 +117,25 @@ export const canvasNodeSchema = z.object({
    * hangs off, so one fat branch pushes only its own descendants outward.
    */
   thickness: z.number().finite().min(24).max(2000).default(DEFAULT_THICKNESS),
+  /**
+   * Whether this node continues the sequence or explains one of its steps.
+   * Only a flow map reads it.
+   *
+   * A flow map needs two kinds of child and `parentId` cannot express the
+   * difference. The chain has to *be* a chain in the parent links, or the arrows
+   * — which are drawn parent to child — would all fan out of the first box
+   * instead of running through them one after another. So the next step is a
+   * step's child, and an explanation is also a step's child, and something has to
+   * say which is which.
+   *
+   * A scalar on the node rather than a second kind of link. `role` on a double
+   * bubble was the same shape and worked; what made that one a mistake was the
+   * alternative it was chosen over — a second parent — which would have made every
+   * walk and orphan check handle graphs to express a fact true of one map type.
+   * This changes nothing about the graph: a note has one parent like everything
+   * else, and every other type simply never looks at the field.
+   */
+  kind: z.enum(["step", "note"]).default(DEFAULT_KIND),
 });
 
 /**
@@ -167,6 +193,7 @@ export function seedNodes(_type: MindMapType, title: string): CanvasNode[] {
       rank: 1,
       weight: DEFAULT_WEIGHT,
       thickness: DEFAULT_THICKNESS,
+      kind: DEFAULT_KIND,
     },
   ];
 }

@@ -237,6 +237,16 @@ export type MindMapStyle = {
   node: "circle" | "box" | "pill";
   ring: boolean;
   edge: "solid" | "dashed" | "elbow" | "arrow";
+  /**
+   * Whether a box's corners are rounded off.
+   *
+   * Only a flow map asks for square ones, and it asks for a reason: a flow map is
+   * a sequence of discrete states, and a rounded box reads as softer and less
+   * definite than the step it stands for. Kept as a flag on the style rather than
+   * a second `node` value, because "sharp" is not a different shape — the box is
+   * the same box, laid out and routed around identically.
+   */
+  corner?: "sharp";
 };
 
 const STYLES: Record<MindMapType, MindMapStyle> = {
@@ -247,8 +257,9 @@ const STYLES: Record<MindMapType, MindMapStyle> = {
   [MindMapType.BUBBLE]: { node: "circle", ring: false, edge: "dashed" },
   // Groups and members: hierarchy, so square corners and right-angled joins.
   [MindMapType.TREE]: { node: "box", ring: false, edge: "elbow" },
-  // One thing after another.
-  [MindMapType.FLOW]: { node: "pill", ring: false, edge: "arrow" },
+  // One thing after another, as discrete states: square boxes and right-angled
+  // arrows. It was a pill, which reads as softer than a step in a procedure.
+  [MindMapType.FLOW]: { node: "box", ring: false, edge: "arrow", corner: "sharp" },
   // Causes in, effects out — direction is the whole point.
   [MindMapType.MULTI_FLOW]: { node: "box", ring: false, edge: "arrow" },
   // A whole divided into parts, which is a bracket — an actual one, spanning

@@ -37,6 +37,21 @@ const COL_GAP = 110;
 /** Space between two nodes sharing a column. */
 const ROW_GAP = 46;
 
+/**
+ * How wide a flow map's row is allowed to get before it wraps.
+ *
+ * A width rather than a number of steps, because node size is chosen freely: four
+ * large boxes are wider than eight ordinary ones, and a fixed count would run one
+ * of those rows straight off the screen the wrap exists to prevent.
+ */
+const FLOW_WRAP = 1180;
+
+/** Space between a flow step and the explanation hanging under it. */
+const NOTE_GAP = 54;
+
+/** Space between one wrapped row of a flow map and the next. */
+const ROW_BREAK = 120;
+
 /** A cycle in `parentId` cannot be reached from the root, but self-parenting can. */
 const GUARD = 200;
 
@@ -53,6 +68,14 @@ export function isStructured(type: MindMapType) {
   switch (type) {
     case MindMapType.CIRCLE:
     case MindMapType.BUBBLE:
+    // Multi-flow was laid out here, alternating branches left and right by the
+    // order they were added. That rule decided which of somebody's causes were
+    // causes: add a third one and it lands on the effect side because it happens
+    // to be third. Position carries the meaning on this type — the arrowhead is
+    // already chosen from which side a node ended up on — so the arrangement is
+    // the author's, and `layoutNodes` still knows the old shape purely to seed a
+    // map that has never been arranged.
+    case MindMapType.MULTI_FLOW:
       return false;
     default:
       return true;
@@ -120,10 +143,20 @@ function stackColumn(
   return { rows, height: Math.max(0, cursor - ROW_GAP) };
 }
 
+/**
+ * The arrangement a type would choose for these nodes.
+ *
+ * No longer gated on `isStructured`: multi-flow is a free canvas now and still
+ * needs this once, to seed a map whose nodes have never been arranged. The types
+ * with no case below simply place nothing, which is the same empty answer the
+ * gate used to give. Callers that must not move a node still ask `isStructured`
+ * first — the check belongs with the decision to *apply* a layout, not with the
+ * ability to compute one.
+ */
 export function layoutNodes(type: MindMapType, nodes: CanvasNode[]): Map<string, Point> {
   const placed = new Map<string, Point>();
   const root = nodes.find((node) => node.parentId === null);
-  if (!root || !isStructured(type)) return placed;
+  if (!root) return placed;
 
   const cache = new Map<string, { w: number; h: number }>();
   const size = (id: string) => {
@@ -196,15 +229,96 @@ export function layoutNodes(type: MindMapType, nodes: CanvasNode[]): Map<string,
     }
 
     case MindMapType.FLOW: {
-      // One thing after another, in the order they were added, each step clear
-      // of the last by its own half-width rather than by a fixed pitch.
-      let x = 0;
-      let previous: number | null = null;
-      walk(nodes, root.id, (id) => {
+      /*
+       * One thing after another, wrapping like text and doubling back.
+       *
+       * A single unbroken row was the old shape, and a procedure of a dozen steps
+       * ran off the side of any screen: the map was legible only by panning, and
+       * panning a sequence is exactly the thing you cannot do while comparing its
+       * ends. Rows alternate direction so the last box of one row sits directly
+       * above the first box of the next, which is what makes the join a short
+       * right-angled hop instead of a line back across the whole drawing.
+       *
+       * A step can carry explanations underneath it — the `note` kind — and those
+       * hang in a column below their step. They are laid out here rather than
+       * dragged, so an explanation can never end up under a different step than
+       * the one it belongs to.
+       */
+      const stepsOf = (id: string) =>
+        childrenOf(nodes, id).filter((node) => node.id !== id && node.kind !== "note");
+      const notesOf = (id: string) =>
+        childrenOf(nodes, id).filter((node) => node.id !== id && node.kind === "note");
+
+      // The sequence, in the order it was built.
+      const sequence: string[] = [];
+      const follow = (id: string, depth: number) => {
+        if (depth > GUARD) return;
+        sequence.push(id);
+        for (const step of stepsOf(id)) follow(step.id, depth + 1);
+      };
+      follow(root.id, 0);
+
+      // Rows by width, not by count: a row of four rank-3 boxes is wider than a
+      // row of eight ordinary ones, and a fixed count would run one of them off
+      // the screen the wrap exists to prevent.
+      const rows: string[][] = [];
+      let row: string[] = [];
+      let used = 0;
+      for (const id of sequence) {
         const w = size(id).w;
-        if (previous !== null) x += previous / 2 + COL_GAP + w / 2;
-        placed.set(id, { x, y: 0 });
-        previous = w;
+        const next = row.length ? used + COL_GAP + w : w;
+        if (row.length && next > FLOW_WRAP) {
+          rows.push(row);
+          row = [id];
+          used = w;
+        } else {
+          row.push(id);
+          used = next;
+        }
+      }
+      if (row.length) rows.push(row);
+
+      /** Stacks a step's explanations below it, returning the bottom reached. */
+      const stackNotes = (parentId: string, x: number, from: number, depth: number): number => {
+        if (depth > GUARD) return from;
+        let bottom = from;
+        for (const note of notesOf(parentId)) {
+          const h = size(note.id).h;
+          bottom += NOTE_GAP;
+          placed.set(note.id, { x, y: bottom + h / 2 });
+          bottom += h;
+          bottom = stackNotes(note.id, x, bottom, depth + 1);
+        }
+        return bottom;
+      };
+
+      let top = 0;
+      rows.forEach((ids, index) => {
+        // Offsets from the row's left edge, before the direction is applied.
+        const offsets: number[] = [];
+        let cursor = 0;
+        for (const id of ids) {
+          const w = size(id).w;
+          cursor += w / 2;
+          offsets.push(cursor);
+          cursor += w / 2 + COL_GAP;
+        }
+        const rowWidth = cursor - COL_GAP;
+
+        // Even rows run left to right, odd rows right to left. Mirroring the
+        // offsets rather than laying them out backwards keeps the gaps between
+        // boxes identical in both directions.
+        const rightward = index % 2 === 0;
+        let depth = 0;
+
+        ids.forEach((id, at) => {
+          const x = rightward ? offsets[at] : rowWidth - offsets[at];
+          const h = size(id).h;
+          placed.set(id, { x, y: top + h / 2 });
+          depth = Math.max(depth, stackNotes(id, x, top + h, 0) - top);
+        });
+
+        top += depth + ROW_BREAK;
       });
       break;
     }

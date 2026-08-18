@@ -2,6 +2,7 @@ import { MindMapType } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
 import {
+  DEFAULT_KIND,
   DEFAULT_THICKNESS,
   DEFAULT_WEIGHT,
   nodeSize,
@@ -33,6 +34,7 @@ function node(id: string, parentId: string | null, rank = 0, x = 0, y = 0): Canv
     rank,
     weight: DEFAULT_WEIGHT,
     thickness: DEFAULT_THICKNESS,
+    kind: DEFAULT_KIND,
   };
 }
 

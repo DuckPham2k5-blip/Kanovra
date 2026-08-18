@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MindMapWheel } from "@/components/mind-map/mind-map-wheel";
 import {
+  DEFAULT_KIND,
   DEFAULT_WEIGHT,
   clampRank,
   newNodeId,
@@ -412,7 +413,19 @@ export function MindMapCanvas({
       const to = rects.get(node.id);
       if (!from || !to) continue;
 
-      const axis = edgeAxis(type);
+      /*
+       * A flow map's explanations hang *below* their step, so their connector
+       * leaves the bottom edge and not the side. Everything else on that map runs
+       * along the sequence, which is horizontal.
+       *
+       * Decided per edge rather than per type because a flow map is the one type
+       * with two kinds of connection in it — the arrow that means "and then" and
+       * the stub that means "about this". Handing the whole map to `edgeAxis` to
+       * work that out was tried once for the bridge map and is what got that
+       * signature simplified back again; the node already knows which it is.
+       */
+      const axis =
+        type === MindMapType.FLOW && node.kind === "note" ? "v" : edgeAxis(type);
       if (axis === "free") {
         const [a, b] = trimStraight(from, to, style.node === "circle");
         out.push({
@@ -456,6 +469,39 @@ export function MindMapCanvas({
     setOffset({ x: el.clientWidth / 2, y: el.clientHeight / 2 });
   }, []);
 
+  /**
+   * Gives a multi-flow map coordinates the first time it is opened as a free
+   * canvas.
+   *
+   * Its positions used to be computed on every render and never stored, so every
+   * node on an existing one still holds the `x: 0, y: 0` it was created with.
+   * Simply switching the type to free would stack the whole map on the origin,
+   * which reads as the map having been wiped. Seeding from the arrangement it
+   * used to draw means it opens looking exactly as it did before, and is
+   * draggable from there.
+   *
+   * Runs once, and only when *every* node is still at the origin — anything else
+   * is an arrangement somebody made, including one they made by dragging
+   * everything into a pile.
+   */
+  const seeded = React.useRef(false);
+  React.useEffect(() => {
+    if (seeded.current || type !== MindMapType.MULTI_FLOW || !canEdit) return;
+    if (nodes.length < 2 || nodes.some((node) => node.x !== 0 || node.y !== 0)) return;
+
+    const arrangement = layoutNodes(MindMapType.MULTI_FLOW, nodes);
+    if (!arrangement.size) return;
+
+    seeded.current = true;
+    setNodes((prev) =>
+      prev.map((node) => {
+        const at = arrangement.get(node.id);
+        return at ? { ...node, x: at.x, y: at.y } : node;
+      }),
+    );
+    setDirty(true);
+  }, [canEdit, nodes, type]);
+
   /** Screen point to map coordinates, undoing the pan and the zoom. */
   function toWorld(event: { clientX: number; clientY: number }) {
     const rect = viewportRef.current?.getBoundingClientRect();
@@ -470,7 +516,27 @@ export function MindMapCanvas({
     setDirty(true);
   }
 
-  function addChild(parent: CanvasNode, rank: number) {
+  function addChild(pressed: CanvasNode, rank: number, kind: CanvasNode["kind"] = DEFAULT_KIND) {
+    /*
+     * An explanation joins the bottom of the column already hanging off this
+     * step, rather than becoming a second child of the step itself.
+     *
+     * Two notes sharing a parent means two connectors leaving the same edge, and
+     * the router has to take the second one out and around the first — which
+     * draws a line looping into the box from the side for no reason a reader can
+     * see. Found by rendering a flow map with two explanations on one step and
+     * looking at it. Chained, each connector is a short hop straight down, which
+     * is also how the sketch this was built from draws them.
+     */
+    let parent = pressed;
+    if (kind === "note") {
+      for (let guard = 0; guard < 200; guard += 1) {
+        const next = nodes.find((n) => n.parentId === parent.id && n.kind === "note");
+        if (!next) break;
+        parent = next;
+      }
+    }
+
     // Below-right of its parent, then nudged clear of anything already there —
     // two nodes stacked exactly on top of each other read as one, and the
     // second is only discovered by dragging the first.
@@ -498,6 +564,7 @@ export function MindMapCanvas({
       y,
       parentId: parent.id,
       rank,
+      kind,
       weight: DEFAULT_WEIGHT,
       thickness: RING_THICKNESS,
     };
@@ -605,6 +672,7 @@ export function MindMapCanvas({
         y: 0,
         parentId: parent.id,
         rank: 0,
+        kind: DEFAULT_KIND,
         weight: 1,
         thickness: RING_THICKNESS,
       });
@@ -635,6 +703,7 @@ export function MindMapCanvas({
       y: 0,
       parentId,
       rank: 0,
+      kind: DEFAULT_KIND,
       weight: 1,
       thickness: RING_THICKNESS,
     };
@@ -1128,7 +1197,9 @@ export function MindMapCanvas({
                     ? "rounded-full p-3 text-center"
                     : style.node === "pill"
                       ? "rounded-full px-5 py-2"
-                      : "rounded-md px-3 py-2",
+                      : style.corner === "sharp"
+                        ? "rounded-none px-3 py-2"
+                        : "rounded-md px-3 py-2",
                   canEdit && !structured && "cursor-grab active:cursor-grabbing",
                   fresh.has(node.id) && "tf-map-node-in",
                 )}
@@ -1284,16 +1355,45 @@ export function MindMapCanvas({
 
                         The new node inherits its parent's size, which is what the
                         middle option did and the only one of the three that
-                        needed no decision from the author. */}
-                    <button
-                      type="button"
-                      aria-label="Add a connected node"
-                      onClick={() => addChild(node, node.rank)}
-                      className="rounded-full border bg-background p-1 shadow-sm"
-                      style={{ borderColor: mindMapColor(type, 0.5) }}
-                    >
-                      <Plus className="size-3.5" />
-                    </button>
+                        needed no decision from the author.
+
+                        A flow map is the exception, and it is a real choice
+                        rather than a restated one: a step can be followed by the
+                        next step or explained by a box underneath it, and those
+                        are different things that both hang off the same node.
+                        Nothing else on the canvas has two kinds of child. */}
+                    {type === MindMapType.FLOW ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label="Add a step or an explanation"
+                            className="rounded-full border bg-background p-1 shadow-sm"
+                            style={{ borderColor: mindMapColor(type, 0.5) }}
+                          >
+                            <Plus className="size-3.5" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          <DropdownMenuItem onClick={() => addChild(node, node.rank, "step")}>
+                            <Plus /> Add the next step
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => addChild(node, node.rank, "note")}>
+                            <MessageSquare /> Add an explanation
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <button
+                        type="button"
+                        aria-label="Add a connected node"
+                        onClick={() => addChild(node, node.rank)}
+                        className="rounded-full border bg-background p-1 shadow-sm"
+                        style={{ borderColor: mindMapColor(type, 0.5) }}
+                      >
+                        <Plus className="size-3.5" />
+                      </button>
+                    )}
 
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

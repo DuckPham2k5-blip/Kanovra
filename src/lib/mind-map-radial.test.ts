@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { CanvasNode, RadialSettings } from "@/lib/mind-map-canvas";
+import { DEFAULT_KIND, type CanvasNode, type RadialSettings } from "@/lib/mind-map-canvas";
 import {
   HUB_RADIUS,
   labelPlacement,
@@ -33,6 +33,7 @@ function node(id: string, parentId: string | null, extra: Partial<CanvasNode> = 
     rank: 0,
     weight: 1,
     thickness: 110,
+    kind: DEFAULT_KIND,
     ...extra,
   };
 }
