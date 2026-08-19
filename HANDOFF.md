@@ -114,19 +114,19 @@ The assistant's in-app browser has **no Clerk session** and lands on the
 marketing page. That page is the one route available for looking at shell-level
 CSS; anything behind sign-in cannot be seen.
 
-1. **Everything the task list gained late in the session** — the subtask fold on
-   the project list, the parent name on My tasks, the header select-all,
-   click-to-toggle once a selection exists, the per-row delete, and the count
-   reading top-level rows. The owner reported four faults against the first
-   attempt and all four are fixed but unseen.
+1. **The parent-name breadcrumb on "My tasks"** — and it cannot be seen with the
+   current data at all. The owner holds four assigned tasks and **none of them is
+   a subtask**; all fifteen assigned subtasks belong to the other four seed users.
+   The breadcrumb has nothing to render. To see it, assign a subtask to the owner
+   first.
 
-   Two of them are worth carrying forward as a pattern rather than as bugs. The
-   fold drew nothing at all against real data, because it assumed a parent and
-   child would appear in the same list — of the fifteen assigned subtasks here,
-   **zero** have a parent assigned to the same person. The parent-name breadcrumb
-   was present in the DOM and squeezed to zero width by a long title on the same
-   line. Both were built from an assumption about the data's shape that one query
-   would have settled beforehand.
+   This is the third time in the session something was built on an assumption
+   about the data's shape. The fold drew nothing because it required a parent and
+   child in the same list; the breadcrumb was first squeezed to zero width by a
+   long title, then found to have no rows to appear on. Each was one query away
+   from being known in advance — and the query that finally settled it was
+   running the real `getMyTasks` and printing what came back, not reasoning about
+   the component.
 2. **Bulk actions** — the owner confirmed only that card dragging still works.
    Untested: changing status actually moving cards between columns, Shift-click
    range selection, and whether the "6 done, 3 skipped" toast reports real
@@ -137,6 +137,11 @@ CSS; anything behind sign-in cannot be seen.
    written by somebody else, and this workspace has one member.
 
 ### Confirmed working by the owner
+
+- **The task list, after the four fixes**: searching now shows a matching subtask
+  rather than only its parent; clicking a row while a selection exists adds and
+  removes it; a chosen parent carries its subtasks into a delete while the count
+  still reads the number picked.
 
 - **Undo on a task delete.** Reported as *"ổn cả bốn"* against the four things
   asked: the toast's Undo button, a bulk delete undone in one press, pressing
