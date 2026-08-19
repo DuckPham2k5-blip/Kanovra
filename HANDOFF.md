@@ -15,8 +15,8 @@ unverified, and what is open.
 ## 1. State right now
 
 - Working directory: `C:\Users\PC\OneDrive\TaskForge`
-- Branch `main`, HEAD = `daf5253` plus the commit that updated this line
-- **33 commits this session**, on top of `d755608`
+- Branch `main`, HEAD = `a3c7702` plus the commit that updated this line
+- **35 commits this session**, on top of `d755608`
 - The dev server was stopped for the last build; check port 3000 before assuming
 
 | Check | Result |
@@ -114,11 +114,19 @@ The assistant's in-app browser has **no Clerk session** and lands on the
 marketing page. That page is the one route available for looking at shell-level
 CSS; anything behind sign-in cannot be seen.
 
-1. **The subtask fold on the project list, the parent name on My tasks, the
-   header select-all, and the per-row delete** — all written after the owner's
-   last test, none seen on screen. The fold in particular has now been built
-   twice: the first version drew nothing at all against real data, because it
-   required a parent and child to be in the same list.
+1. **Everything the task list gained late in the session** — the subtask fold on
+   the project list, the parent name on My tasks, the header select-all,
+   click-to-toggle once a selection exists, the per-row delete, and the count
+   reading top-level rows. The owner reported four faults against the first
+   attempt and all four are fixed but unseen.
+
+   Two of them are worth carrying forward as a pattern rather than as bugs. The
+   fold drew nothing at all against real data, because it assumed a parent and
+   child would appear in the same list — of the fifteen assigned subtasks here,
+   **zero** have a parent assigned to the same person. The parent-name breadcrumb
+   was present in the DOM and squeezed to zero width by a long title on the same
+   line. Both were built from an assumption about the data's shape that one query
+   would have settled beforehand.
 2. **Bulk actions** — the owner confirmed only that card dragging still works.
    Untested: changing status actually moving cards between columns, Shift-click
    range selection, and whether the "6 done, 3 skipped" toast reports real
