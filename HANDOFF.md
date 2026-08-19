@@ -114,19 +114,8 @@ The assistant's in-app browser has **no Clerk session** and lands on the
 marketing page. That page is the one route available for looking at shell-level
 CSS; anything behind sign-in cannot be seen.
 
-1. **The parent-name breadcrumb on "My tasks"** — and it cannot be seen with the
-   current data at all. The owner holds four assigned tasks and **none of them is
-   a subtask**; all fifteen assigned subtasks belong to the other four seed users.
-   The breadcrumb has nothing to render. To see it, assign a subtask to the owner
-   first.
-
-   This is the third time in the session something was built on an assumption
-   about the data's shape. The fold drew nothing because it required a parent and
-   child in the same list; the breadcrumb was first squeezed to zero width by a
-   long title, then found to have no rows to appear on. Each was one query away
-   from being known in advance — and the query that finally settled it was
-   running the real `getMyTasks` and printing what came back, not reasoning about
-   the component.
+1. **Bulk status change actually moving cards between columns on the board.** The
+   selection half is confirmed; this half is not.
 2. **Bulk actions** — the owner confirmed only that card dragging still works.
    Untested: changing status actually moving cards between columns, Shift-click
    range selection, and whether the "6 done, 3 skipped" toast reports real
@@ -141,7 +130,17 @@ CSS; anything behind sign-in cannot be seen.
 - **The task list, after the four fixes**: searching now shows a matching subtask
   rather than only its parent; clicking a row while a selection exists adds and
   removes it; a chosen parent carries its subtasks into a delete while the count
-  still reads the number picked.
+  still reads the number picked; and the parent-name breadcrumb appears on a
+  subtask in "My tasks".
+
+  The breadcrumb needed a subtask assigned to the owner before it could be seen
+  at all — they hold four tasks and none was one. One was reassigned for the test
+  and put back afterwards. Worth knowing because it was the third thing this
+  session built on an assumption about the data's shape: the fold required a
+  parent and child in the same list, and the breadcrumb was first squeezed to
+  zero width by a long title and then found to have no rows to appear on. What
+  finally settled it was running the real `getMyTasks` and printing what came
+  back, rather than reasoning about the component.
 
 - **Undo on a task delete.** Reported as *"ổn cả bốn"* against the four things
   asked: the toast's Undo button, a bulk delete undone in one press, pressing
