@@ -130,6 +130,14 @@ export function TaskList({
   const [showFilters, setShowFilters] = React.useState(false);
   const [createOpen, setCreateOpen] = React.useState(false);
 
+  /** Whether anything is narrowing the list right now. */
+  const filtering =
+    query.trim() !== "" ||
+    status !== ALL ||
+    priority !== ALL ||
+    assignee !== ALL ||
+    labelId !== ALL;
+
   const filtered = React.useMemo(() => {
     const needle = deaccent(query.trim().toLowerCase());
 
@@ -196,14 +204,41 @@ export function TaskList({
       if (task.parentId && shown.has(task.parentId)) continue;
       const kids = children.get(task.id) ?? [];
       out.push({ task, child: false, kids });
-      if (open.has(task.id)) {
+      /*
+       * Folds spring open while a filter is running.
+       *
+       * A subtask here is a subtask that *matched*, and leaving it folded means
+       * searching for one and being shown only its parent — reported exactly
+       * that way. It is not a corner case in this data either: a subtask is
+       * named after its parent ("… — bước 2"), so any search that finds one
+       * finds the other, and the child was the one being hidden.
+       */
+      if (open.has(task.id) || filtering) {
         for (const kid of kids) out.push({ task: kid, child: true, kids: [] });
       }
     }
     return out;
-  }, [filtered, open]);
+  }, [filtered, open, filtering]);
 
   rowsRef.current = rows;
+
+  /**
+   * The ids a bulk action actually receives: everything picked, plus the
+   * subtasks of anything picked.
+   *
+   * Choosing a parent chooses what it contains — a delete would take them anyway
+   * through the cascade, and a status change that left half a task behind is the
+   * odd answer. The *count* stays the number picked, because a subtask is part of
+   * its parent rather than another thing beside it, and the number on screen has
+   * to mean what the rows mean.
+   */
+  const actingOn = React.useMemo(() => {
+    const out = new Set(selected);
+    for (const task of tasks) {
+      if (task.parentId && selected.has(task.parentId)) out.add(task.id);
+    }
+    return [...out];
+  }, [selected, tasks]);
 
   /**
    * How many tasks this list is *about*, before any filter.
@@ -506,8 +541,8 @@ export function TaskList({
               />
               <span className="text-xs text-muted-foreground">
                 {selected.size
-                  ? `${selected.size} selected · Ctrl-click a row to add, Shift-click for a range`
-                  : "Select all"}
+                  ? `${selected.size} selected · click a row to add or remove, Shift-click for a range, Esc to clear`
+                  : "Select all · Ctrl-click a row to start"}
               </span>
             </div>
           ) : null}
@@ -528,14 +563,22 @@ export function TaskList({
                   picked && "bg-primary/10 hover:bg-primary/15",
                 )}
                 onClick={(event) => {
-                  // Ctrl or ⌘ picks one; Shift takes everything between this row
-                  // and the last one picked, which is what anybody who has used
-                  // a file list will try first.
+                  /*
+                   * Ctrl or ⌘ picks one, Shift takes a range — what anybody who
+                   * has used a file list tries first.
+                   *
+                   * And once *anything* is picked, a plain click picks and
+                   * unpicks too. Select-all followed by "now drop these three"
+                   * otherwise needed a modifier nobody had been told about. The
+                   * bulk bar is on screen throughout saying how many are held,
+                   * and Escape or its ✕ leaves, so the mode cannot be entered by
+                   * accident or left stuck.
+                   */
                   if (!canEdit) return;
                   if (event.shiftKey) {
                     event.preventDefault();
                     selectRange(index);
-                  } else if (event.ctrlKey || event.metaKey) {
+                  } else if (event.ctrlKey || event.metaKey || selected.size > 0) {
                     event.preventDefault();
                     toggleSelect(task.id, index);
                   }
@@ -572,29 +615,40 @@ export function TaskList({
                 />
 
                 <button
-                  onClick={() => openTask(task)}
+                  onClick={(event) => {
+                    // The row is handling the press while a selection is being
+                    // assembled; opening the task on top of that would take the
+                    // page away mid-gesture.
+                    if (canEdit && selected.size > 0) return;
+                    event.stopPropagation();
+                    openTask(task);
+                  }}
                   className="flex min-w-0 flex-1 flex-col items-start gap-1 text-left"
                 >
                   <span className="flex w-full min-w-0 items-center gap-2">
                     <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
                       {task.project?.key ?? projectKey}-{task.number}
                     </span>
-                    {/* Only when the parent is not already the row above. On this
-                        page a subtask usually arrives alone — the parent belongs
-                        to somebody else — and "… — bước 2" on its own says
-                        nothing about what it is a step of. */}
-                    {task.parent && !child ? (
-                      <span className="flex min-w-0 shrink items-center gap-1 text-[11px] text-muted-foreground">
-                        <CornerDownRight className="size-3 shrink-0" />
-                        <span className="truncate">{task.parent.title}</span>
-                      </span>
-                    ) : null}
                     <span className={cn("truncate text-sm", done && "text-muted-foreground line-through")}>
                       {task.title}
                     </span>
                   </span>
 
                   <span className="flex flex-wrap items-center gap-2">
+                    {/* What this is a step of, on its own line.
+                        
+                        It shared the title's line first and was squeezed to
+                        nothing between the task key and a long title — invisible,
+                        and reported as missing. Down here nothing competes with
+                        it for width. Only when the parent is not already the row
+                        directly above: on "My tasks" a subtask arrives alone,
+                        because assignment does not follow the tree. */}
+                    {task.parent && !child ? (
+                      <span className="inline-flex max-w-full items-center gap-1 text-[11px] text-muted-foreground">
+                        <CornerDownRight className="size-3 shrink-0" />
+                        <span className="truncate">{task.parent.title}</span>
+                      </span>
+                    ) : null}
                     {showProject && task.project ? (
                       <span
                         className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px]"
@@ -657,7 +711,8 @@ export function TaskList({
       )}
 
       <BulkBar
-        selected={[...selected]}
+        selected={actingOn}
+        count={selected.size}
         members={members}
         canEdit={canEdit}
         onClear={clearSelection}

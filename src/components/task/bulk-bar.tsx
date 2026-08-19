@@ -35,12 +35,23 @@ import type { MemberDTO } from "@/types";
  */
 export function BulkBar({
   selected,
+  count,
   members,
   canEdit,
   onClear,
   onDone,
 }: {
+  /** Every id the action is applied to, subtasks included. */
   selected: string[];
+  /**
+   * What to *say*, which is not the same number.
+   *
+   * A parent carries its subtasks into the action but stands for one thing on
+   * screen, so the bar counts rows a person picked rather than rows the server
+   * will touch. Defaults to the id count for callers with no nesting — the board
+   * shows top-level cards only.
+   */
+  count?: number;
   members: MemberDTO[];
   canEdit: boolean;
   onClear: () => void;
@@ -76,7 +87,7 @@ export function BulkBar({
         skipped?: number;
         undoId?: string | null;
       };
-      const done = counts?.updated ?? counts?.deleted ?? selected.length;
+      const done = counts?.updated ?? counts?.deleted ?? (count ?? selected.length);
       const skipped = counts?.skipped ?? 0;
       const text = skipped ? `${label}: ${done} done, ${skipped} skipped` : `${label}: ${done}`;
 
@@ -119,7 +130,9 @@ export function BulkBar({
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
       <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 rounded-full border bg-background/95 px-2 py-1.5 shadow-lg backdrop-blur">
-        <span className="px-2 text-sm font-medium tabular-nums">{selected.length} selected</span>
+        <span className="px-2 text-sm font-medium tabular-nums">
+          {count ?? selected.length} selected
+        </span>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -214,7 +227,7 @@ export function BulkBar({
               transient surface, and a modal over a selection you can no longer
               see is a worse way to ask. */}
           <DropdownMenuContent align="center">
-            <DropdownMenuLabel>Delete {selected.length} tasks?</DropdownMenuLabel>
+            <DropdownMenuLabel>Delete {count ?? selected.length} tasks?</DropdownMenuLabel>
             <DropdownMenuItem
               variant="destructive"
               onClick={() => void run("Deleted", () => bulkDeleteTasks({ taskIds: selected }))}
