@@ -15,21 +15,20 @@ unverified, and what is open.
 ## 1. State right now
 
 - Working directory: `C:\Users\PC\OneDrive\TaskForge`
-- Branch `main`, HEAD = `91c1a1c`, **working tree clean**
-- **23 commits this session**, on top of `d755608`
-- **A dev server is running** on port 3000 (the owner's own terminal)
+- Branch `main`, HEAD = `2e709e1` plus the commit that updated this line
+- **24 commits this session**, on top of `d755608`
+- The dev server was stopped for the last build; check port 3000 before assuming
 
 | Check | Result |
 |---|---|
 | `npm run lint` | clean |
 | `npm run typecheck` | clean |
 | `npm test` | **188 / 188** (was 142 at session start) |
-| `npm run build` | green as of `5f14c29`; **not re-run** after `91c1a1c` |
+| `npm run build` | **green**, run after the last feature commit |
 
-`91c1a1c` added a Prisma model, a migration, one library module and two client
-call sites. Typecheck and 188 tests pass, but the production build has not been
-run since. Run it when the dev server is stopped, with the port check and the
-build **in the same command** — that gap is the whole of the recorded trap.
+All four checks are green on the tip. When running the build again, keep the
+port-3000 check and `npm run build` **in the same command** — the gap between
+checking and building is the whole of the recorded trap.
 
 ### Migrations added this session
 
