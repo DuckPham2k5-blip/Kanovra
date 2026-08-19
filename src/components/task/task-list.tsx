@@ -8,6 +8,7 @@ import {
   Filter,
   Plus,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -32,7 +33,7 @@ import {
 } from "@/components/ui/select";
 import { PRIORITY_META, PRIORITY_ORDER, TASK_STATUS_META, TASK_STATUS_ORDER } from "@/lib/constants";
 import { deaccent, cn } from "@/lib/utils";
-import { toggleTaskDone } from "@/server/actions/task";
+import { deleteTask, restoreDeletedTasks, toggleTaskDone } from "@/server/actions/task";
 import type { LabelDTO, MemberDTO, TaskCardDTO } from "@/types";
 
 const ALL = "__all__";
@@ -287,6 +288,48 @@ export function TaskList({
     router.refresh();
   }
 
+  /**
+   * Removes one task from its row, and offers it straight back.
+   *
+   * The same shape as the bulk delete: no confirmation, because the toast holds
+   * Undo for twelve seconds and a dialog in front of a reversible action only
+   * costs a click. The handle is an id — the snapshot stays on the server, so
+   * nothing here could restore a task into somewhere it did not come from.
+   */
+  async function handleDelete(task: ListTask) {
+    const result = await deleteTask({ taskId: task.id });
+    if (!result.success) {
+      toast.error(result.error);
+      return;
+    }
+
+    const undoId = result.data?.undoId;
+    const label = `${task.project?.key ?? projectKey}-${task.number} deleted`;
+
+    if (undoId) {
+      toast.success(label, {
+        duration: 12_000,
+        action: {
+          label: "Undo",
+          onClick: () => {
+            void restoreDeletedTasks(undoId).then((back) => {
+              if (!back.success) {
+                toast.error(back.error ?? "That could not be undone.");
+                return;
+              }
+              toast.success("Task restored.");
+              router.refresh();
+            });
+          },
+        },
+      });
+    } else {
+      toast.success(label);
+    }
+
+    router.refresh();
+  }
+
   return (
     <div className="space-y-4 px-4 py-4 sm:px-6">
       {/* Toolbar */}
@@ -457,7 +500,7 @@ export function TaskList({
               <div
                 key={task.id}
                 className={cn(
-                  "flex items-center gap-3 py-2.5 pr-3 transition-colors hover:bg-muted/50",
+                  "group/row flex items-center gap-3 py-2.5 pr-3 transition-colors hover:bg-muted/50",
                   // Indented, and on a tinted ground, so a subtask reads as part
                   // of the row above rather than as the next task down.
                   child ? "bg-muted/25 pl-10" : "pl-3",
@@ -560,6 +603,33 @@ export function TaskList({
                   <StatusBadge status={task.status} />
                 </div>
                 <UserAvatar user={task.assignee} className="size-7 shrink-0" />
+
+                {/* Delete, on the row, on hover.
+                    
+                    It was reachable only through the `…` inside the detail panel,
+                    which is two steps away and was reported as "there is no
+                    delete button". Kept out of the way until the pointer is on
+                    the row, and revealed to the keyboard by focus as well —
+                    `opacity-0` alone would leave it tabbable but invisible.
+                    
+                    No confirmation dialog. The toast carries Undo for twelve
+                    seconds, which is the same promise the bulk delete makes, and
+                    a dialog in front of an action that is already reversible buys
+                    nothing but a second click. */}
+                {canEdit ? (
+                  <button
+                    type="button"
+                    aria-label={`Delete ${task.title}`}
+                    title="Delete"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleDelete(task);
+                    }}
+                    className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 group-hover/row:opacity-100"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                ) : null}
               </div>
             );
           })}
