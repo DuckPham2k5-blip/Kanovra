@@ -1,7 +1,6 @@
 "use client";
 
 import type { NotificationType } from "@prisma/client";
-import * as Icons from "lucide-react";
 import { Bell, CheckCheck, Volume2, VolumeX } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -16,6 +15,7 @@ import {
 } from "@/components/ui/popover";
 import { NOTIFICATION_META } from "@/lib/constants";
 import { fromNow } from "@/lib/date";
+import { resolveNamedIcon } from "@/lib/icon-registry";
 import { isMuted, playNotificationPing, setMuted } from "@/lib/sound";
 import { cn, initials } from "@/lib/utils";
 import { markAllNotificationsRead, markNotificationRead } from "@/server/actions/notification";
@@ -182,10 +182,7 @@ export function NotificationBell({
           ) : (
             items.map((item) => {
               const meta = NOTIFICATION_META[item.type];
-              const Icon =
-                (Icons as unknown as Record<string, React.ComponentType<{ className?: string }>>)[
-                  meta?.icon ?? "Bell"
-                ] ?? Bell;
+              const Icon = resolveNamedIcon(meta?.icon, Bell);
 
               return (
                 <button

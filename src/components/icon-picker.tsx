@@ -1,9 +1,10 @@
 "use client";
 
-import * as Icons from "lucide-react";
+import { Rocket } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { PROJECT_ICONS } from "@/lib/constants";
+import { resolveNamedIcon } from "@/lib/icon-registry";
 import { cn } from "@/lib/utils";
 
 /**
@@ -11,9 +12,7 @@ import { cn } from "@/lib/utils";
  * in the database can never crash a render.
  */
 export function resolveIcon(name: string | null | undefined): LucideIcon {
-  if (!name) return Icons.Rocket;
-  const icon = (Icons as unknown as Record<string, LucideIcon>)[name];
-  return typeof icon === "function" || typeof icon === "object" ? (icon ?? Icons.Rocket) : Icons.Rocket;
+  return resolveNamedIcon(name, Rocket);
 }
 
 export function ProjectIcon({

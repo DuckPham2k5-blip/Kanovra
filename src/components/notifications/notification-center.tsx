@@ -1,7 +1,6 @@
 "use client";
 
 import type { NotificationType } from "@prisma/client";
-import * as Icons from "lucide-react";
 import { Bell, BellOff, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -14,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NOTIFICATION_META } from "@/lib/constants";
 import { fromNow } from "@/lib/date";
+import { resolveNamedIcon } from "@/lib/icon-registry";
 import { cn } from "@/lib/utils";
 import { clearReadNotifications, deleteNotification } from "@/server/actions/notification";
 
@@ -33,12 +33,7 @@ type Filter = "all" | "unread";
 
 /** Resolves the lucide icon named in NOTIFICATION_META, with a safe fallback. */
 function iconFor(type: NotificationType) {
-  const name = NOTIFICATION_META[type]?.icon ?? "Bell";
-  const registry = Icons as unknown as Record<
-    string,
-    React.ComponentType<{ className?: string }>
-  >;
-  return registry[name] ?? Bell;
+  return resolveNamedIcon(NOTIFICATION_META[type]?.icon, Bell);
 }
 
 export function NotificationCenter({
