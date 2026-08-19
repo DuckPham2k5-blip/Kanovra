@@ -1,173 +1,140 @@
 # Kanovra — session handoff
 
-Paste this whole file as the first message in the new chat.
+Paste this whole file as the first message of the new chat.
 
-`CLAUDE.md` loads automatically at the start of every session and already carries
-the architecture, the decisions and the traps — **including everything built in
-this session**, which was written into it as the work went. Do not re-summarise
-it.
+`CLAUDE.md` loads automatically in every session and already carries the
+architecture, the decisions and the traps — **including everything built in this
+session**, written in as the work went. Do not re-summarise it.
 
-This file is only what `CLAUDE.md` cannot hold: the exact current state, what is
-unverified, and what is open.
+This file holds only what `CLAUDE.md` cannot: the current state, what has been
+proven, what has not, and what is open.
 
 ---
 
-## 1. State right now
+## 1. State
 
 - Working directory: `C:\Users\PC\OneDrive\TaskForge`
-- Branch `main`, HEAD = `afae26f` plus the commit that updated this line
-- **38 commits this session**, on top of `d755608`
-- The dev server was stopped for the last build; check port 3000 before assuming
+- Branch `main`, working tree clean
+- This session starts at `d755608` — `git log --oneline d755608..HEAD` lists it
+  (39 commits at the time of writing)
+- Check port 3000 before assuming the dev server is up or down
 
 | Check | Result |
 |---|---|
 | `npm run lint` | clean |
 | `npm run typecheck` | clean |
-| `npm test` | **190 / 190** (was 142 at session start) |
-| `npm run build` | **green**, run after the last feature commit |
+| `npm test` | **190 / 190** (142 at session start) |
+| `npm run build` | green on the last code commit |
 
-All four checks are green on the tip. When running the build again, keep the
-port-3000 check and `npm run build` **in the same command** — the gap between
-checking and building is the whole of the recorded trap.
+Four tests need Postgres (`docker start kanovra-db`). No `DATABASE_URL` is a
+legitimate skip; configured-but-unreachable is a failure.
 
-### Migrations added this session
-
-Both are additive, carry no data-loss warning, and must run on the VPS at deploy:
+**Two migrations were added.** Both additive, no data-loss warning, both must run
+on the VPS at deploy:
 
 - `20260818041355_add_mind_map_comment_reads`
 - `20260818180704_add_deleted_task_snapshots`
 
 ---
 
-## 2. GitHub — still paused, still nothing pushed
+## 2. GitHub — paused, nothing pushed
 
-The remote `origin` points at an **empty** repository. The owner paused all
-GitHub work early in the previous session and has not lifted it. Do not push, do
-not open a PR, do not touch the remote unless asked.
+`origin` points at an **empty** repository. The owner paused all GitHub work and
+has not lifted it. Do not push, open a PR, or touch the remote unless asked.
 
-The old push-protection issue is unchanged and is a **verified false positive**:
-`.env.example` in commits `4ec2526` and `d6fb82f` holds the literal placeholder
+The push-protection block is a **verified false positive**: `.env.example` in
+commits `4ec2526` and `d6fb82f` holds the placeholder
 `sk_test_xxxxxxxxxxxxxxxxxxxxxxxx`, and Clerk shares Stripe's `sk_test_` prefix.
-No real key has ever been committed. The accepted recommendation stands: click
+No real key has ever been committed. The accepted recommendation stands: use
 GitHub's unblock URL rather than rewriting history.
 
 ---
 
-## 3. What was built, in one line each
+## 3. What was built
 
-Ordered as it happened. The *why* for each is in `CLAUDE.md`.
+The reasoning for each is in `CLAUDE.md`.
 
-**Maps section**
-- The Maps page lists the maps you have made, behind filter chips that open and
-  close the list. It used to show only six "make a new one" cards, with 59
-  existing maps reachable solely through a `…` menu.
+**Maps**
+- The Maps page lists existing maps behind filter chips that open and close. It
+  used to show six "make a new one" cards and hide 59 maps in a `…` menu.
 - Node legibility: stronger border, label centred both ways, bubble children no
   longer faded.
-- Node selection, a lit presence ring (yours white, teammates' their own colour),
+- Node selection, a lit presence ring (yours white, others in their own colour),
   Delete / `+` / `-` on the selected node.
-- The comment badge moved to the node's left edge; unread comments pulse red and
-  clear when the thread is opened (`MindMapCommentRead`).
-- **Autosave** replaced the explicit Save button, which reversed a documented
-  decision — see `CLAUDE.md` for the two costs that came with it.
+- Comment badge on the node's left edge; unread comments pulse red and clear when
+  the thread opens (`MindMapCommentRead`).
+- **Autosave** replaced the Save button — this reversed a decision the code
+  documented, and brought two costs with it. See `CLAUDE.md`.
 - Flow map: square corners, right-angled arrows, wrapping rows, explanation boxes
-  under a step. Flow and multi-flow are now **free canvases**, seeded once from
+  under a step. Flow and multi-flow are **free canvases** now, seeded once from
   the layout they used to compute.
 - Circle map segments carry their own outline.
-- The node resize handle is invisible — the corner and the cursor are the whole
-  affordance.
-- **Undo/redo on the canvas** (Ctrl+Z, Ctrl+Shift+Z, plus two buttons).
+- The resize handle is invisible: the corner and the cursor are the affordance.
+- **Undo/redo** (Ctrl+Z, Ctrl+Shift+Z, and two buttons).
 
 **Tasks**
-- **Multi-select and bulk actions** on the board and the list: status, priority,
-  assignee, delete. One request per selection, not one per task.
-- **Undo a delete**, single or bulk, offered in the toast for 12 seconds.
-- Subtasks fold under their parent on the **project list**, with a count and a
-  chevron. On **My tasks** they stay standalone rows naming their parent, because
-  of the fifteen assigned subtasks in this database not one has a parent assigned
-  to the same person — you are given a step, not the thing containing it. Both
-  delete and restore counts mean *tasks chosen*, not rows the database touched.
-- The list row has one checkbox again, meaning "done". Bulk selection moved to a
-  single select-all in the header, where there is no "done" to confuse it with.
-- A trash icon on each row, revealed on hover, deletes one task with Undo in the
-  toast. It used to live only in the `…` inside the detail panel.
-
-### One data-loss bug, found and fixed after the owner reported it
-
-Deleting six tasks and pressing Undo brought back four. `bulkDeleteTasks` filed
-the snapshot under a single project id and the restore filtered the payload down
-to it, silently dropping the rest — and "My tasks" spans the whole workspace, so
-a selection made there routinely covers several projects. Permission is now
-checked per project *in the payload*, and two tests pin the exact shape that lost
-the work. Worth knowing because the wrong assumption was written down as a
-comment at the call site and then believed.
+- **Multi-select and bulk actions** on board and list: status, priority,
+  assignee, delete. One request per selection, never one per task.
+- **Undo a delete**, single or bulk, in the toast for 12 seconds.
+- Subtasks fold under their parent on the **project list**. On **My tasks** they
+  stay standalone rows naming their parent, because assignment does not follow
+  the tree.
+- One checkbox per row, meaning "done". Selection is a select-all in the header,
+  plus click / Ctrl-click / Shift-click on rows.
+- A trash icon on each row, revealed on hover, deletes one task with Undo.
 
 **Shell**
-- Ambient star field behind every page, direction and colour by theme.
+- Ambient star field on every page, direction and colour by theme.
 
 ---
 
-## 4. Never verified
+## 4. What the owner has actually seen working
 
-### Needs the owner's signed-in browser
+Everything here was confirmed on their own screen.
 
-The assistant's in-app browser has **no Clerk session** and lands on the
-marketing page. That page is the one route available for looking at shell-level
-CSS; anything behind sign-in cannot be seen.
+- The whole task list: subtask fold and its counts; search showing a matching
+  subtask instead of only its parent; click-to-add-and-remove once a selection
+  exists; a chosen parent carrying its subtasks into a delete while the count
+  still reads the number picked; the per-row delete; the parent-name breadcrumb
+  on My tasks.
+- Undo on a task delete — all four cases: the toast button, a bulk delete undone
+  in one press, a second press staying silent, and 12 seconds being enough.
+- Undo/redo on the map canvas.
+- Card dragging on the board, alongside multi-select.
+- The `…` menu on a map node, after the control-scale fix.
 
-1. **Bulk status change actually moving cards between columns on the board.** The
-   selection half is confirmed; this half is not.
-2. **Bulk actions** — the owner confirmed only that card dragging still works.
-   Untested: changing status actually moving cards between columns, Shift-click
-   range selection, and whether the "6 done, 3 skipped" toast reports real
-   numbers.
-3. **The star field's density and colours** after the last adjustment.
-4. **Circle map segment outlines.**
-5. **The unread comment pulse** — impossible here at all: it needs a comment
-   written by somebody else, and this workspace has one member.
+---
 
-### Confirmed working by the owner
+## 5. What has never been seen working
 
-- **The task list, after the four fixes**: searching now shows a matching subtask
-  rather than only its parent; clicking a row while a selection exists adds and
-  removes it; a chosen parent carries its subtasks into a delete while the count
-  still reads the number picked; and the parent-name breadcrumb appears on a
-  subtask in "My tasks".
+The assistant's in-app browser has **no Clerk session**; it lands on the
+marketing page, which is the only route available for looking at shell CSS.
+Anything behind sign-in needs the owner.
 
-  The breadcrumb needed a subtask assigned to the owner before it could be seen
-  at all — they hold four tasks and none was one. One was reassigned for the test
-  and put back afterwards. Worth knowing because it was the third thing this
-  session built on an assumption about the data's shape: the fold required a
-  parent and child in the same list, and the breadcrumb was first squeezed to
-  zero width by a long title and then found to have no rows to appear on. What
-  finally settled it was running the real `getMyTasks` and printing what came
-  back, rather than reasoning about the component.
+1. **A bulk status change actually moving cards between columns** on the board,
+   and whether the "6 done, 3 skipped" toast reports real numbers.
+2. **The star field's density and colours** after the last adjustment.
+3. **Circle map segment outlines.**
+4. **The unread comment pulse.** Not possible here at all — it needs a comment
+   written by somebody else, and the workspace has one member.
 
-- **Undo on a task delete.** Reported as *"ổn cả bốn"* against the four things
-  asked: the toast's Undo button, a bulk delete undone in one press, pressing
-  Undo twice staying silent, and 12 seconds being long enough.
-- **Undo/redo on the map canvas.**
-- **Card dragging on the board**, still working alongside multi-select.
-- **The `…` menu on a map node**, after the control-scale fix.
-
-### Standing gaps, older than this session
+Older, and unchanged by this session:
 
 - **Two genuinely different signed-in Clerk sessions** exchanging updates. Every
   teammate so far has been simulated at the bus or by a fixture.
-- **The multi-worker case** that motivates the realtime design. Dev is a single
-  process.
+- **The multi-worker case** the realtime design exists for. Dev is one process.
 - **The Nginx config** (`deploy/nginx.conf`) on the VPS.
 
 ---
 
-## 5. Open, and worth raising early
+## 6. Open questions and remaining work
 
-**Undo for a delete is not a bin.** The snapshot lives on the server for 24
-hours, but the only way in is the toast — reload the page and the route is gone.
-That was deliberate for "undo what I just did". The owner was told this and
-replied *"tạm gác lại điều đấy"*, so a recoverable bin is a real, unmade
-decision rather than a settled no.
+**A recoverable bin is an unmade decision.** Undo for a delete is not one: the
+snapshot lives on the server for 24 hours, but the only route in is the toast, so
+a reload loses it. That was deliberate for "undo what I just did". The owner was
+told, and replied *"tạm gác lại điều đấy"* — parked, not refused.
 
-**Remaining feature gaps**, from `CLAUDE.md`: task dependencies (blocked by /
+**Remaining feature gaps** (from `CLAUDE.md`): task dependencies (blocked by /
 blocks), saved and shareable filter views, recurring tasks, actual time tracking,
 project templates, keyboard shortcuts beyond ⌘K, CSV export, public read-only
 share links.
@@ -177,38 +144,59 @@ Clerk dashboard; apply `deploy/nginx.conf`; `git push`.
 
 ---
 
-## 6. How this session actually went wrong, twice
+## 7. How this session went wrong
 
-Both are worth carrying forward, because they cost the owner real time.
+Read this before writing code. Each cost the owner a round of testing, and one
+destroyed data.
 
-**Fixing from a reconstruction rather than an observation.** Three symptoms were
-reported together on the map canvas — menu items dead, no pop animation, no
-resize. A coherent single-cause story was built from reading the code, a fix was
-shipped, and **it was wrong**; the owner tested and it was still broken. The
-second attempt found the real cause. When a symptom cannot be observed directly,
-ask for the first red line in the console, or build a minimal repro outside the
-sign-in wall — do not ship a second guess.
+### Building on an assumption about the data's shape — three times
 
-**Defensive changes are still changes.** Adding `stopPropagation` to Radix menu
-triggers was not required by anything; the node's own handler already stopped the
-press. It broke every item inside those menus. The rule in `CLAUDE.md` about
-swallowing `pointerdown` applies to plain buttons, not to a library's own
-trigger.
+- The subtask fold required a parent and child to be in the same list. Of the
+  fifteen assigned subtasks in this database, **zero** have a parent assigned to
+  the same person. It drew nothing at all and looked unbuilt.
+- The delete snapshot assumed a selection shares one project. "My tasks" spans
+  the workspace. Six tasks deleted across three projects, four restored, **two
+  destroyed**. The false assumption had been written down as a comment at the
+  call site and then believed.
+- The parent-name breadcrumb was built twice: first squeezed to zero width by a
+  long title on the same line, then found to have no rows to appear on, because
+  the owner holds four tasks and none is a subtask.
 
-Three older rules, all in `CLAUDE.md`, all hit again this session:
+Every one was a single query away. What finally settled the last was **running
+the real `getMyTasks` from a throwaway test and printing what came back** — not
+reading the component and reasoning. Do that first.
+
+### Fixing from a reconstruction rather than an observation
+
+Three symptoms were reported together on the map canvas — menu items dead, no pop
+animation, no resize. A coherent single-cause story was built by reading code, a
+fix shipped, and **it was wrong**. The second attempt found the real cause. When
+a symptom cannot be observed, ask for the first red line in the console or build
+a minimal repro outside the sign-in wall. Do not ship a second guess.
+
+### Defensive changes are still changes
+
+`stopPropagation` was added to Radix menu triggers when nothing required it — the
+node's own handler already stopped the press. It made every item inside those
+menus unreachable. The `pointerdown` rule in `CLAUDE.md` is about plain buttons,
+not a library's own trigger.
+
+### Three older rules, all hit again
 
 - Check for a listener on port 3000 **in the same command** as `npm run build`.
 - Never hand multi-line text to git through a shell. Write the message to a file
-  and use `git commit -F`.
-- Never run the dev server through a tool; the owner runs it in their terminal.
+  and use `git commit -F`. The same applies to writing source files through
+  heredocs — hit again this session when an escape was mangled.
+- Never run the dev server through a tool. The owner runs it in their terminal.
 
 ---
 
-## 7. If the new session wants a quick sanity check
+## 8. The working rhythm the owner expects
 
-```bash
-npm run lint && npm run typecheck && npm test
-```
-
-Expect 188 passing. Four of those need Postgres (`docker start kanovra-db`);
-a configured-but-unreachable database is a failure, not a skip.
+- They run `npm run dev` themselves and say when it is up or down.
+- Build only once they confirm dev is stopped, with the port check and the build
+  in one command.
+- Commit each coherent piece, with a message that says *why* rather than what.
+- State plainly what was not verified, and why. Never read the absence of a
+  complaint as success — ask.
+- The owner writes in Vietnamese and expects answers in Vietnamese.
