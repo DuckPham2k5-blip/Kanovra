@@ -15,8 +15,8 @@ unverified, and what is open.
 ## 1. State right now
 
 - Working directory: `C:\Users\PC\OneDrive\TaskForge`
-- Branch `main`, HEAD = `2e709e1` plus the commit that updated this line
-- **24 commits this session**, on top of `d755608`
+- Branch `main`, HEAD = `f977b3e` plus the commit that updated this line
+- **28 commits this session**, on top of `d755608`
 - The dev server was stopped for the last build; check port 3000 before assuming
 
 | Check | Result |
@@ -81,6 +81,12 @@ Ordered as it happened. The *why* for each is in `CLAUDE.md`.
 - **Multi-select and bulk actions** on the board and the list: status, priority,
   assignee, delete. One request per selection, not one per task.
 - **Undo a delete**, single or bulk, offered in the toast for 12 seconds.
+- Subtasks fold under their parent in the list, with a count and a chevron. "My
+  tasks" never filtered them out, so a subtask used to sit beside its parent as
+  though it were a separate task — which is what made deleting four things report
+  five. Both counts now mean *tasks chosen*, not rows the database touched.
+- The list row has one checkbox again, meaning "done". Bulk selection moved to a
+  single select-all in the header, where there is no "done" to confuse it with.
 
 **Shell**
 - Ambient star field behind every page, direction and colour by theme.
@@ -95,18 +101,25 @@ The assistant's in-app browser has **no Clerk session** and lands on the
 marketing page. That page is the one route available for looking at shell-level
 CSS; anything behind sign-in cannot be seen.
 
-1. **Undo on a task delete** — the owner was starting dev to test this when the
-   session ended. Nothing about it has been seen working: the toast's Undo
-   button, whether 12 seconds is long enough, pressing Undo twice, and deleting
-   a parent together with its own subtask.
+1. **The list's subtask folding and the header select-all** — both written after
+   the owner's last test, neither seen on screen.
 2. **Bulk actions** — the owner confirmed only that card dragging still works.
    Untested: changing status actually moving cards between columns, Shift-click
-   range selection in the list, and whether the "6 done, 3 skipped" toast reports
-   the real numbers.
+   range selection, and whether the "6 done, 3 skipped" toast reports real
+   numbers.
 3. **The star field's density and colours** after the last adjustment.
 4. **Circle map segment outlines.**
 5. **The unread comment pulse** — impossible here at all: it needs a comment
    written by somebody else, and this workspace has one member.
+
+### Confirmed working by the owner
+
+- **Undo on a task delete.** Reported as *"ổn cả bốn"* against the four things
+  asked: the toast's Undo button, a bulk delete undone in one press, pressing
+  Undo twice staying silent, and 12 seconds being long enough.
+- **Undo/redo on the map canvas.**
+- **Card dragging on the board**, still working alongside multi-select.
+- **The `…` menu on a map node**, after the control-scale fix.
 
 ### Standing gaps, older than this session
 
@@ -119,9 +132,6 @@ CSS; anything behind sign-in cannot be seen.
 ---
 
 ## 5. Open, and worth raising early
-
-**The 12-second undo window is a guess.** The owner had not yet said whether it
-is long enough.
 
 **Undo for a delete is not a bin.** The snapshot lives on the server for 24
 hours, but the only way in is the toast — reload the page and the route is gone.

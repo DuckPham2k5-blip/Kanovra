@@ -136,6 +136,26 @@ is what the key means. The seeding pass that backfills flow and multi-flow
 coordinates is deliberately *not* recorded — it is a migration, and undoing it
 would drop every node onto the origin.
 
+**A subtask is part of its parent, and every count says so.** "My tasks" never
+filtered subtasks out the way the project list does, so one sat beside its parent
+as though it were a separate task — and deleting four things reported five,
+because Postgres had taken a child along and the two ends of the action counted
+different populations. The list folds subtasks under their parent now, with a
+count and a chevron, and both the delete and the restore report *tasks chosen*
+rather than rows touched. Reporting the larger number was tried first, on the
+reasoning that a destructive action should not under-report itself; it is wrong
+once the screen groups them, because a count that disagrees with the interface is
+telling a different story from it. A subtask whose parent is absent from the list
+keeps its own row — the parent may be somebody else's or filtered out, and hiding
+the child would take work off the screen with nothing to say where it went.
+
+**A list row has one checkbox, and it means "done".** Bulk selection lives in a
+single select-all in the header, plus Ctrl-click and Shift-click on rows. A
+per-row selection box beside the done box gave every unfinished task two
+identical empty squares with nothing to tell them apart. Selection is computed
+from the rows *as drawn*, so folding a parent drops its subtasks from it exactly
+as a filter does: acting on something nobody can see is the hazard either way.
+
 **A bulk edit reuses `updateTask`'s body, and is one request.**
 `applyTaskUpdate` in `server/actions/task.ts` holds everything one update does
 minus the auth and the revalidate; the single and bulk paths both call it. The
