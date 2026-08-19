@@ -333,6 +333,23 @@ stack.
   both blocks instead of removing one, because circle came *after* double bubble in
   the file and the end index was lower than the start. Typecheck caught it; a
   looser test file would not have.
+- **`import * as Icons from "lucide-react"` ships all 1528 icons.** Next’s
+  `optimizePackageImports` rewrites a *named* import from that package into deep
+  ones and cannot touch a namespace one, so three components looking an icon up by
+  string put a 503 kB chunk into the workspace layout and three routes — for the 22
+  icons the app can name. `lib/icon-registry.ts` imports them explicitly and keeps
+  the string lookup, with `Object.hasOwn` rather than a plain index because the name
+  comes from a database column and `ICON_REGISTRY["constructor"]` would otherwise
+  answer with something React tries to render. Naming icons in two places drifts
+  silently — a missing entry draws the fallback and nothing fails — so the test
+  asserts the cover, not the contents.
+- **Next’s printed First Load JS does not count the layout’s own client chunks.**
+  The per-route numbers matched the page entries in `.next/app-build-manifest.json`
+  to within 3 kB, while the `/(app)/w/[slug]/layout` entry — the sidebar, the bell,
+  everything the shell draws on every page — sits in a separate entry nobody adds
+  in. So that table under-reports a shell-level regression: the icon chunk was
+  attributed to three routes and was in fact loaded by all of them. To see one, sum
+  the gzip of both entries rather than reading the column.
 
 ---
 
