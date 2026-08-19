@@ -205,6 +205,18 @@ export function TaskList({
 
   rowsRef.current = rows;
 
+  /**
+   * How many tasks this list is *about*, before any filter.
+   *
+   * A subtask counts as part of its parent, so it counts here only when its
+   * parent is absent — on "My tasks" that is the common case, and a step
+   * assigned to you with its parent elsewhere really is one of your tasks.
+   */
+  const topLevelTotal = React.useMemo(() => {
+    const all = new Set(tasks.map((task) => task.id));
+    return tasks.filter((task) => !task.parentId || !all.has(task.parentId)).length;
+  }, [tasks]);
+
   /** True only when every row on screen is picked, which is what the header shows. */
   const allPicked = rows.length > 0 && rows.every((row) => selected.has(row.task.id));
 
@@ -370,8 +382,16 @@ export function TaskList({
           </SelectContent>
         </Select>
 
+        {/* Top-level rows, both sides.
+            
+            This counted every task in the array, and the project list started
+            loading subtasks so the parents would have something to fold — which
+            made a project of thirty read as forty-five overnight. The number is
+            read as "how much is in this project", and a subtask is part of its
+            parent rather than another item beside it, so it counts as neither
+            half of the fraction. */}
         <span className="ml-auto text-sm text-muted-foreground">
-          {filtered.length}/{tasks.length}
+          {rows.filter((row) => !row.child).length}/{topLevelTotal}
         </span>
 
         {canEdit && projectId ? (
