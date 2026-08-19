@@ -185,13 +185,26 @@ export async function snapshotTasks(rootIds: string[]): Promise<Snapshot> {
  */
 export async function restoreTasks(
   snapshot: Snapshot,
-  projectId: string,
+  allowedProjectIds: ReadonlySet<string>,
 ): Promise<{ restored: number; skipped: number }> {
-  const tasks = snapshot.tasks.filter((task) => task.projectId === projectId);
+  /*
+   * A *set* of projects, not one.
+   *
+   * This took a single `projectId` and silently dropped every task belonging to
+   * anything else, which lost work: "My tasks" collects whatever is assigned to
+   * you across the whole workspace, so a selection made there routinely spans
+   * projects. Deleting six tasks over three projects and pressing undo brought
+   * four back and destroyed two. The comment at the call site asserted that a
+   * selection always shares a project — it was written, believed, and wrong.
+   */
+  const tasks = snapshot.tasks.filter((task) => allowedProjectIds.has(task.projectId));
   if (!tasks.length) return { restored: 0, skipped: snapshot.tasks.length };
 
   const [columns, labels, members] = await Promise.all([
-    prisma.boardColumn.findMany({ where: { projectId }, select: { id: true } }),
+    prisma.boardColumn.findMany({
+      where: { projectId: { in: [...allowedProjectIds] } },
+      select: { id: true },
+    }),
     prisma.label.findMany({ select: { id: true } }),
     prisma.user.findMany({ select: { id: true } }),
   ]);

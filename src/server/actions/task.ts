@@ -530,12 +530,31 @@ export async function restoreDeletedTasks(
     const row = await prisma.deletedTask.findUnique({ where: { id } });
     if (!row || row.actorId !== user.id) return fail(NOT_FOUND);
 
-    const ctx = await getProjectContext(user.id, row.projectId);
-    if (!ctx) return fail(NOT_FOUND);
-    if (!can(ctx.role, "task:create")) throw new ForbiddenError();
-
     const snapshot = parse(snapshotSchema, row.payload);
-    const counts = await restoreTasks(snapshot, row.projectId);
+
+    /*
+     * Permission per project in the payload, not per stash.
+     *
+     * `row.projectId` records where the delete was started, and a selection made
+     * in "My tasks" spans the whole workspace — checking only that one project
+     * and restoring only into it is what lost two tasks out of six. Each project
+     * present is checked on its own, and one the caller can no longer write to is
+     * skipped rather than failing the rest: the same rule the delete uses, and
+     * for the same reason.
+     */
+    const wanted = new Set(snapshot.tasks.map((task) => task.projectId));
+    const allowed = new Set<string>();
+    const places: { slug: string; projectId: string }[] = [];
+
+    for (const projectId of wanted) {
+      const ctx = await getProjectContext(user.id, projectId);
+      if (!ctx || !can(ctx.role, "task:create")) continue;
+      allowed.add(projectId);
+      places.push({ slug: ctx.workspace.slug, projectId });
+    }
+    if (!allowed.size) return fail(NOT_FOUND);
+
+    const counts = await restoreTasks(snapshot, allowed);
 
     // The row goes whether or not everything landed. Leaving it would offer the
     // same undo again, and the second press would find the tasks already back
@@ -550,7 +569,7 @@ export async function restoreDeletedTasks(
       message: `${user.name} restored ${counts.restored} task(s)`,
     });
 
-    revalidateProject(ctx.workspace.slug, row.projectId);
+    for (const place of places) revalidateProject(place.slug, place.projectId);
     return ok(counts);
   });
 }
@@ -596,8 +615,13 @@ export async function bulkDeleteTasks(
       allowed.push({ taskId, ctx });
     }
 
-    // Everything in one selection shares a project in every surface that offers
-    // this, so the first is as good a home for the stash as any.
+    /*
+     * The stash is filed under the first task's project, and that is a *label*,
+     * not a claim about the rest: "My tasks" spans the workspace, so a selection
+     * made there routinely covers several. The payload carries each task's own
+     * project and the restore reads them from there — an earlier version trusted
+     * this single id and silently dropped everything else.
+     */
     const home = allowed[0]?.ctx;
     const stash = home
       ? await stashForUndo(

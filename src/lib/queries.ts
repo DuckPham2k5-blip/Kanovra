@@ -177,9 +177,34 @@ export async function getMyTasks(workspaceId: string, userId: string) {
     orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { priority: "desc" }],
     include: {
       project: { select: { id: true, name: true, key: true, color: true, icon: true } },
+      // What a subtask belongs to. Assignment rarely follows the tree — you are
+      // given a step, not the thing containing it — so on this page a subtask
+      // almost always arrives without its parent, and a step called "— bước 2"
+      // with nothing above it says nothing about what it is part of.
+      parent: { select: { id: true, title: true } },
       labels: { include: { label: true } },
       checklistItems: { select: { done: true } },
       _count: { select: { subtasks: true, comments: true } },
+    },
+  });
+}
+
+/**
+ * The subtasks of a project, for the list view to fold under their parents.
+ *
+ * A separate query rather than a nested include on `getBoardData`, because the
+ * board shares that one and a Kanban column shows top-level cards only — it
+ * would carry the extra rows across the wire and then ignore them.
+ */
+export async function getProjectSubtasks(projectId: string) {
+  return prisma.task.findMany({
+    where: { projectId, parentId: { not: null } },
+    orderBy: { order: "asc" },
+    include: {
+      assignee: { select: { id: true, name: true, imageUrl: true, email: true } },
+      labels: { include: { label: true } },
+      _count: { select: { subtasks: true, comments: true, attachments: true } },
+      checklistItems: { select: { done: true } },
     },
   });
 }

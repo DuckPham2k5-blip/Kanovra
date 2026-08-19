@@ -4,7 +4,7 @@ import { TaskDetailSheet } from "@/components/task/task-detail-sheet";
 import { TaskList } from "@/components/task/task-list";
 import { toTaskCardDTO } from "@/lib/dto";
 import { loadProjectView } from "@/lib/project-view";
-import { getBoardData } from "@/lib/queries";
+import { getBoardData, getProjectSubtasks } from "@/lib/queries";
 
 export const metadata: Metadata = { title: "Task list" };
 
@@ -24,12 +24,18 @@ export default async function ProjectListPage({
     openTaskId,
   );
 
-  const { tasks } = await getBoardData(project.id);
+  // Parents from the board query, their children alongside: the list folds them
+  // together, and a Kanban column never shows a subtask so the board query does
+  // not carry them.
+  const [{ tasks }, subtasks] = await Promise.all([
+    getBoardData(project.id),
+    getProjectSubtasks(project.id),
+  ]);
 
   return (
     <div className="h-full overflow-y-auto">
       <TaskList
-        tasks={tasks.map(toTaskCardDTO)}
+        tasks={[...tasks, ...subtasks].map(toTaskCardDTO)}
         members={members}
         labels={labels}
         projectId={project.id}

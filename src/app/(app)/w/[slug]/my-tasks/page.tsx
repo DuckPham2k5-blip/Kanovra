@@ -50,6 +50,7 @@ export default async function MyTasksPage({
     order: task.order,
     columnId: task.columnId,
     parentId: task.parentId,
+    parent: task.parent,
     dueDate: task.dueDate?.toISOString() ?? null,
     startDate: task.startDate?.toISOString() ?? null,
     estimate: task.estimate,

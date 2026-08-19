@@ -1,7 +1,15 @@
 "use client";
 
 import { TaskStatus } from "@prisma/client";
-import { ArrowUpDown, ChevronRight, Filter, Plus, Search, X } from "lucide-react";
+import {
+  ArrowUpDown,
+  ChevronRight,
+  CornerDownRight,
+  Filter,
+  Plus,
+  Search,
+  X,
+} from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -33,6 +41,15 @@ type SortKey = "manual" | "due" | "priority" | "title" | "status";
 
 export type ListTask = TaskCardDTO & {
   project?: { id: string; name: string; key: string; color: string; icon: string } | null;
+  /**
+   * The task this one belongs to, when it is worth naming.
+   *
+   * Only "My tasks" sends it, and only because assignment does not follow the
+   * tree: you are given a step rather than the thing containing it, so a subtask
+   * arrives there with no parent on screen and a title like "— bước 2" says
+   * nothing about what it is part of.
+   */
+  parent?: { id: string; title: string } | null;
 };
 
 /**
@@ -499,6 +516,16 @@ export function TaskList({
                     <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
                       {task.project?.key ?? projectKey}-{task.number}
                     </span>
+                    {/* Only when the parent is not already the row above. On this
+                        page a subtask usually arrives alone — the parent belongs
+                        to somebody else — and "… — bước 2" on its own says
+                        nothing about what it is a step of. */}
+                    {task.parent && !child ? (
+                      <span className="flex min-w-0 shrink items-center gap-1 text-[11px] text-muted-foreground">
+                        <CornerDownRight className="size-3 shrink-0" />
+                        <span className="truncate">{task.parent.title}</span>
+                      </span>
+                    ) : null}
                     <span className={cn("truncate text-sm", done && "text-muted-foreground line-through")}>
                       {task.title}
                     </span>

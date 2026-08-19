@@ -133,7 +133,7 @@ describe.skipIf(!CONFIGURED)("task snapshot and restore", () => {
     const parsed = snapshotSchema.parse(JSON.parse(JSON.stringify(snapshot)));
     // One task restored, not two: the subtask came back as part of its parent,
     // which is how the delete counted it and how the list shows it.
-    const counts = await restoreTasks(parsed, projectId);
+    const counts = await restoreTasks(parsed, new Set([projectId]));
     expect(counts).toEqual({ restored: 1, skipped: 0 });
 
     const after = await prisma.task.findUniqueOrThrow({
@@ -175,8 +175,8 @@ describe.skipIf(!CONFIGURED)("task snapshot and restore", () => {
     const snapshot = await snapshotTasks([rootId]);
     await prisma.task.delete({ where: { id: rootId } });
 
-    await restoreTasks(snapshot, projectId);
-    await expect(restoreTasks(snapshot, projectId)).resolves.toBeDefined();
+    await restoreTasks(snapshot, new Set([projectId]));
+    await expect(restoreTasks(snapshot, new Set([projectId]))).resolves.toBeDefined();
     expect(await prisma.task.count({ where: { projectId } })).toBe(2);
 
     await prisma.task.deleteMany({ where: { projectId } });
@@ -200,7 +200,7 @@ describe.skipIf(!CONFIGURED)("task snapshot and restore", () => {
     await prisma.task.delete({ where: { id: rootId } });
     await prisma.label.delete({ where: { id: doomed.id } });
 
-    const counts = await restoreTasks(snapshot, projectId);
+    const counts = await restoreTasks(snapshot, new Set([projectId]));
     expect(counts.restored).toBe(1);
 
     const after = await prisma.task.findUniqueOrThrow({
@@ -215,6 +215,66 @@ describe.skipIf(!CONFIGURED)("task snapshot and restore", () => {
     await prisma.task.deleteMany({ where: { projectId } });
   });
 
+  /*
+   * The bug that lost work. A selection made in "My tasks" spans the workspace,
+   * so one snapshot holds tasks from several projects — and the restore used to
+   * take a single project id and silently drop the rest. Six deleted, four back,
+   * two gone for good.
+   */
+  it("restores across every project in the snapshot, not just one", async () => {
+    const second = await prisma.project.create({
+      data: { workspaceId, name: "Second", key: "SEC", createdById: userId },
+    });
+
+    const here = await prisma.task.create({
+      data: { projectId, number: 600, title: "In the first", createdById: userId },
+    });
+    const there = await prisma.task.create({
+      data: { projectId: second.id, number: 1, title: "In the second", createdById: userId },
+    });
+
+    const snapshot = await snapshotTasks([here.id, there.id]);
+    expect(new Set(snapshot.tasks.map((t) => t.projectId)).size).toBe(2);
+
+    await prisma.task.deleteMany({ where: { id: { in: [here.id, there.id] } } });
+
+    const counts = await restoreTasks(snapshot, new Set([projectId, second.id]));
+    expect(counts).toEqual({ restored: 2, skipped: 0 });
+    expect(await prisma.task.count({ where: { id: here.id } })).toBe(1);
+    expect(await prisma.task.count({ where: { id: there.id } })).toBe(1);
+
+    await prisma.task.deleteMany({ where: { id: { in: [here.id, there.id] } } });
+    await prisma.project.delete({ where: { id: second.id } });
+  });
+
+  /*
+   * And the other half of the same rule: a project the caller may no longer write
+   * to is left out, without taking the rest of the rescue down with it.
+   */
+  it("leaves out a project that is not allowed, and still restores the others", async () => {
+    const second = await prisma.project.create({
+      data: { workspaceId, name: "Third", key: "THR", createdById: userId },
+    });
+
+    const here = await prisma.task.create({
+      data: { projectId, number: 700, title: "Allowed", createdById: userId },
+    });
+    const there = await prisma.task.create({
+      data: { projectId: second.id, number: 1, title: "Not allowed", createdById: userId },
+    });
+
+    const snapshot = await snapshotTasks([here.id, there.id]);
+    await prisma.task.deleteMany({ where: { id: { in: [here.id, there.id] } } });
+
+    const counts = await restoreTasks(snapshot, new Set([projectId]));
+    expect(counts).toEqual({ restored: 1, skipped: 1 });
+    expect(await prisma.task.count({ where: { id: here.id } })).toBe(1);
+    expect(await prisma.task.count({ where: { id: there.id } })).toBe(0);
+
+    await prisma.task.deleteMany({ where: { id: here.id } });
+    await prisma.project.delete({ where: { id: second.id } });
+  });
+
   it("refuses to write a snapshot into a project it did not come from", async () => {
     const other = await prisma.project.create({
       data: { workspaceId, name: "Elsewhere", key: "ELS", createdById: userId },
@@ -223,7 +283,7 @@ describe.skipIf(!CONFIGURED)("task snapshot and restore", () => {
     const snapshot = await snapshotTasks([rootId]);
     await prisma.task.delete({ where: { id: rootId } });
 
-    const counts = await restoreTasks(snapshot, other.id);
+    const counts = await restoreTasks(snapshot, new Set([other.id]));
     expect(counts).toEqual({ restored: 0, skipped: 2 });
     expect(await prisma.task.count({ where: { projectId: other.id } })).toBe(0);
   });
