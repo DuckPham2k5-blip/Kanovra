@@ -63,6 +63,15 @@ async function stashForUndo(
   const snapshot = await snapshotTasks(taskIds);
   if (!snapshot.tasks.length) return null;
 
+  /*
+   * The snapshot's size is what the delete actually costs, and it is larger than
+   * the selection whenever one of the chosen tasks has subtasks: Postgres takes
+   * those with it. Reported back so the toast can say how many rows went rather
+   * than how many were ticked — under-reporting a destructive action is the
+   * wrong direction to be wrong in, and it made undo look like it invented a
+   * task ("deleted 4", "restored 5").
+   */
+
   const row = await prisma.deletedTask.create({
     data: {
       workspaceId: ctx.workspaceId,
@@ -81,7 +90,7 @@ async function stashForUndo(
     },
   });
 
-  return row.id;
+  return { id: row.id, rows: snapshot.tasks.length };
 }
 
 export async function createTask(input: unknown): Promise<ActionResult<{ id: string }>> {
@@ -478,7 +487,7 @@ export async function deleteTask(input: unknown): Promise<ActionResult<{ undoId:
     }
 
     // Captured before the row goes, or there is nothing left to read.
-    const undoId = await stashForUndo([data.taskId], {
+    const stash = await stashForUndo([data.taskId], {
       workspaceId: ctx.workspace.id,
       projectId: ctx.task.projectId,
       actorId: user.id,
@@ -496,7 +505,7 @@ export async function deleteTask(input: unknown): Promise<ActionResult<{ undoId:
     });
 
     revalidateProject(ctx.workspace.slug, ctx.task.projectId);
-    return ok({ undoId });
+    return ok({ undoId: stash?.id ?? null });
   });
 }
 
@@ -590,7 +599,7 @@ export async function bulkDeleteTasks(
     // Everything in one selection shares a project in every surface that offers
     // this, so the first is as good a home for the stash as any.
     const home = allowed[0]?.ctx;
-    const undoId = home
+    const stash = home
       ? await stashForUndo(
           allowed.map((entry) => entry.taskId),
           {
@@ -633,7 +642,13 @@ export async function bulkDeleteTasks(
     }
 
     for (const { slug, projectId } of touched.values()) revalidateProject(slug, projectId);
-    return ok({ deleted, skipped: taskIds.length - deleted, undoId });
+    return ok({
+      // Rows removed, not cards ticked: a selected task takes its subtasks with
+      // it, and the count undo reports has to mean the same thing as this one.
+      deleted: stash?.rows ?? deleted,
+      skipped: taskIds.length - deleted,
+      undoId: stash?.id ?? null,
+    });
   });
 }
 

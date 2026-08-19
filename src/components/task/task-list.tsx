@@ -75,6 +75,15 @@ export function TaskList({
     setSelected(new Set());
     anchor.current = null;
   }, []);
+
+  /** Everything currently passing the filters — never anything off screen. */
+  const selectAll = React.useCallback(() => {
+    setSelected(new Set(filteredRef.current.map((task) => task.id)));
+  }, []);
+
+  // Read at call time rather than closed over, so `selectAll` stays stable while
+  // the filters change underneath it.
+  const filteredRef = React.useRef<typeof tasks>([]);
   const searchParams = useSearchParams();
 
   const [query, setQuery] = React.useState("");
@@ -121,6 +130,11 @@ export function TaskList({
     }
     return sorted;
   }, [tasks, query, status, priority, assignee, labelId, sort]);
+
+  filteredRef.current = filtered;
+
+  /** True only when every row on screen is picked, which is what the header shows. */
+  const allPicked = filtered.length > 0 && filtered.every((task) => selected.has(task.id));
 
   const toggleSelect = React.useCallback((taskId: string, index: number) => {
     anchor.current = index;
@@ -331,6 +345,35 @@ export function TaskList({
         />
       ) : (
         <div className="overflow-hidden rounded-lg border">
+          {/*
+           * One checkbox for selection, and it lives here rather than on every
+           * row.
+           *
+           * A row already has a checkbox, and it means "done". A second one
+           * beside it meant that on any task that was not finished the two were
+           * identical empty squares with nothing to tell them apart — reported
+           * as "why are there two tick columns". In the header there is no
+           * "done" to confuse it with, so this one can only mean what it says.
+           *
+           * Individual rows are picked with Ctrl-click and ranges with
+           * Shift-click, and a picked row is tinted. The bulk bar appears the
+           * moment anything is selected and says how many.
+           */}
+          {canEdit ? (
+            <div className="flex items-center gap-3 border-b bg-muted/40 px-3 py-2">
+              <Checkbox
+                checked={allPicked ? true : selected.size > 0 ? "indeterminate" : false}
+                onCheckedChange={() => (allPicked ? clearSelection() : selectAll())}
+                aria-label={allPicked ? "Clear selection" : "Select all shown"}
+              />
+              <span className="text-xs text-muted-foreground">
+                {selected.size
+                  ? `${selected.size} selected · Ctrl-click a row to add, Shift-click for a range`
+                  : "Select all"}
+              </span>
+            </div>
+          ) : null}
+
           {filtered.map((task, index) => {
             const done = task.status === TaskStatus.DONE;
             const picked = selected.has(task.id);
@@ -338,7 +381,7 @@ export function TaskList({
               <div
                 key={task.id}
                 className={cn(
-                  "group/row flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/50",
+                  "flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/50",
                   index > 0 && "border-t",
                   picked && "bg-primary/10 hover:bg-primary/15",
                 )}
@@ -356,24 +399,6 @@ export function TaskList({
                   }
                 }}
               >
-                {canEdit ? (
-                  <span
-                    className={cn(
-                      "-ml-1 transition-opacity",
-                      picked || selected.size
-                        ? "opacity-100"
-                        : "opacity-0 group-hover/row:opacity-100",
-                    )}
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <Checkbox
-                      checked={picked}
-                      onCheckedChange={() => toggleSelect(task.id, index)}
-                      aria-label={`Select ${task.title}`}
-                    />
-                  </span>
-                ) : null}
-
                 <Checkbox
                   checked={done}
                   disabled={!canEdit}
