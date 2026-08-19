@@ -15,15 +15,15 @@ unverified, and what is open.
 ## 1. State right now
 
 - Working directory: `C:\Users\PC\OneDrive\TaskForge`
-- Branch `main`, HEAD = `f977b3e` plus the commit that updated this line
-- **28 commits this session**, on top of `d755608`
+- Branch `main`, HEAD = `ca3a611` plus the commit that updated this line
+- **31 commits this session**, on top of `d755608`
 - The dev server was stopped for the last build; check port 3000 before assuming
 
 | Check | Result |
 |---|---|
 | `npm run lint` | clean |
 | `npm run typecheck` | clean |
-| `npm test` | **188 / 188** (was 142 at session start) |
+| `npm test` | **190 / 190** (was 142 at session start) |
 | `npm run build` | **green**, run after the last feature commit |
 
 All four checks are green on the tip. When running the build again, keep the
@@ -81,12 +81,25 @@ Ordered as it happened. The *why* for each is in `CLAUDE.md`.
 - **Multi-select and bulk actions** on the board and the list: status, priority,
   assignee, delete. One request per selection, not one per task.
 - **Undo a delete**, single or bulk, offered in the toast for 12 seconds.
-- Subtasks fold under their parent in the list, with a count and a chevron. "My
-  tasks" never filtered them out, so a subtask used to sit beside its parent as
-  though it were a separate task — which is what made deleting four things report
-  five. Both counts now mean *tasks chosen*, not rows the database touched.
+- Subtasks fold under their parent on the **project list**, with a count and a
+  chevron. On **My tasks** they stay standalone rows naming their parent, because
+  of the fifteen assigned subtasks in this database not one has a parent assigned
+  to the same person — you are given a step, not the thing containing it. Both
+  delete and restore counts mean *tasks chosen*, not rows the database touched.
 - The list row has one checkbox again, meaning "done". Bulk selection moved to a
   single select-all in the header, where there is no "done" to confuse it with.
+- A trash icon on each row, revealed on hover, deletes one task with Undo in the
+  toast. It used to live only in the `…` inside the detail panel.
+
+### One data-loss bug, found and fixed after the owner reported it
+
+Deleting six tasks and pressing Undo brought back four. `bulkDeleteTasks` filed
+the snapshot under a single project id and the restore filtered the payload down
+to it, silently dropping the rest — and "My tasks" spans the whole workspace, so
+a selection made there routinely covers several projects. Permission is now
+checked per project *in the payload*, and two tests pin the exact shape that lost
+the work. Worth knowing because the wrong assumption was written down as a
+comment at the call site and then believed.
 
 **Shell**
 - Ambient star field behind every page, direction and colour by theme.
@@ -101,8 +114,11 @@ The assistant's in-app browser has **no Clerk session** and lands on the
 marketing page. That page is the one route available for looking at shell-level
 CSS; anything behind sign-in cannot be seen.
 
-1. **The list's subtask folding and the header select-all** — both written after
-   the owner's last test, neither seen on screen.
+1. **The subtask fold on the project list, the parent name on My tasks, the
+   header select-all, and the per-row delete** — all written after the owner's
+   last test, none seen on screen. The fold in particular has now been built
+   twice: the first version drew nothing at all against real data, because it
+   required a parent and child to be in the same list.
 2. **Bulk actions** — the owner confirmed only that card dragging still works.
    Untested: changing status actually moving cards between columns, Shift-click
    range selection, and whether the "6 done, 3 skipped" toast reports real
