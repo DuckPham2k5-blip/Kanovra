@@ -42,6 +42,15 @@ export type TaskCardDTO = {
   priority: Priority;
   order: number;
   columnId: string | null;
+  /**
+   * Which task this one belongs to, or null.
+   *
+   * Carried so a list can fold a subtask under its parent rather than showing it
+   * as a task standing beside it. The board never nests — a column shows only
+   * top-level cards — but "My tasks" collects whatever is assigned to you, and
+   * that mixes the two levels together.
+   */
+  parentId: string | null;
   dueDate: string | null;
   startDate: string | null;
   estimate: number | null;

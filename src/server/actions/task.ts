@@ -643,9 +643,18 @@ export async function bulkDeleteTasks(
 
     for (const { slug, projectId } of touched.values()) revalidateProject(slug, projectId);
     return ok({
-      // Rows removed, not cards ticked: a selected task takes its subtasks with
-      // it, and the count undo reports has to mean the same thing as this one.
-      deleted: stash?.rows ?? deleted,
+      /*
+       * Tasks you chose, not rows the database touched.
+       *
+       * This briefly reported the whole snapshot — five when four were ticked —
+       * on the reasoning that a destructive action should not under-report
+       * itself. The owner's answer was that a subtask is *part of* its parent
+       * rather than a task standing beside it, so removing a parent is removing
+       * one thing however many rows go with it. The list is being changed to
+       * show them that way too, and the count has to agree with what is on
+       * screen or it is telling a different story from the interface.
+       */
+      deleted,
       skipped: taskIds.length - deleted,
       undoId: stash?.id ?? null,
     });

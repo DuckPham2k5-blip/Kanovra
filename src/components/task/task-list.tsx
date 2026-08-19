@@ -1,7 +1,7 @@
 "use client";
 
 import { TaskStatus } from "@prisma/client";
-import { ArrowUpDown, Filter, Plus, Search, X } from "lucide-react";
+import { ArrowUpDown, ChevronRight, Filter, Plus, Search, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -71,19 +71,36 @@ export function TaskList({
   const [selected, setSelected] = React.useState<ReadonlySet<string>>(() => new Set());
   const anchor = React.useRef<number | null>(null);
 
+  /** Which parents have been opened to show their subtasks. Closed to start. */
+  const [open, setOpen] = React.useState<ReadonlySet<string>>(() => new Set());
+  const toggleOpen = React.useCallback((taskId: string) => {
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(taskId)) next.add(taskId);
+      return next;
+    });
+  }, []);
+
   const clearSelection = React.useCallback(() => {
     setSelected(new Set());
     anchor.current = null;
   }, []);
 
-  /** Everything currently passing the filters — never anything off screen. */
+  /**
+   * Everything on screen — the rows as drawn, not the tasks behind them.
+   *
+   * A subtask folded under its parent is not on screen, so it is not selected.
+   * Selecting something nobody can see is the same hazard as leaving a filtered
+   * row in the selection: the count says one thing and the screen says another,
+   * and the bulk action follows the count.
+   */
   const selectAll = React.useCallback(() => {
-    setSelected(new Set(filteredRef.current.map((task) => task.id)));
+    setSelected(new Set(rowsRef.current.map((row) => row.task.id)));
   }, []);
 
   // Read at call time rather than closed over, so `selectAll` stays stable while
   // the filters change underneath it.
-  const filteredRef = React.useRef<typeof tasks>([]);
+  const rowsRef = React.useRef<{ task: ListTask; child: boolean; kids: ListTask[] }[]>([]);
   const searchParams = useSearchParams();
 
   const [query, setQuery] = React.useState("");
@@ -131,10 +148,47 @@ export function TaskList({
     return sorted;
   }, [tasks, query, status, priority, assignee, labelId, sort]);
 
-  filteredRef.current = filtered;
+  /**
+   * The rows as they are drawn: every top-level task, each optionally followed by
+   * its own subtasks once it has been opened.
+   *
+   * "My tasks" collects whatever is assigned to you, and that mixes the two
+   * levels — a subtask sat in the list as though it were a task standing beside
+   * its parent, which is what made deleting four things report five. A subtask
+   * belongs *to* its parent, so it is folded under it and counted on it.
+   *
+   * A subtask whose parent is not in the list stays a row of its own. That is not
+   * an edge case: the parent may be assigned to somebody else, or filtered out by
+   * the search, and hiding the child because of it would lose work off the screen
+   * with nothing to say where it went.
+   */
+  const rows = React.useMemo(() => {
+    const shown = new Set(filtered.map((task) => task.id));
+    const children = new Map<string, ListTask[]>();
+
+    for (const task of filtered) {
+      if (!task.parentId || !shown.has(task.parentId)) continue;
+      const list = children.get(task.parentId);
+      if (list) list.push(task);
+      else children.set(task.parentId, [task]);
+    }
+
+    const out: { task: ListTask; child: boolean; kids: ListTask[] }[] = [];
+    for (const task of filtered) {
+      if (task.parentId && shown.has(task.parentId)) continue;
+      const kids = children.get(task.id) ?? [];
+      out.push({ task, child: false, kids });
+      if (open.has(task.id)) {
+        for (const kid of kids) out.push({ task: kid, child: true, kids: [] });
+      }
+    }
+    return out;
+  }, [filtered, open]);
+
+  rowsRef.current = rows;
 
   /** True only when every row on screen is picked, which is what the header shows. */
-  const allPicked = filtered.length > 0 && filtered.every((task) => selected.has(task.id));
+  const allPicked = rows.length > 0 && rows.every((row) => selected.has(row.task.id));
 
   const toggleSelect = React.useCallback((taskId: string, index: number) => {
     anchor.current = index;
@@ -150,17 +204,19 @@ export function TaskList({
     (index: number) => {
       const from = anchor.current;
       if (from === null) {
-        toggleSelect(filtered[index].id, index);
+        toggleSelect(rowsRef.current[index].task.id, index);
         return;
       }
       const [lo, hi] = from <= index ? [from, index] : [index, from];
       setSelected((prev) => {
         const next = new Set(prev);
-        for (let i = lo; i <= hi; i += 1) next.add(filtered[i].id);
+        // Indexed against the rows as drawn, including any open subtasks — a
+        // range means what somebody dragged their eye across.
+        for (let i = lo; i <= hi; i += 1) next.add(rowsRef.current[i].task.id);
         return next;
       });
     },
-    [filtered, toggleSelect],
+    [toggleSelect],
   );
 
   // Escape lets go, and a changed filter drops anything no longer on screen —
@@ -168,10 +224,12 @@ export function TaskList({
   // that outlives its view.
   React.useEffect(() => {
     if (!selected.size) return;
-    const visible = new Set(filtered.map((task) => task.id));
+    // Folding a parent takes its subtasks off screen as surely as a filter does,
+    // so they leave the selection the same way.
+    const visible = new Set(rows.map((row) => row.task.id));
     const kept = [...selected].filter((id) => visible.has(id));
     if (kept.length !== selected.size) setSelected(new Set(kept));
-  }, [filtered, selected]);
+  }, [rows, selected]);
 
   React.useEffect(() => {
     if (!selected.size) return;
@@ -374,14 +432,18 @@ export function TaskList({
             </div>
           ) : null}
 
-          {filtered.map((task, index) => {
+          {rows.map(({ task, child, kids }, index) => {
             const done = task.status === TaskStatus.DONE;
             const picked = selected.has(task.id);
+            const opened = open.has(task.id);
             return (
               <div
                 key={task.id}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/50",
+                  "flex items-center gap-3 py-2.5 pr-3 transition-colors hover:bg-muted/50",
+                  // Indented, and on a tinted ground, so a subtask reads as part
+                  // of the row above rather than as the next task down.
+                  child ? "bg-muted/25 pl-10" : "pl-3",
                   index > 0 && "border-t",
                   picked && "bg-primary/10 hover:bg-primary/15",
                 )}
@@ -399,6 +461,29 @@ export function TaskList({
                   }
                 }}
               >
+                {/* The fold. Only a parent with subtasks on screen gets one;
+                    everything else keeps the same indent from an empty space of
+                    the same width, or the titles would not line up. */}
+                {kids.length ? (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleOpen(task.id);
+                    }}
+                    aria-expanded={opened}
+                    aria-label={`${opened ? "Hide" : "Show"} ${kids.length} subtasks`}
+                    className="flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-[11px] text-muted-foreground hover:bg-muted"
+                  >
+                    <ChevronRight
+                      className={cn("size-3.5 transition-transform", opened && "rotate-90")}
+                    />
+                    {kids.length}
+                  </button>
+                ) : child ? null : (
+                  <span className="w-[26px] shrink-0" aria-hidden="true" />
+                )}
+
                 <Checkbox
                   checked={done}
                   disabled={!canEdit}

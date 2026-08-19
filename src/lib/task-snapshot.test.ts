@@ -131,8 +131,10 @@ describe.skipIf(!CONFIGURED)("task snapshot and restore", () => {
 
     // Through the schema, exactly as the action does after reading the JSON back.
     const parsed = snapshotSchema.parse(JSON.parse(JSON.stringify(snapshot)));
+    // One task restored, not two: the subtask came back as part of its parent,
+    // which is how the delete counted it and how the list shows it.
     const counts = await restoreTasks(parsed, projectId);
-    expect(counts).toEqual({ restored: 2, skipped: 0 });
+    expect(counts).toEqual({ restored: 1, skipped: 0 });
 
     const after = await prisma.task.findUniqueOrThrow({
       where: { id: rootId },
@@ -199,7 +201,7 @@ describe.skipIf(!CONFIGURED)("task snapshot and restore", () => {
     await prisma.label.delete({ where: { id: doomed.id } });
 
     const counts = await restoreTasks(snapshot, projectId);
-    expect(counts.restored).toBe(2);
+    expect(counts.restored).toBe(1);
 
     const after = await prisma.task.findUniqueOrThrow({
       where: { id: rootId },

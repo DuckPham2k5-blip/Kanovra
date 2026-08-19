@@ -282,5 +282,12 @@ export async function restoreTasks(
     }
   });
 
-  return { restored: pending.length, skipped: snapshot.tasks.length - tasks.length };
+  /*
+   * Counted as the *things* restored, not the rows written: a subtask comes back
+   * as part of its parent, exactly as it went. Anything whose parent is not
+   * itself in this snapshot is a root — that covers both a top-level task and a
+   * subtask deleted on its own.
+   */
+  const roots = pending.filter((task) => !task.parentId || !ids.has(task.parentId));
+  return { restored: roots.length, skipped: snapshot.tasks.length - tasks.length };
 }
