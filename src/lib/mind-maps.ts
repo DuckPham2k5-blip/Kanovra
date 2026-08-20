@@ -154,6 +154,18 @@ export function radialShade(hue: number, depth: number) {
     fill: `hsl(${hue} ${saturation}% ${lightness}%)`,
     // The crossover sits where mid-grey text stops winning against the fill.
     ink: lightness < 52 ? `hsl(${hue} 30% 96%)` : `hsl(${hue} 60% 12%)`,
+    // The segment's own outline: the same hue, a fixed distance *darker than
+    // this segment*, so the contrast is against the thing being outlined and
+    // not against whatever happens to lie behind it.
+    //
+    // It was a pale line before, on the reasoning that a wheel of one hue should
+    // not gain a second colour. The colour was right and the direction was wrong:
+    // pale reads only while the ground is dark, and the ground is not a constant
+    // — the light theme puts a near-white backdrop behind the same wheel, and
+    // even within one theme the map backdrop is a gradient that runs dark at one
+    // corner and pale at the other. Darker than the fill holds everywhere,
+    // because half the stroke lies on the fill.
+    outline: `hsl(${hue} ${Math.min(90, saturation + 12)}% ${Math.max(8, lightness - 24)}% / 0.9)`,
   };
 }
 

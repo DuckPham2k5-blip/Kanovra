@@ -661,7 +661,7 @@ function Segment({
   const d = sectorPath(ring);
   if (!d) return null;
 
-  const { fill, ink } = radialShade(hue, sector.depth);
+  const { fill, ink, outline } = radialShade(hue, sector.depth);
   const size = sector.depth === 1 ? 15 : 12;
   const text = node.emoji ? `${node.emoji} ${node.text}` : node.text;
   const place = labelPlacement(ring, text.length * size * LABEL_FUDGE);
@@ -675,16 +675,22 @@ function Segment({
           wheel where each ring is a shade of one hue, neighbouring segments meet
           across a few pixels of backdrop that reads as part of whichever of them
           is darker — so a branch and its child looked like one continuous wedge.
-          The outline is the same hue drawn light, so it draws the boundary
-          without introducing a second colour to a drawing built on one.
+
+          The colour comes from `radialShade` and is a *darker* shade of the
+          segment itself. The first version was a pale line one pixel wide, and
+          it was invisible: measured across a real boundary it painted exactly
+          one pixel beside a gap seven to nine pixels of dark backdrop wide, so
+          the eye read the gap and never the line. Anything chosen against the
+          ground has that problem, because the ground is not a constant — see the
+          note on `outline`.
 
           Selection still overrides it with white, which is why this is one
           `stroke` chosen two ways rather than a second path underneath. */}
       <path
         d={d}
         fill={fill}
-        stroke={selected ? "hsl(0 0% 100% / 0.9)" : `hsl(${hue} 70% 88% / 0.45)`}
-        strokeWidth={selected ? 2.5 : 1}
+        stroke={selected ? "hsl(0 0% 100% / 0.9)" : outline}
+        strokeWidth={selected ? 2.5 : 1.8}
       />
       {place.orientation === "none" ? null : (
         <text
