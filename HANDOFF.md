@@ -16,18 +16,18 @@ proven, what has not, and what is open.
 - Working directory: `C:\Users\PC\OneDrive\TaskForge`
 - Branch `main`, working tree clean
 - This session starts at `d755608` — `git log --oneline d755608..HEAD` lists it
-  (39 commits at the time of writing)
+  (42 commits at the time of writing)
 - Check port 3000 before assuming the dev server is up or down
 
 | Check | Result |
 |---|---|
 | `npm run lint` | clean |
 | `npm run typecheck` | clean |
-| `npm test` | **190 / 190** (142 at session start) |
+| `npm test` | **195 / 195** (142 at session start) |
 | `npm run build` | green on the last code commit |
 
-Four tests need Postgres (`docker start kanovra-db`). No `DATABASE_URL` is a
-legitimate skip; configured-but-unreachable is a failure.
+Fifteen tests across three files need Postgres (`docker start kanovra-db`).
+No `DATABASE_URL` is a legitimate skip; configured-but-unreachable is a failure.
 
 **Two migrations were added.** Both additive, no data-loss warning, both must run
 on the VPS at deploy:
@@ -101,21 +101,25 @@ Everything here was confirmed on their own screen.
   in one press, a second press staying silent, and 12 seconds being enough.
 - Undo/redo on the map canvas.
 - Card dragging on the board, alongside multi-select.
+- A bulk status change: the cards move to the matching column, and the toast
+  reports the number of tasks chosen.
+- Project and notification icons after the icon registry replaced the namespace
+  import.
 - The `…` menu on a map node, after the control-scale fix.
 
 ---
 
 ## 5. What has never been seen working
 
-The assistant's in-app browser has **no Clerk session**; it lands on the
-marketing page, which is the only route available for looking at shell CSS.
-Anything behind sign-in needs the owner.
+The assistant's in-app browser has **no Clerk session** and is bounced to
+`/sign-in`. The marketing page is no longer a way round it either: the pane
+refuses to screenshot at all while it is not displayed, so nothing renders there
+to look at. The Claude in Chrome extension — the one route that would carry the
+owner's own session — is not connected. Anything behind sign-in needs the owner.
 
-1. **A bulk status change actually moving cards between columns** on the board,
-   and whether the "6 done, 3 skipped" toast reports real numbers.
-2. **The star field's density and colours** after the last adjustment.
-3. **Circle map segment outlines.**
-4. **The unread comment pulse.** Not possible here at all — it needs a comment
+1. **The star field's density and colours** after the last adjustment.
+2. **Circle map segment outlines.**
+3. **The unread comment pulse.** Not possible here at all — it needs a comment
    written by somebody else, and the workspace has one member.
 
 Older, and unchanged by this session:

@@ -870,6 +870,11 @@ sheet and looked at, because the test asserts the *cover* and cannot see a name
 drawing the wrong picture — `Boxes: Box` would pass it. **The owner then confirmed
 the icons in the running application.**
 
+**A bulk status change was confirmed the same day**, by the owner on the board:
+the cards move to the column whose status they were given, and the toast reports
+the number of tasks chosen. That is the half of `applyTaskUpdate` no test reaches
+— moving the card is a consequence of the write, not the write itself.
+
 **Not verified:** anything else in a browser. Both doors were tried this pass and
 both are shut. The Claude in Chrome extension is not connected, which is the only
 route that would carry the owner's own Clerk session; the in-app browser is still
@@ -879,9 +884,8 @@ page's star field out of reach, so the one shell-level route recorded in the six
 pass is no longer available either. Connecting that extension in the browser where
 the owner is signed in would open all of this for good.
 
-Still waiting on a pointer and a session: **the bulk status change** actually moving
-cards between columns and whether its toast counts are real, **the circle map segment
-outlines**, and **the star field's density and colours**.
+Still waiting on a pointer and a session: **the circle map segment outlines** and
+**the star field's density and colours**.
 
 ---
 
