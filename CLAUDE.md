@@ -843,6 +843,48 @@ ink are unit-tested instead.
 
 ---
 
+## Built after the eighth pass (2026-08-20)
+
+**The whole lucide icon set was shipping so the app could name 22 icons.** Three
+components look an icon up by string, reached for a namespace import to do it, and
+put 1528 icons — 503 kB raw, 134 kB gzip — into one chunk.
+`lib/icon-registry.ts` names them explicitly instead; the string lookup and the
+fallbacks are unchanged, so nothing about the behaviour moved. The trap above says
+why the bundler could not help on its own.
+
+```
+/w/[slug]                          392 -> 225 kB
+/w/[slug]/projects                 384 -> 217 kB
+/w/[slug]/notifications            351 -> 185 kB
+the workspace layout's own chunks  463 -> 274 kB gzip
+```
+
+Icon definitions across the whole build: 1669 -> 205. The layout line is the one
+that matters: the sidebar draws a project icon on every page, so this was never the
+three-route problem the printed table made it look like.
+
+**Verified:** lint, typecheck, 195 tests, a production build, and the icon chunk
+measured out of `.next` before and after — the 1528-icon chunk is gone and no
+chunk now holds more than 42. The 22 icons were rendered from the registry to a
+sheet and looked at, because the test asserts the *cover* and cannot see a name
+drawing the wrong picture — `Boxes: Box` would pass it. **The owner then confirmed
+the icons in the running application.**
+
+**Not verified:** anything else in a browser. Both doors were tried this pass and
+both are shut. The Claude in Chrome extension is not connected, which is the only
+route that would carry the owner's own Clerk session; the in-app browser is still
+bounced to `/sign-in`. That pane now also refuses to screenshot at all — *"not
+displayed, so the page is not compositing frames"* — which puts even the marketing
+page's star field out of reach, so the one shell-level route recorded in the sixth
+pass is no longer available either. Connecting that extension in the browser where
+the owner is signed in would open all of this for good.
+
+Still waiting on a pointer and a session: **the bulk status change** actually moving
+cards between columns and whether its toast counts are real, **the circle map segment
+outlines**, and **the star field's density and colours**.
+
+---
+
 ## Working style the owner expects
 
 Verify claims rather than asserting them — render an image and look at it,
