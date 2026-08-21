@@ -1365,3 +1365,36 @@
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   And the same preference, answered by hand.
+
+   The block above is the default and stays the default. These two classes are
+   the map's own switch, and they belong to the person looking rather than to the
+   map: the preference exists because moving pictures make some people ill, so a
+   document that could turn motion on for whoever opened it would be the exact
+   harm it is there to prevent.
+
+   Both rules out-specify the ones they override — a class inside a class beats a
+   class — so neither depends on where it sits in the file.
+--------------------------------------------------------------------------- */
+
+.tf-map-still .tf-map-drift-a,
+.tf-map-still .tf-map-drift-b,
+.tf-map-still .tf-map-drift-c {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tf-map-moving .tf-map-drift-a {
+    animation: tf-map-drift-a 52s ease-in-out infinite;
+  }
+
+  .tf-map-moving .tf-map-drift-b {
+    animation: tf-map-drift-b 67s ease-in-out infinite;
+  }
+
+  .tf-map-moving .tf-map-drift-c {
+    animation: tf-map-drift-c 83s ease-in-out infinite;
+  }
+}

@@ -16,6 +16,14 @@ import {
   sceneryInk,
   type MapBackground,
 } from "@/lib/map-backgrounds";
+import {
+  choiceFromSwitch,
+  motionClass,
+  motionIsOn,
+  MOTION_KEY,
+  readMotionChoice,
+  type MotionChoice,
+} from "@/lib/map-motion";
 import type { NodeFill } from "@/lib/mind-map-fill";
 import { type MapPalette, type MapTone, readPalette } from "@/lib/mind-map-palette";
 import { defaultPalette, mindMapBackdrop, mindMapColor } from "@/lib/mind-maps";
@@ -102,6 +110,35 @@ export function MindMapSurface({
   const scenery = readScenery(background.kind, background.value);
   const surface = sceneryCss(scenery);
   const ink = sceneryInk(scenery);
+
+  /*
+   * Whether the lights drift, as the person looking has decided.
+   *
+   * Both values are read after mount rather than during the render: neither
+   * `localStorage` nor `matchMedia` exists on the server, and a decorative layer
+   * that starts still for one frame costs nothing. Guessing at either would cost
+   * a hydration mismatch on every map.
+   *
+   * The system preference is subscribed to, not sampled — somebody who turns it
+   * on mid-session has just asked for the movement to stop.
+   */
+  const [choice, setChoice] = React.useState<MotionChoice>("system");
+  const [systemReduced, setSystemReduced] = React.useState(false);
+
+  React.useEffect(() => {
+    setChoice(readMotionChoice(window.localStorage.getItem(MOTION_KEY)));
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setSystemReduced(query.matches);
+    const listen = (event: MediaQueryListEvent) => setSystemReduced(event.matches);
+    query.addEventListener("change", listen);
+    return () => query.removeEventListener("change", listen);
+  }, []);
+
+  const setMotion = React.useCallback((on: boolean) => {
+    const next = choiceFromSwitch(on);
+    setChoice(next);
+    window.localStorage.setItem(MOTION_KEY, next);
+  }, []);
 
 
   const palette: MapPalette = readPalette(fallbackHue, stored.hue, stored.tone);
@@ -192,7 +229,7 @@ export function MindMapSurface({
      * rebuilding all three for one page.
      */
     <div
-      className="fixed inset-0 z-40 flex flex-col"
+      className={`fixed inset-0 z-40 flex flex-col ${motionClass(choice)}`}
       style={
         surface ?? { background: `${mindMapBackdrop(palette)}, hsl(var(--background))` }
       }
@@ -252,6 +289,8 @@ export function MindMapSurface({
           isDefaultPalette={isDefault}
           disabled={!canEdit}
           onBackground={applyBackground}
+          motionOn={motionIsOn(choice, systemReduced)}
+          onMotionChange={setMotion}
           onPalette={(next, options) =>
             save({ hue: next.hue, tone: next.tone }, options?.continuous)
           }

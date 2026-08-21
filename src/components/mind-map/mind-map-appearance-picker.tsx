@@ -6,6 +6,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
 import {
   backgroundImage,
   MAP_BACKGROUNDS,
@@ -41,6 +42,8 @@ export function MindMapAppearancePicker({
   onBackground,
   onPalette,
   onResetPalette,
+  motionOn,
+  onMotionChange,
 }: {
   scenery: MapScenery;
   palette: MapPalette;
@@ -58,6 +61,9 @@ export function MindMapAppearancePicker({
   ) => Promise<string | null>;
   onPalette: (palette: MapPalette, options?: { continuous?: boolean }) => void;
   onResetPalette: () => void;
+  /** Whether the lights behind the map are drifting for whoever is looking. */
+  motionOn: boolean;
+  onMotionChange: (on: boolean) => void;
 }) {
   /*
    * Radix numbers its popovers with `useId`; a count that differs between the
@@ -173,6 +179,25 @@ export function MindMapAppearancePicker({
               everyone who opens the map, so the site hosting it can see them.
             </p>
             {linkError ? <p className="text-[11px] text-destructive">{linkError}</p> : null}
+          </section>
+
+          {/* Motion is the one control here that is not about the map. It is
+              stored in this browser and changes nothing for anybody else — see
+              `map-motion.ts` for why a document must not answer this question on
+              a reader's behalf. */}
+          <section className="flex items-start justify-between gap-3 border-t pt-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-muted-foreground">Motion</p>
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                The lights behind the map drift. Follows your system setting until you
+                change it here, and only on this computer.
+              </p>
+            </div>
+            <Switch
+              checked={motionOn}
+              onCheckedChange={onMotionChange}
+              aria-label="Background motion"
+            />
           </section>
 
           <section className="space-y-2 border-t pt-3">
