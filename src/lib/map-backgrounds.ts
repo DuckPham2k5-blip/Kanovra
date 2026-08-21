@@ -77,15 +77,19 @@ const SOFT = `<defs><filter id="soft" x="-75%" y="-75%" width="250%" height="250
  * memory; a 300px tile repeated is a handful, and nobody reads a star field for
  * its arrangement.
  */
-function starPattern(id: string, colour: string) {
+function starPattern(id: string, colour: string, scale = 1, tile = 300) {
   const dots = [
     [18, 34, 1.4, 0.9], [122, 61, 1, 0.6], [214, 21, 1.7, 0.85], [263, 140, 1.1, 0.5],
     [56, 158, 1.9, 0.95], [175, 191, 1.2, 0.6], [96, 246, 1.5, 0.8], [231, 268, 1, 0.45],
     [289, 205, 1.3, 0.7], [11, 271, 1.1, 0.55], [148, 108, 0.9, 0.4], [200, 92, 2.1, 1],
   ]
-    .map(([x, y, r, o]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${colour}" opacity="${o}"/>`)
+    .map(
+      ([x, y, r, o]) =>
+        `<circle cx="${(x * tile) / 300}" cy="${(y * tile) / 300}" r="${(r * scale).toFixed(2)}" ` +
+        `fill="${colour}" opacity="${o}"/>`,
+    )
     .join("");
-  return `<pattern id="${id}" width="300" height="300" patternUnits="userSpaceOnUse">${dots}</pattern>`;
+  return `<pattern id="${id}" width="${tile}" height="${tile}" patternUnits="userSpaceOnUse">${dots}</pattern>`;
 }
 
 export const MAP_BACKGROUNDS: MapBackground[] = [
@@ -131,10 +135,14 @@ export const MAP_BACKGROUNDS: MapBackground[] = [
     scheme: "dark",
     palette: { hue: 214, tone: "deep" },
     base: "#04060f",
+    // Bigger stars on a tighter tile. The first version used the same dots as
+    // the nebula, where they are texture *over* colour; with nothing else in the
+    // picture they have to carry it, and at thumbnail size they were gone.
     svg: doc(
       SOFT +
-        `<defs>${starPattern("st3", "#ffffff")}</defs>` +
-        blob(600, 400, 620, 180, "#1e3a8a", 0.35) +
+        `<defs>${starPattern("st3", "#ffffff", 2.2, 210)}</defs>` +
+        blob(600, 400, 620, 200, "#1e3a8a", 0.55) +
+        blob(200, 640, 380, 200, "#312e81", 0.4) +
         `<rect width="${W}" height="${H}" fill="url(#st3)"/>`,
       "#04060f",
     ),
@@ -188,10 +196,12 @@ export const MAP_BACKGROUNDS: MapBackground[] = [
       SOFT +
         `<defs><pattern id="hex" width="104" height="180" patternUnits="userSpaceOnUse">` +
         `<path d="M52 0 L104 30 L104 90 L52 120 L0 90 L0 30 Z M52 90 L104 120 L104 180 L52 210 L0 180 L0 120 Z" ` +
-        `fill="none" stroke="#a78bfa" stroke-width="1.1" opacity="0.22"/></pattern></defs>` +
-        `<rect width="${W}" height="${H}" fill="url(#hex)"/>` +
-        blob(300, 250, 340, 260, "#7c3aed", 0.35) +
-        blob(950, 600, 340, 240, "#c026d3", 0.3),
+        `fill="none" stroke="#c4b5fd" stroke-width="1.8" opacity="0.5"/></pattern></defs>` +
+        blob(300, 250, 340, 260, "#7c3aed", 0.45) +
+        blob(950, 600, 340, 240, "#c026d3", 0.4) +
+        // The mesh goes on top of the glow, not under it. Underneath, the blobs
+        // wash out the very lines the background is named for.
+        `<rect width="${W}" height="${H}" fill="url(#hex)"/>`,
       "#0a0713",
     ),
   },
@@ -269,13 +279,13 @@ export const MAP_BACKGROUNDS: MapBackground[] = [
     svg: doc(
       SOFT +
         `<defs><pattern id="net" width="420" height="420" patternUnits="userSpaceOnUse">` +
-        `<path d="M50 70 L260 30 L360 210 L150 300 Z M260 30 L400 330 M50 70 L110 350 M360 210 L400 330" fill="none" stroke="#60a5fa" stroke-width="0.9" opacity="0.22"/>` +
-        `<circle cx="50" cy="70" r="2.6" fill="#93c5fd" opacity="0.7"/>` +
-        `<circle cx="260" cy="30" r="2" fill="#a5b4fc" opacity="0.6"/>` +
-        `<circle cx="360" cy="210" r="2.8" fill="#60a5fa" opacity="0.7"/>` +
-        `<circle cx="150" cy="300" r="2.2" fill="#93c5fd" opacity="0.5"/></pattern></defs>` +
-        `<rect width="${W}" height="${H}" fill="url(#net)"/>` +
-        blob(850, 300, 360, 260, "#1e40af", 0.4),
+        `<path d="M50 70 L260 30 L360 210 L150 300 Z M260 30 L400 330 M50 70 L110 350 M360 210 L400 330" fill="none" stroke="#93c5fd" stroke-width="1.5" opacity="0.5"/>` +
+        `<circle cx="50" cy="70" r="4" fill="#dbeafe" opacity="0.95"/>` +
+        `<circle cx="260" cy="30" r="3.2" fill="#c7d2fe" opacity="0.85"/>` +
+        `<circle cx="360" cy="210" r="4.4" fill="#93c5fd" opacity="0.95"/>` +
+        `<circle cx="150" cy="300" r="3.4" fill="#dbeafe" opacity="0.8"/></pattern></defs>` +
+        blob(850, 300, 360, 260, "#1e40af", 0.5) +
+        `<rect width="${W}" height="${H}" fill="url(#net)"/>`,
       "#060a16",
     ),
   },
@@ -289,9 +299,12 @@ export const MAP_BACKGROUNDS: MapBackground[] = [
     svg: doc(
       SOFT +
         `<defs><pattern id="g" width="48" height="48" patternUnits="userSpaceOnUse">` +
-        `<path d="M48 0 H0 V48" fill="none" stroke="#94a3b8" stroke-width="0.8" opacity="0.3"/></pattern></defs>` +
-        `<rect width="${W}" height="${H}" fill="url(#g)"/>` +
-        blob(600, 400, 560, 340, "#1e293b", 0.3),
+        `<path d="M64 0 H0 V64" fill="none" stroke="#cbd5e1" stroke-width="1.1" opacity="0.34"/>` +
+        `<circle cx="0" cy="0" r="1.6" fill="#e2e8f0" opacity="0.5"/></pattern></defs>` +
+        // Glow first, grid over it. The other way round the blob dimmed the
+        // grid to nothing in the middle, which is exactly where anyone looks.
+        blob(600, 400, 560, 340, "#334155", 0.45) +
+        `<rect width="${W}" height="${H}" fill="url(#g)"/>`,
       "#0a0c11",
     ),
   },
