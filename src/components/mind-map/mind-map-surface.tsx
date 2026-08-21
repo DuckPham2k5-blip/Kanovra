@@ -85,10 +85,11 @@ export function MindMapSurface({
   React.useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
 
   const save = React.useCallback(
-    (next: { hue: number | null; tone: MapTone | null }) => {
+    (next: { hue: number | null; tone: MapTone | null }, continuous = false) => {
       setStored(next);
       if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(async () => {
+
+      const write = async () => {
         const result = await setMindMapPalette({
           mapId,
           hue: next.hue,
@@ -104,7 +105,21 @@ export function MindMapSurface({
         // screen keeps showing a choice that was never stored.
         setStored(saved);
         toast.error(result.error);
-      }, 600);
+      };
+
+      /*
+       * A click is written at once; only a drag waits.
+       *
+       * They shared the debounce at first, and that lost colours: choosing a
+       * preset and leaving the map within 600ms cleared the timer on unmount
+       * with nothing sent. One press is one decision and there is nothing to
+       * batch — the debounce exists for the hue bar, which reports every pixel.
+       */
+      if (!continuous) {
+        void write();
+        return;
+      }
+      timer.current = setTimeout(() => void write(), 600);
     },
     [mapId, saved],
   );
@@ -145,7 +160,9 @@ export function MindMapSurface({
           palette={palette}
           isDefault={isDefault}
           disabled={!canEdit}
-          onChange={(next) => save({ hue: next.hue, tone: next.tone })}
+          onChange={(next, options) =>
+            save({ hue: next.hue, tone: next.tone }, options?.continuous)
+          }
           onReset={() => save({ hue: null, tone: null })}
         />
       </header>

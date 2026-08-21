@@ -37,7 +37,12 @@ export function MindMapPalettePicker({
   /** Whether the map is still wearing the colour its type was born with. */
   isDefault: boolean;
   disabled?: boolean;
-  onChange: (palette: MapPalette) => void;
+  /**
+   * `continuous` marks a value from a gesture still in progress, so the caller
+   * can draw every one of them and write only the last. A click is one decision
+   * and arrives without it.
+   */
+  onChange: (palette: MapPalette, options?: { continuous?: boolean }) => void;
   onReset: () => void;
 }) {
   /*
@@ -111,7 +116,14 @@ export function MindMapPalettePicker({
               max={359}
               value={palette.hue}
               aria-label="Hue"
-              onChange={(event) => onChange({ ...palette, hue: Number(event.target.value) })}
+              onChange={(event) =>
+                onChange({ ...palette, hue: Number(event.target.value) }, { continuous: true })
+              }
+              // The end of the drag is a decision, and it is what gets written.
+              // Without it the last value of a gesture waits out the debounce,
+              // and closing the map inside that window loses the colour.
+              onPointerUp={() => onChange(palette)}
+              onKeyUp={() => onChange(palette)}
               className="h-3 w-full cursor-pointer appearance-none rounded-full"
               style={{
                 background:
