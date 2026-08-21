@@ -77,7 +77,7 @@ export function MindMapAppearancePicker({
   const [checking, setChecking] = React.useState(false);
   const [linkError, setLinkError] = React.useState<string | null>(null);
 
-  const groups = ["Cosmos", "Nature", "Technology", "Colour"] as const;
+  const groups = ["Cosmos", "Nature", "Technology", "Colour", "Art", "Texture"] as const;
   const chosenId = scenery?.kind === "preset" ? scenery.background.id : null;
 
   async function applyLink() {
@@ -169,7 +169,7 @@ export function MindMapAppearancePicker({
             );
           })}
 
-          {/* Anything the thirteen above do not cover. A photograph cannot be
+          {/* Anything the drawn ones above do not cover. A photograph cannot be
               shipped with the app — it would be somebody's copyright and a file
               to host — so the way to a photograph is a link to one. */}
           <section className="space-y-2">

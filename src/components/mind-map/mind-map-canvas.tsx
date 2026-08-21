@@ -1670,11 +1670,23 @@ export function MindMapCanvas({
                         </div>
 
                         <DropdownMenuSeparator />
+                        {/* Every item on these menus fires `onSelect`, not
+                            `onClick`.
+
+                            `onClick` is a DOM prop Radix composes onto the item;
+                            `onSelect` is the primitive's own contract for "this
+                            was chosen", and it is what Radix itself dispatches.
+                            With `onClick` the whole menu was inert on this canvas
+                            — the item took the press and the handler never ran,
+                            while the emoji buttons in the same menu worked
+                            because they are plain buttons. Whatever swallows the
+                            click here, the item's own event does not go through
+                            it. */}
                         {/* One item rather than a row of swatches. A colour is
                             now a mix of up to four with a direction, which does
                             not fit in a menu — and the menu closes over the node
                             you are trying to judge the colour against. */}
-                        <DropdownMenuItem onClick={() => setColouring(node.id)}>
+                        <DropdownMenuItem onSelect={() => setColouring(node.id)}>
                           <span
                             aria-hidden
                             className="size-4 rounded border"
@@ -1696,7 +1708,7 @@ export function MindMapCanvas({
                         {savedIds.has(node.id) && canComment ? (
                           <>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => openComments(node.id)}>
+                            <DropdownMenuItem onSelect={() => openComments(node.id)}>
                               <MessageSquare />
                               {threadSize > 0 ? `Comments (${threadSize})` : "Add a comment"}
                             </DropdownMenuItem>
@@ -1708,7 +1720,7 @@ export function MindMapCanvas({
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               variant="destructive"
-                              onClick={() => remove(node.id)}
+                              onSelect={() => remove(node.id)}
                             >
                               <Trash2 /> Remove this node
                             </DropdownMenuItem>

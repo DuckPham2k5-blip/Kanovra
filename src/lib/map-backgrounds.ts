@@ -31,10 +31,33 @@ import type { MapPalette } from "@/lib/mind-map-palette";
  * dark theme draws white words on cream. The surface sets an explicit ink colour
  * from this instead of trusting the theme.
  */
+/**
+ * The named ways the lights behind a map can move.
+ *
+ * Six, not one per background: a vocabulary that several pictures can share is
+ * a vocabulary somebody can extend, and thirty bespoke animations would be
+ * thirty things to keep working. Each is a class in `globals.css` with its own
+ * keyframes; `motionClassFor` turns a background into the class its lights wear.
+ */
+export const MOTION_STYLES = ["drift", "swell", "sway", "pulse", "orbit", "rise"] as const;
+
+export type MapMotionStyle = (typeof MOTION_STYLES)[number];
+
 export type MapBackground = {
   id: string;
   label: string;
-  group: "Cosmos" | "Nature" | "Technology" | "Colour";
+  group: "Cosmos" | "Nature" | "Technology" | "Colour" | "Art" | "Texture";
+  /**
+   * How the lights over this scenery move.
+   *
+   * Every background used to get the same three drifting blobs, which made
+   * thirteen different pictures behave like one. The motion belongs with the
+   * artwork: a nebula wants a slow swell, a circuit wants a pulse travelling
+   * along it, a meadow wants a sway. Named here rather than chosen by the
+   * surface, so a background and its movement cannot be paired differently in
+   * two places.
+   */
+  motion: MapMotionStyle;
   /** How dark the surface is, so whatever sits on it can pick readable ink. */
   scheme: "dark" | "light";
   /** The accent the drawing wears on top of it. */
@@ -92,11 +115,62 @@ function starPattern(id: string, colour: string, scale = 1, tile = 300) {
   return `<pattern id="${id}" width="${tile}" height="${tile}" patternUnits="userSpaceOnUse">${dots}</pattern>`;
 }
 
+
+/** A band of colour bent across the frame — the building block of the waves. */
+function wave(y: number, amp: number, colour: string, opacity: number) {
+  return (
+    `<path d="M0 ${y} C 300 ${y - amp} 600 ${y + amp} 900 ${y - amp * 0.6} S 1200 ${y} 1200 ${y}` +
+    ` L1200 ${y + 150} L0 ${y + 150} Z" fill="${colour}" opacity="${opacity}"/>`
+  );
+}
+
+/** Halftone: dots that shrink across the frame, as a printer would lay them. */
+function halftone(id: string, colour: string) {
+  return (
+    `<pattern id="${id}" width="34" height="34" patternUnits="userSpaceOnUse">` +
+    `<circle cx="17" cy="17" r="7" fill="${colour}"/></pattern>`
+  );
+}
+
+/** Contour lines, drawn as nested rounded rings rather than real terrain. */
+function contours(
+  cx: number,
+  cy: number,
+  count: number,
+  step: number,
+  colour: string,
+  opacity: number,
+) {
+  return Array.from({ length: count })
+    .map((_, i) => {
+      const r = 40 + i * step;
+      return (
+        `<ellipse cx="${cx}" cy="${cy}" rx="${r * 1.6}" ry="${r}" fill="none" ` +
+        `stroke="${colour}" stroke-width="2.2" opacity="${opacity}"/>`
+      );
+    })
+    .join("");
+}
+
+/** A scatter of small shapes, for the ones that read as confetti. */
+function scatter(items: ["c" | "t" | "s", number, number, number, string][]) {
+  return items
+    .map(([kind, x, y, size, colour]) =>
+      kind === "c"
+        ? `<circle cx="${x}" cy="${y}" r="${size}" fill="${colour}"/>`
+        : kind === "t"
+          ? `<path d="M${x} ${y - size} L${x + size} ${y + size} L${x - size} ${y + size} Z" fill="${colour}"/>`
+          : `<rect x="${x - size}" y="${y - size}" width="${size * 2}" height="${size * 2}" rx="${size / 3}" fill="${colour}" transform="rotate(${(x + y) % 45} ${x} ${y})"/>`,
+    )
+    .join("");
+}
+
 export const MAP_BACKGROUNDS: MapBackground[] = [
   {
     id: "nebula",
     label: "Nebula",
     group: "Cosmos",
+    motion: "swell",
     scheme: "dark",
     palette: { hue: 276, tone: "vivid" },
     base: "#08050f",
@@ -115,6 +189,7 @@ export const MAP_BACKGROUNDS: MapBackground[] = [
     id: "aurora",
     label: "Aurora",
     group: "Nature",
+    motion: "sway",
     scheme: "dark",
     palette: { hue: 158, tone: "vivid" },
     base: "#03121a",
@@ -132,6 +207,7 @@ export const MAP_BACKGROUNDS: MapBackground[] = [
     id: "starfield",
     label: "Star field",
     group: "Cosmos",
+    motion: "drift",
     scheme: "dark",
     palette: { hue: 214, tone: "deep" },
     base: "#04060f",
@@ -151,6 +227,7 @@ export const MAP_BACKGROUNDS: MapBackground[] = [
     id: "mesh",
     label: "Gradient mesh",
     group: "Colour",
+    motion: "swell",
     scheme: "dark",
     palette: { hue: 300, tone: "vivid" },
     base: "#160b22",
@@ -168,6 +245,7 @@ export const MAP_BACKGROUNDS: MapBackground[] = [
     id: "bokeh",
     label: "Bokeh",
     group: "Colour",
+    motion: "rise",
     scheme: "dark",
     palette: { hue: 268, tone: "soft" },
     base: "#080a16",
@@ -189,6 +267,7 @@ export const MAP_BACKGROUNDS: MapBackground[] = [
     id: "honeycomb",
     label: "Honeycomb",
     group: "Technology",
+    motion: "pulse",
     scheme: "dark",
     palette: { hue: 286, tone: "vivid" },
     base: "#0a0713",
@@ -209,6 +288,7 @@ export const MAP_BACKGROUNDS: MapBackground[] = [
     id: "circuit",
     label: "Circuit",
     group: "Technology",
+    motion: "pulse",
     scheme: "dark",
     palette: { hue: 196, tone: "vivid" },
     base: "#04101a",
@@ -229,6 +309,7 @@ export const MAP_BACKGROUNDS: MapBackground[] = [
     id: "ocean",
     label: "Ocean depth",
     group: "Nature",
+    motion: "sway",
     scheme: "dark",
     palette: { hue: 194, tone: "deep" },
     base: "#03141f",
@@ -251,6 +332,7 @@ export const MAP_BACKGROUNDS: MapBackground[] = [
     id: "sunburst",
     label: "Sunburst",
     group: "Colour",
+    motion: "orbit",
     scheme: "dark",
     palette: { hue: 32, tone: "vivid" },
     base: "#100702",
@@ -273,6 +355,7 @@ export const MAP_BACKGROUNDS: MapBackground[] = [
     id: "constellation",
     label: "Constellation",
     group: "Technology",
+    motion: "drift",
     scheme: "dark",
     palette: { hue: 224, tone: "vivid" },
     base: "#060a16",
@@ -293,6 +376,7 @@ export const MAP_BACKGROUNDS: MapBackground[] = [
     id: "grid",
     label: "Minimal grid",
     group: "Technology",
+    motion: "drift",
     scheme: "dark",
     palette: { hue: 220, tone: "mono" },
     base: "#0a0c11",
@@ -312,6 +396,7 @@ export const MAP_BACKGROUNDS: MapBackground[] = [
     id: "meadow",
     label: "Meadow",
     group: "Nature",
+    motion: "sway",
     scheme: "light",
     palette: { hue: 150, tone: "deep" },
     base: "#eef7ee",
@@ -328,17 +413,281 @@ export const MAP_BACKGROUNDS: MapBackground[] = [
     id: "paper",
     label: "Paper",
     group: "Colour",
+    motion: "rise",
     scheme: "light",
     palette: { hue: 24, tone: "deep" },
     base: "#f6f1e7",
     svg: doc(
       SOFT +
-        `<defs><pattern id="dots" width="26" height="26" patternUnits="userSpaceOnUse">` +
-        `<circle cx="3" cy="3" r="1.2" fill="#8d7f6b" opacity="0.38"/></pattern></defs>` +
-        `<rect width="${W}" height="${H}" fill="url(#dots)"/>` +
-        blob(240, 620, 320, 220, "#fbcfe8", 0.5) +
-        blob(980, 200, 320, 220, "#bfdbfe", 0.45),
+        // Bigger dots on a tighter grid, and the washes underneath rather than
+        // over: at 1.2px on a 26px tile the texture was gone at thumbnail size,
+        // which is the same fault the star field had.
+        blob(240, 620, 340, 240, "#fbcfe8", 0.7) +
+        blob(980, 200, 340, 240, "#bfdbfe", 0.65) +
+        `<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse">` +
+        `<circle cx="3" cy="3" r="2.1" fill="#8d7f6b" opacity="0.55"/></pattern></defs>` +
+        `<rect width="${W}" height="${H}" fill="url(#dots)"/>`,
       "#f6f1e7",
+    ),
+  },
+
+  {
+    id: "rainbow",
+    label: "Rainbow wave",
+    group: "Art",
+    motion: "sway",
+    scheme: "dark",
+    palette: { hue: 320, tone: "vivid" },
+    base: "#120a1e",
+    svg: doc(
+      SOFT +
+        wave(180, 90, "#f43f5e", 0.75) +
+        wave(300, 80, "#f59e0b", 0.7) +
+        wave(420, 90, "#22c55e", 0.65) +
+        wave(540, 80, "#0ea5e9", 0.65) +
+        wave(660, 90, "#8b5cf6", 0.7),
+      "#120a1e",
+    ),
+  },
+  {
+    id: "blob",
+    label: "Colourful blob",
+    group: "Art",
+    motion: "swell",
+    scheme: "light",
+    palette: { hue: 24, tone: "soft" },
+    base: "#fdf6ec",
+    svg: doc(
+      SOFT +
+        blob(260, 240, 300, 240, "#fbbf24", 0.55) +
+        blob(880, 200, 320, 260, "#f472b6", 0.45) +
+        blob(420, 620, 340, 240, "#5eead4", 0.5) +
+        blob(1000, 620, 300, 240, "#a5b4fc", 0.5),
+      "#fdf6ec",
+    ),
+  },
+  {
+    id: "splash",
+    label: "Colour splash",
+    group: "Art",
+    motion: "pulse",
+    scheme: "dark",
+    palette: { hue: 340, tone: "vivid" },
+    base: "#0b0713",
+    svg: doc(
+      SOFT +
+        scatter([
+          ["c", 300, 300, 120, "#ec4899"],
+          ["c", 420, 240, 60, "#f59e0b"],
+          ["c", 240, 430, 70, "#8b5cf6"],
+          ["c", 820, 470, 130, "#06b6d4"],
+          ["c", 940, 380, 55, "#22c55e"],
+          ["c", 720, 590, 65, "#f43f5e"],
+          ["c", 600, 180, 45, "#fde68a"],
+        ]) +
+        blob(600, 400, 520, 360, "#1e1b4b", 0.35),
+      "#0b0713",
+    ),
+  },
+  {
+    id: "memphis",
+    label: "Memphis pop",
+    group: "Art",
+    motion: "rise",
+    scheme: "light",
+    palette: { hue: 174, tone: "deep" },
+    base: "#fdfaf3",
+    svg: doc(
+      scatter([
+        ["c", 160, 180, 46, "#f87171"],
+        ["t", 380, 150, 40, "#38bdf8"],
+        ["s", 600, 210, 34, "#fbbf24"],
+        ["c", 860, 140, 30, "#34d399"],
+        ["t", 1060, 240, 44, "#a78bfa"],
+        ["s", 240, 520, 40, "#38bdf8"],
+        ["c", 500, 600, 52, "#fbbf24"],
+        ["t", 760, 540, 38, "#f87171"],
+        ["s", 1000, 620, 36, "#34d399"],
+        ["c", 320, 700, 26, "#a78bfa"],
+      ]),
+      "#fdfaf3",
+    ),
+  },
+  {
+    id: "halftone",
+    label: "Halftone pop",
+    group: "Art",
+    motion: "pulse",
+    scheme: "dark",
+    palette: { hue: 200, tone: "vivid" },
+    base: "#0a1020",
+    svg: doc(
+      SOFT +
+        blob(300, 260, 420, 320, "#0ea5e9", 0.7) +
+        blob(900, 560, 420, 320, "#f43f5e", 0.6) +
+        `<defs>${halftone("ht", "#0a1020")}</defs>` +
+        `<rect width="${W}" height="${H}" fill="url(#ht)" opacity="0.45"/>`,
+      "#0a1020",
+    ),
+  },
+  {
+    id: "watercolour",
+    label: "Water colour",
+    group: "Art",
+    motion: "swell",
+    scheme: "light",
+    palette: { hue: 210, tone: "deep" },
+    base: "#f7fbfd",
+    svg: doc(
+      SOFT +
+        blob(320, 300, 300, 240, "#93c5fd", 0.55) +
+        blob(760, 260, 280, 220, "#fbcfe8", 0.5) +
+        blob(520, 600, 340, 220, "#fde68a", 0.45) +
+        blob(980, 620, 260, 200, "#a7f3d0", 0.5),
+      "#f7fbfd",
+    ),
+  },
+  {
+    id: "papercut",
+    label: "Paper cut",
+    group: "Texture",
+    motion: "sway",
+    scheme: "light",
+    palette: { hue: 190, tone: "deep" },
+    base: "#f3efe6",
+    svg: doc(
+      wave(240, 70, "#e7ded0", 1) +
+        wave(360, 70, "#d9cfbe", 1) +
+        wave(480, 70, "#c9dbd4", 1) +
+        wave(600, 70, "#b6cfc8", 1),
+      "#f3efe6",
+    ),
+  },
+  {
+    id: "lowpoly",
+    label: "Triangle low poly",
+    group: "Texture",
+    motion: "drift",
+    scheme: "dark",
+    palette: { hue: 258, tone: "vivid" },
+    base: "#150e26",
+    svg: doc(
+      Array.from({ length: 34 })
+        .map((_, i) => {
+          const x = (i % 7) * 200 - 60;
+          const y = Math.floor(i / 7) * 190 - 40;
+          const up = (i + Math.floor(i / 7)) % 2 === 0;
+          const tone = ["#7c3aed", "#4f46e5", "#a855f7", "#6366f1", "#c026d3"][i % 5];
+          return up
+            ? `<path d="M${x} ${y} L${x + 220} ${y} L${x + 110} ${y + 200} Z" fill="${tone}" opacity="0.5"/>`
+            : `<path d="M${x} ${y + 200} L${x + 220} ${y + 200} L${x + 110} ${y} Z" fill="${tone}" opacity="0.35"/>`;
+        })
+        .join(""),
+      "#150e26",
+    ),
+  },
+  {
+    id: "neon",
+    label: "Neon lights",
+    group: "Technology",
+    motion: "pulse",
+    scheme: "dark",
+    palette: { hue: 316, tone: "vivid" },
+    base: "#05030a",
+    svg: doc(
+      SOFT +
+        [
+          [80, 620, 520, 120, "#ec4899"],
+          [240, 700, 700, 180, "#22d3ee"],
+          [420, 760, 880, 240, "#a855f7"],
+          [640, 700, 1120, 200, "#f59e0b"],
+        ]
+          .map(
+            ([x1, y1, x2, y2, colour]) =>
+              `<path d="M${x1} ${y1} L${x2} ${y2}" stroke="${colour}" stroke-width="6" ` +
+              `stroke-linecap="round" opacity="0.85" filter="url(#soft)"/>` +
+              `<path d="M${x1} ${y1} L${x2} ${y2}" stroke="${colour}" stroke-width="2" stroke-linecap="round"/>`,
+          )
+          .join(""),
+      "#05030a",
+    ),
+  },
+  {
+    id: "ripple",
+    label: "Circle ripple",
+    group: "Technology",
+    motion: "swell",
+    scheme: "dark",
+    palette: { hue: 206, tone: "deep" },
+    base: "#05101d",
+    svg: doc(
+      SOFT +
+        blob(600, 400, 520, 340, "#0c4a6e", 0.55) +
+        contours(600, 400, 14, 30, "#7dd3fc", 0.25),
+      "#05101d",
+    ),
+  },
+  {
+    id: "topographic",
+    label: "Topographic",
+    group: "Nature",
+    motion: "drift",
+    scheme: "light",
+    palette: { hue: 150, tone: "deep" },
+    base: "#f2f7f2",
+    svg: doc(
+      contours(340, 300, 15, 24, "#4f7a60", 0.75) +
+        contours(920, 560, 13, 28, "#4f7a60", 0.65) +
+        contours(1080, 180, 8, 22, "#4f7a60", 0.5),
+      "#f2f7f2",
+    ),
+  },
+  {
+    id: "liquid",
+    label: "Liquid swirl",
+    group: "Colour",
+    motion: "sway",
+    scheme: "dark",
+    palette: { hue: 288, tone: "vivid" },
+    base: "#0d0518",
+    svg: doc(
+      SOFT +
+        `<path d="M-100 500 C 200 200 400 760 700 420 S 1100 180 1300 420 L1300 900 L-100 900 Z" fill="#7c3aed" opacity="0.55" filter="url(#soft)"/>` +
+        `<path d="M-100 620 C 250 340 480 860 780 540 S 1150 320 1300 540 L1300 900 L-100 900 Z" fill="#db2777" opacity="0.45" filter="url(#soft)"/>` +
+        blob(300, 220, 340, 240, "#0ea5e9", 0.4),
+      "#0d0518",
+    ),
+  },
+  {
+    id: "dunes",
+    label: "Dunes",
+    group: "Nature",
+    motion: "sway",
+    scheme: "dark",
+    palette: { hue: 32, tone: "deep" },
+    base: "#1a0f06",
+    svg: doc(
+      SOFT +
+        blob(600, 140, 640, 200, "#f59e0b", 0.35) +
+        `<path d="M-50 520 C 250 420 450 600 750 500 S 1100 420 1250 520 L1250 900 L-50 900 Z" fill="#b45309" opacity="0.75"/>` +
+        `<path d="M-50 640 C 300 540 520 720 820 620 S 1150 560 1250 640 L1250 900 L-50 900 Z" fill="#78350f" opacity="0.85"/>`,
+      "#1a0f06",
+    ),
+  },
+  {
+    id: "ridges",
+    label: "Ridges",
+    group: "Nature",
+    motion: "drift",
+    scheme: "dark",
+    palette: { hue: 250, tone: "deep" },
+    base: "#0b0a1c",
+    svg: doc(
+      SOFT +
+        blob(820, 200, 300, 220, "#f472b6", 0.4) +
+        `<path d="M-50 560 L200 380 L420 560 L640 400 L900 600 L1150 430 L1250 560 L1250 900 L-50 900 Z" fill="#4c1d95" opacity="0.8"/>` +
+        `<path d="M-50 680 L260 500 L520 680 L760 520 L1000 700 L1250 560 L1250 900 L-50 900 Z" fill="#2e1065" opacity="0.9"/>`,
+      "#0b0a1c",
     ),
   },
 ];
@@ -448,4 +797,15 @@ export function sceneryCss(scenery: MapScenery): Record<string, string> | null {
 export function sceneryInk(scenery: MapScenery): string | undefined {
   if (!scenery) return undefined;
   return scenery.kind === "preset" ? backgroundInk(scenery.background) : "#e5e7eb";
+}
+
+/**
+ * How the lights move over this scenery.
+ *
+ * A linked picture and a plain backdrop both drift, because nothing here knows
+ * what a stranger's photograph is of. Only a drawn background can name its own
+ * movement, because only a drawn background was designed alongside it.
+ */
+export function sceneryMotion(scenery: MapScenery): MapMotionStyle {
+  return scenery?.kind === "preset" ? scenery.background.motion : "drift";
 }

@@ -14,6 +14,7 @@ import {
   readScenery,
   sceneryCss,
   sceneryInk,
+  sceneryMotion,
   type MapBackground,
 } from "@/lib/map-backgrounds";
 import {
@@ -45,11 +46,18 @@ import { setMindMapBackground, setMindMapPalette } from "@/server/actions/mind-m
  * a signed-in user's whole rate-limit allowance on one gesture — the same reason
  * a bulk edit is one request rather than a loop.
  */
-/** Where each drifting light starts, and how big it is. */
+/**
+ * Where each light starts, how big it is, and its own rhythm.
+ *
+ * The duration and delay are per light rather than per keyframe, so all six
+ * motion styles get three lights moving at different rates from one set of
+ * keyframes. At matching speeds three blobs read as a single object sliding
+ * about — the failure the star field had when every mote twinkled on one rate.
+ */
 const DRIFTS = [
-  { className: "tf-map-drift-a", size: "46vw", left: "-10vw", top: "-14vh" },
-  { className: "tf-map-drift-b", size: "38vw", left: "58vw", top: "-6vh" },
-  { className: "tf-map-drift-c", size: "44vw", left: "16vw", top: "52vh" },
+  { key: "a", size: "46vw", left: "-10vw", top: "-14vh", dur: "18s", delay: "0s" },
+  { key: "b", size: "38vw", left: "58vw", top: "-6vh", dur: "24s", delay: "-6s" },
+  { key: "c", size: "44vw", left: "16vw", top: "52vh", dur: "30s", delay: "-13s" },
 ];
 
 export function MindMapSurface({
@@ -182,8 +190,8 @@ export function MindMapSurface({
    * a toast. A rejected link has to be reported next to the box it was typed
    * into, which is inside the picker.
    *
-   * A preset is drawn before the server hears about it — it is thirteen known
-   * ids and there is nothing to check. A link is not: it is shown only once the
+   * A preset is drawn before the server hears about it — it is a known id and
+   * there is nothing to check. A link is not: it is shown only once the
    * server has fetched it and found a picture, or the map spends a moment
    * wearing an address that turns out to be an HTML page.
    */
@@ -219,7 +227,7 @@ export function MindMapSurface({
      * rebuilding all three for one page.
      */
     <div
-      className={`fixed inset-0 z-40 flex flex-col ${motionClass(choice)}`}
+      className={`fixed inset-0 z-40 flex flex-col tf-motion-${sceneryMotion(scenery)} ${motionClass(choice)}`}
       style={
         surface ?? { background: `${mindMapBackdrop(palette)}, hsl(var(--background))` }
       }
@@ -240,15 +248,17 @@ export function MindMapSurface({
       <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
         {DRIFTS.map((drift) => (
           <span
-            key={drift.className}
-            className={`tf-map-drift ${drift.className}`}
+            key={drift.key}
+            className="tf-map-drift"
             style={{
+              "--tf-dur": drift.dur,
+              "--tf-delay": drift.delay,
               background: mindMapColor(palette, scenery?.kind === "preset" && scenery.background.scheme === "light" ? 0.22 : 0.5),
               width: drift.size,
               height: drift.size,
               left: drift.left,
               top: drift.top,
-            }}
+            } as React.CSSProperties}
           />
         ))}
       </div>

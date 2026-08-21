@@ -5,6 +5,7 @@ import {
   findBackground,
   isSafeImageUrl,
   MAP_BACKGROUNDS,
+  MOTION_STYLES,
   readScenery,
   sceneryCss,
   sceneryInk,
@@ -23,6 +24,22 @@ describe("the drawn backgrounds", () => {
       expect(item.palette.hue).toBeLessThan(360);
       expect(TONE_NAMES).toContain(item.palette.tone);
     }
+  });
+
+  it("gives every one a motion style the stylesheet knows", () => {
+    // The class is built as `tf-motion-${motion}`, so a name with no rule behind
+    // it is a background that silently stops moving — nothing fails, nothing
+    // logs, and it looks like the switch is off.
+    for (const item of MAP_BACKGROUNDS) {
+      expect(MOTION_STYLES).toContain(item.motion);
+    }
+  });
+
+  it("spreads the motion styles about rather than giving them all the same", () => {
+    // The whole point of the axis. One style across twenty-seven pictures is the
+    // state this replaced.
+    const used = new Set(MAP_BACKGROUNDS.map((item) => item.motion));
+    expect(used.size).toBeGreaterThanOrEqual(5);
   });
 
   it("fetches nothing from anywhere", () => {

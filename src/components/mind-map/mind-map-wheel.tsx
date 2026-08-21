@@ -475,13 +475,13 @@ export function MindMapWheel({
                     <DropdownMenuContent align="start" className="w-60">
                       <DropdownMenuLabel>Split</DropdownMenuLabel>
                       {[2, 3, 4, 5].map((count) => (
-                        <DropdownMenuItem key={count} onClick={() => onSplit(node, count)}>
+                        <DropdownMenuItem key={count} onSelect={() => onSplit(node, count)}>
                           <Split /> Into {count}
                         </DropdownMenuItem>
                       ))}
 
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => onAddBranch(node)}>
+                      <DropdownMenuItem onSelect={() => onAddBranch(node)}>
                         <PlusCircle /> Add a branch beside this
                       </DropdownMenuItem>
 
@@ -516,7 +516,7 @@ export function MindMapWheel({
                       {/* The same panel the boxes on a free canvas open. A
                           segment's colour is chosen the same way whatever shape
                           the map draws it as. */}
-                      <DropdownMenuItem onClick={() => onPickColor(node.id)}>
+                      <DropdownMenuItem onSelect={() => onPickColor(node.id)}>
                         <span
                           aria-hidden
                           className="size-4 rounded border"
@@ -530,7 +530,7 @@ export function MindMapWheel({
                       </DropdownMenuItem>
 
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem variant="destructive" onClick={() => onRemove(node.id)}>
+                      <DropdownMenuItem variant="destructive" onSelect={() => onRemove(node.id)}>
                         <Trash2 /> Remove this branch
                       </DropdownMenuItem>
                     </DropdownMenuContent>
