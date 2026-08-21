@@ -369,6 +369,27 @@ stack.
   same substitution put `[^\s"'()\\<>]` into a regex as `[^\s"'()\<>]`, which
   parses and quietly stops excluding backslashes. The existing note says to use
   the file-writing tool; it applies to *every* shell, not only heredocs.
+- **`DropdownMenuItem` does not fire on either map canvas.** Neither `onClick`
+  nor `onSelect` runs; the item takes the press and nothing happens. Both props
+  are dispatched from the same place in Radix, so failing together means Radix
+  never treats the press as a *selection* — it is not a wiring mistake at the
+  call site. Radix menus work elsewhere in this app, so it is something these
+  canvases do; the cause is still unknown.
+
+  What works, and what the way round is built on: the emoji grid **inside the
+  same menu** has always worked, because it is plain buttons. So every row in
+  both map menus is a plain `MenuRow` button styled to match an item, and the
+  menus are *controlled* — a plain button cannot close a Radix menu by itself.
+  Confirmed working by the owner on all four rows.
+
+  `MenuRow` is deliberately written twice rather than shared. Sharing it would
+  outlive the bug: when the cause is found, both copies go and the rows become
+  items again.
+
+  Three things were tried and did not fix it, so nobody repeats them: swapping
+  `onClick` for `onSelect`; docking the panel the item opens somewhere more
+  visible; and looking for a geometric cause — the control cluster overlapping a
+  neighbour was measured against real coordinates and does not happen.
 - **A second agent session on the same working tree will sweep your unfinished
   edits into its own commit.** One ran `git add -A` while a file was half-edited
   here; nothing was lost that time, and nothing would have said so if it had
@@ -943,12 +964,13 @@ Hex is validated by a strict regex rather than accepted as “a CSS colour”. I
 interpolated into `linear-gradient(...)` and into an SVG `stop-color`, and the
 document is JSON anybody with edit rights can post.
 
-**A map stands on scenery: thirteen backgrounds, or a link.** Every one is a
+**A map stands on scenery: twenty-seven backgrounds, or a link.** Every one is a
 small SVG embedded as a data URI, for the reason project headers are gradients
 rather than photographs — no upload, no cropping, and a darkness known in
 advance. Three more properties come free: sharp at any zoom, which matters on a
 surface people magnify forty times; nothing fetched from anywhere; and it can be
-rendered from a test and looked at. A test asserts the middle one as an
+rendered from a test and looked at, which is how two of them were caught
+drawing almost nothing. A test asserts the middle one as an
 invariant, because one `<image href="https://…">` would put every viewer's
 address in somebody's logs and would be **invisible on screen**.
 
@@ -958,6 +980,12 @@ whitespace — because the value ends up inside a CSS `url(...)`.
 `verifyRemoteImage` runs too and is a *courtesy*: the picture is fetched by each
 viewer's browser, not by this server, so what it buys is being told “that is not
 a picture” while the link is still in the box.
+
+**Each background names its own motion**, from a vocabulary of six — drift,
+swell, sway, pulse, orbit, rise. Six rather than one each: twenty-seven bespoke
+animations are twenty-seven things to keep working. The three lights carry their
+own duration and delay on the element, so every style gets three rates out of one
+set of keyframes.
 
 **The map surface is the one place that ignores `prefers-reduced-motion`.** Three
 soft lights drift behind the drawing, on the surface layer outside the pan-and-
@@ -983,34 +1011,21 @@ with the same migration shape. The node's `kind` (`step` / `note`) went with it:
 it existed because a flow map needed two sorts of child and nothing else ever
 read it, exactly as `role` existed for double bubble.
 
-### Still broken, and narrowed to one component
+### The menus, and what it took to make them work
 
-**Every `DropdownMenuItem` on a map canvas is dead.** Not the menu — the menu
-opens, and the emoji grid *inside* it works, because those are plain buttons in a
-menu rather than menu items. What is established, from the owner's own console:
-the `…` trigger receives its press, a menu item receives its press, and the panel
-the item opens is never added to the document. The same call from a plain button
-beside it mounts it immediately.
+**Every `DropdownMenuItem` on a map canvas is dead** — see the trap above for
+the shape of it and for the three fixes that did not work. Both map menus are
+built from plain buttons now and the owner has confirmed all four rows firing:
+Change colour, Comments, Remove, and Split.
 
 The evidence that made this findable was not in the code. It was the database:
-**no node on a free canvas had ever been given a colour**, while circle, tree and
-brace had twelve between them, and no bubble, flow or multi-flow map had ever
-recorded a single colour choice. Three rounds of reading the render tree found
-nothing, because there is nothing — the panel mounts from the same place for
-every type.
+**no node on a free canvas had ever been given a colour**, while circle, tree
+and brace had twelve between them. Three rounds of reading the render tree
+found nothing, because there is nothing — every type mounts the same panel from
+the same place. The types that worked were simply the ones touched before the
+colour panel existed.
 
-Every affected action now has a plain-button route: a palette button on the node
-and on a wheel's hub and segment, `+` for a branch, the comment badge, and the
-Delete key for removal. The menu items stay, so the duplication comes out rather
-than the capability when the cause is found. **One action has no way round it:
-splitting a wheel branch into 2–5.**
-
-The question that halves the search and has not been answered: does a
-`DropdownMenuItem` work on the Kanban board? Menus elsewhere in the app appear
-to; if they do, the fault is something this canvas does — the `stopPropagation`
-on a node's `pointerdown`, or the `fixed inset-0 z-40` overlay.
-
-**Verified:** lint, typecheck, 238 tests, a production build with the port check
+**Verified:** lint, typecheck, 240 tests, a production build with the port check
 in the same command, four migrations applied and read back, thirteen backgrounds
 and a wheel of filled segments rendered to pictures and looked at, and — by the
 owner, in the browser — the node palette button, the appearance panel, the

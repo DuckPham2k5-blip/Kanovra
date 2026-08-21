@@ -23,7 +23,7 @@ proven, what has not, and what is open.
 |---|---|
 | `npm run lint` | clean |
 | `npm run typecheck` | clean |
-| `npm test` | **238 / 238** (142 at session start) |
+| `npm test` | **240 / 240** (142 at session start) |
 | `npm run build` | green on the last code commit |
 
 Fifteen tests across three files need Postgres (`docker start kanovra-db`).
@@ -132,6 +132,8 @@ Everything here was confirmed on their own screen.
 - The appearance panel: the drawn backgrounds, and a map keeping one across a
   reload.
 - The flow map type gone from the picker and the list.
+- Every row of a map node's `…` menu, after they were rebuilt as plain buttons:
+  Change colour, Add a comment, Remove, and Split on a wheel.
 - The `…` menu on a map node, after the control-scale fix.
 
 ---
@@ -167,18 +169,17 @@ snapshot lives on the server for 24 hours, but the only route in is the toast, s
 a reload loses it. That was deliberate for "undo what I just did". The owner was
 told, and replied *"tạm gác lại điều đấy"* — parked, not refused.
 
-**The live bug: every `DropdownMenuItem` on a map canvas is dead.** The menu
-opens, the item takes the press, and nothing happens; the emoji grid inside the
-same menu works, because those are plain buttons. Every affected action has a
-plain-button route now — palette buttons on the node, the hub and a segment,
-`+`, the comment badge, the Delete key — except **splitting a wheel branch into
-2–5**, which has no way round.
+**Worked around, cause unknown: `DropdownMenuItem` does not fire on a map
+canvas.** Neither `onClick` nor `onSelect` runs. Both map menus are built from
+plain `MenuRow` buttons instead, styled to match, with the menus controlled so a
+plain button can close them; the owner has confirmed all four rows working.
+`CLAUDE.md` carries the detail and the three fixes that did not work.
 
-The evidence is in `CLAUDE.md`; what is missing is one observation: **does a
-`DropdownMenuItem` work on the Kanban board?** If it does, the fault is
-something the map canvas does — the `stopPropagation` on a node's
-`pointerdown`, or the `fixed inset-0 z-40` overlay. If it does not, every menu
-in the app is broken and that is a much larger problem.
+The observation still missing, and the one that would let the workaround be
+deleted: **does a `DropdownMenuItem` work on the Kanban board?** If it does, the
+fault is something the map canvas does — the `stopPropagation` on a node's
+`pointerdown`, or the `fixed inset-0 z-40` overlay. If it does not, every menu in
+the app is affected and that is a much larger problem than it looks.
 
 **Remaining feature gaps** (from `CLAUDE.md`): task dependencies (blocked by /
 blocks), saved and shareable filter views, recurring tasks, actual time tracking,
