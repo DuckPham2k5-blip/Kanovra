@@ -21,7 +21,16 @@ export default async function MapPage({
   // read as missing rather than as forbidden.
   const map = await prisma.mindMap.findFirst({
     where: { id: mapId, workspaceId: workspace.id },
-    select: { id: true, title: true, type: true, data: true, hue: true, tone: true },
+    select: {
+      id: true,
+      title: true,
+      type: true,
+      data: true,
+      hue: true,
+      tone: true,
+      backgroundKind: true,
+      backgroundValue: true,
+    },
   });
   if (!map) notFound();
 
@@ -68,6 +77,8 @@ export default async function MapPage({
       // colour.
       storedHue={map.hue}
       storedTone={map.tone}
+      storedBackgroundKind={map.backgroundKind}
+      storedBackgroundValue={map.backgroundValue}
       canEdit={can("project:update")}
       canComment={can("comment:create")}
       initialNodes={canvas.nodes}

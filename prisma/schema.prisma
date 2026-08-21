@@ -493,6 +493,14 @@ model MindMap {
   /// The map's own colour, 0-359. Null means the hue its type is born with, so
   /// a map nobody has recoloured draws exactly as it always did.
   hue         Int?
+  /// The scenery the map is drawn on: the id of one of the drawn backgrounds, or
+  /// an https link to a picture. Null is the plain backdrop built from the hue.
+  ///
+  /// Two columns rather than one JSON blob, because they are read on every
+  /// render of the page and a blob would have to be parsed and validated to
+  /// answer "which one". `backgroundKind` says how to read the other.
+  backgroundKind  String?
+  backgroundValue String?
   /// How saturated and how light that hue runs: vivid, soft, deep or mono.
   ///
   /// A string and not an enum on purpose. Tones are a design vocabulary and will

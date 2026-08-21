@@ -7,7 +7,9 @@ import { z } from "zod";
 import { ForbiddenError, getMembership, requireUser } from "@/lib/auth";
 import { logActivity } from "@/lib/events";
 import { canvasSchema } from "@/lib/mind-map-canvas";
+import { findBackground, isSafeImageUrl } from "@/lib/map-backgrounds";
 import { TONE_NAMES } from "@/lib/mind-map-palette";
+import { verifyRemoteImage } from "@/lib/remote-image";
 import { MIND_MAP_META } from "@/lib/mind-maps";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -39,6 +41,18 @@ const paletteSchema = z.object({
   mapId: z.string().min(1),
   hue: z.number().int().min(0).max(359).nullable(),
   tone: z.enum(TONE_NAMES).nullable(),
+});
+
+/**
+ * A background: which sort, and the id or link that goes with it.
+ *
+ * `kind: null` is "no scenery", and it is the only shape where the value is
+ * ignored — a reset has nothing to name.
+ */
+const backgroundSchema = z.object({
+  mapId: z.string().min(1),
+  kind: z.enum(["preset", "url"]).nullable(),
+  value: z.string().max(2048),
 });
 
 export async function createMindMap(input: unknown): Promise<ActionResult<{ id: string }>> {
@@ -233,6 +247,59 @@ export async function setMindMapPalette(input: unknown): Promise<ActionResult> {
     // colour on its card too, and that page is cached separately.
     revalidatePath(`/w/${map.workspace.slug}/maps/${data.mapId}`);
     revalidatePath(`/w/${map.workspace.slug}/maps`);
+    return ok(undefined);
+  });
+}
+
+/**
+ * Sets the scenery a map is drawn on.
+ *
+ * A drawn background is an id this build knows; a link is fetched once, here,
+ * before it is stored. That fetch is a courtesy rather than the guard — the
+ * picture is loaded by each viewer's browser, not by this server — but reporting
+ * "that is not a picture" at the moment somebody pastes a Pinterest page beats
+ * an empty backdrop nobody can explain. The same mistake, on project banners,
+ * is what put `verifyRemoteImage` in the codebase.
+ *
+ * The guard is `isSafeImageUrl`: the value ends up inside a CSS `url(...)`, so a
+ * quote or a bracket in it is a way out of the declaration it sits in.
+ */
+export async function setMindMapBackground(input: unknown): Promise<ActionResult> {
+  return withErrorHandling(async () => {
+    const user = await requireUser();
+    const data = parse(backgroundSchema, input);
+
+    const map = await prisma.mindMap.findUnique({
+      where: { id: data.mapId },
+      select: { workspaceId: true, workspace: { select: { slug: true } } },
+    });
+    if (!map) return fail(NOT_FOUND);
+
+    const membership = await getMembership(user.id, map.workspaceId);
+    if (!membership) return fail(NOT_FOUND);
+    if (!can(membership.role, "project:update")) throw new ForbiddenError();
+
+    if (data.kind === "preset" && !findBackground(data.value)) {
+      return fail("That background is not one of the ones on offer.");
+    }
+
+    if (data.kind === "url") {
+      if (!isSafeImageUrl(data.value)) {
+        return fail("That link must be an https address, with no quotes or brackets in it.");
+      }
+      const check = await verifyRemoteImage(data.value);
+      if (!check.ok) return fail(check.reason);
+    }
+
+    await prisma.mindMap.update({
+      where: { id: data.mapId },
+      data: {
+        backgroundKind: data.kind,
+        backgroundValue: data.kind === null ? null : data.value,
+      },
+    });
+
+    revalidatePath(`/w/${map.workspace.slug}/maps/${data.mapId}`);
     return ok(undefined);
   });
 }

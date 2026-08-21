@@ -7,15 +7,21 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { MindMapCanvas } from "@/components/mind-map/mind-map-canvas";
-import { MindMapPalettePicker } from "@/components/mind-map/mind-map-palette-picker";
+import { MindMapAppearancePicker } from "@/components/mind-map/mind-map-appearance-picker";
 import { Button } from "@/components/ui/button";
 import type { CanvasNode, RadialSettings } from "@/lib/mind-map-canvas";
+import {
+  readScenery,
+  sceneryCss,
+  sceneryInk,
+  type MapBackground,
+} from "@/lib/map-backgrounds";
 import type { NodeFill } from "@/lib/mind-map-fill";
 import { type MapPalette, type MapTone, readPalette } from "@/lib/mind-map-palette";
 import { defaultPalette, mindMapBackdrop, mindMapColor } from "@/lib/mind-maps";
 import type { AvatarUser } from "@/components/shared/user-avatar";
 import type { NodeComment } from "@/components/mind-map/mind-map-node-comments";
-import { setMindMapPalette } from "@/server/actions/mind-map";
+import { setMindMapBackground, setMindMapPalette } from "@/server/actions/mind-map";
 
 /**
  * The map's own screen: its backdrop, its header, and the canvas.
@@ -40,6 +46,8 @@ export function MindMapSurface({
   typeQuestion,
   storedHue,
   storedTone,
+  storedBackgroundKind,
+  storedBackgroundValue,
   canEdit,
   canComment,
   initialNodes,
@@ -58,6 +66,8 @@ export function MindMapSurface({
   /** Straight off the row: null means "the colour this type is born with". */
   storedHue: number | null;
   storedTone: string | null;
+  storedBackgroundKind: string | null;
+  storedBackgroundValue: string | null;
   canEdit: boolean;
   canComment: boolean;
   initialNodes: CanvasNode[];
@@ -77,6 +87,15 @@ export function MindMapSurface({
     tone: readPalette(fallbackHue, storedHue, storedTone).tone,
   });
   const [saved, setSaved] = React.useState(stored);
+  const [background, setBackground] = React.useState<{ kind: string | null; value: string }>({
+    kind: storedBackgroundKind,
+    value: storedBackgroundValue ?? "",
+  });
+
+  const scenery = readScenery(background.kind, background.value);
+  const surface = sceneryCss(scenery);
+  const ink = sceneryInk(scenery);
+
 
   const palette: MapPalette = readPalette(fallbackHue, stored.hue, stored.tone);
   const isDefault = stored.hue === null;
@@ -124,6 +143,36 @@ export function MindMapSurface({
     [mapId, saved],
   );
 
+  /**
+   * Applies scenery, and answers with what went wrong rather than throwing it at
+   * a toast. A rejected link has to be reported next to the box it was typed
+   * into, which is inside the picker.
+   *
+   * A preset is drawn before the server hears about it — it is thirteen known
+   * ids and there is nothing to check. A link is not: it is shown only once the
+   * server has fetched it and found a picture, or the map spends a moment
+   * wearing an address that turns out to be an HTML page.
+   */
+  const applyBackground = React.useCallback(
+    async (kind: "preset" | "url" | null, value: string, preset?: MapBackground) => {
+      const previous = background;
+      if (kind !== "url") {
+        setBackground({ kind, value });
+        // Scenery names the accent that suits it, so choosing one sets both.
+        if (preset) save({ hue: preset.palette.hue, tone: preset.palette.tone });
+      }
+
+      const result = await setMindMapBackground({ mapId, kind, value });
+      if (result.success) {
+        if (kind === "url") setBackground({ kind, value });
+        return null;
+      }
+      setBackground(previous);
+      return result.error;
+    },
+    [background, mapId, save],
+  );
+
   return (
     /*
      * Covers the shell rather than replacing it. A map is a whole-screen
@@ -137,11 +186,16 @@ export function MindMapSurface({
      */
     <div
       className="fixed inset-0 z-40 flex flex-col"
-      style={{ background: `${mindMapBackdrop(palette)}, hsl(var(--background))` }}
+      style={
+        surface ?? { background: `${mindMapBackdrop(palette)}, hsl(var(--background))` }
+      }
     >
+      {/* A strip behind the header, not a change to it. The scenery can be a
+          photograph nobody here has seen, so the bar reads as a bar rather than
+          as words floating on whatever happens to be under them. */}
       <header
-        className="flex shrink-0 items-center gap-3 border-b px-4 py-3"
-        style={{ borderColor: mindMapColor(palette, 0.24) }}
+        className="flex shrink-0 items-center gap-3 border-b bg-background/70 px-4 py-3 backdrop-blur"
+        style={{ borderColor: mindMapColor(palette, 0.24), color: ink }}
       >
         <Button asChild variant="outline" size="sm" className="tf-bar-control">
           <Link href={`/w/${slug}/maps`}>
@@ -156,14 +210,16 @@ export function MindMapSurface({
           </p>
         </div>
 
-        <MindMapPalettePicker
+        <MindMapAppearancePicker
+          scenery={scenery}
           palette={palette}
-          isDefault={isDefault}
+          isDefaultPalette={isDefault}
           disabled={!canEdit}
-          onChange={(next, options) =>
+          onBackground={applyBackground}
+          onPalette={(next, options) =>
             save({ hue: next.hue, tone: next.tone }, options?.continuous)
           }
-          onReset={() => save({ hue: null, tone: null })}
+          onResetPalette={() => save({ hue: null, tone: null })}
         />
       </header>
 
