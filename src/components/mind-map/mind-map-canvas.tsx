@@ -891,25 +891,10 @@ export function MindMapCanvas({
     setDirty(true);
   }
 
-  /** Wider or narrower, as a proportion of what it already has. */
-  function reweight(id: string, factor: number) {
-    // Dragging a boundary reports every frame, so one label holds the gesture.
-    remember(`weight:${id}`);
-    setNodes((prev) =>
-      prev.map((n) =>
-        n.id === id ? { ...n, weight: clamp(n.weight * factor, 0.05, 200) } : n,
-      ),
-    );
-    setDirty(true);
-  }
-
-  /** Longer or shorter, in pixels. */
-  function resize(id: string, delta: number) {
-    setNodes((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, thickness: clamp(n.thickness + delta, 24, 2000) } : n)),
-    );
-    setDirty(true);
-  }
+  // `reweight` and `resize` went with the Size items on the wheel's menu. Width
+  // is dragged from the boundary a branch shares with its neighbour and length
+  // from its outer rim, and `setWeights` and `setThickness` below are what those
+  // grips call — they set a value outright rather than stepping it.
 
   /** Thickness set outright, for a drag that already knows the answer. */
   function setThickness(id: string, px: number) {
@@ -1283,11 +1268,6 @@ export function MindMapCanvas({
               onSplit={splitInto}
               onAddBranch={addBranch}
               onRemove={remove}
-              onRotate={(degrees) => {
-                remember("rotate");
-                setRadial((prev) => ({ ...prev, start: prev.start + degrees }));
-                setDirty(true);
-              }}
               onSetThickness={setThickness}
               onSetWeights={setWeights}
               onCommitRotation={(start) => {

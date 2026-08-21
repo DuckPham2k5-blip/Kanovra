@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageSquare, MinusCircle, MoreHorizontal, PlusCircle, Split, Trash2 } from "lucide-react";
+import { MessageSquare, MoreHorizontal, PlusCircle, Split, Trash2 } from "lucide-react";
 import * as React from "react";
 
 import {
@@ -65,9 +65,6 @@ export function MindMapWheel({
   onSplit,
   onAddBranch,
   onRemove,
-  onReweight,
-  onResize,
-  onRotate,
   onSetThickness,
   onSetWeights,
   onCommitRotation,
@@ -99,9 +96,6 @@ export function MindMapWheel({
   onSplit: (node: CanvasNode, count: number) => void;
   onAddBranch: (beside: CanvasNode) => void;
   onRemove: (id: string) => void;
-  onReweight: (id: string, factor: number) => void;
-  onResize: (id: string, delta: number) => void;
-  onRotate: (degrees: number) => void;
   /** Sets a branch's thickness outright, for a drag that knows the answer. */
   onSetThickness: (id: string, px: number) => void;
   /** Moves weight between two neighbours in one go, so their shared edge holds. */
@@ -361,28 +355,22 @@ export function MindMapWheel({
         />
 
         {canEdit && mounted ? (
+          // One press, one branch. It was a menu whose first item was "Add a
+          // branch" and whose other two rotated the wheel — but the wheel is
+          // turned by dragging the hub's rim, which is the gesture this control
+          // sits next to. A `+` that opens a list to offer the thing the `+`
+          // already means is a step nobody asked for.
           <div className="absolute -right-1 -top-1">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="Add a branch"
-                  className="rounded-full border bg-background p-1 shadow-sm"
-                  style={{ borderColor: `hsl(${mapHue} 85% 62%)` }}
-                >
-                  <PlusCircle className="size-4" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuLabel>Wheel</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => onAddBranch(root)}>
-                  <PlusCircle /> Add a branch
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onRotate(-15)}>Rotate left 15°</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onRotate(15)}>Rotate right 15°</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <button
+              type="button"
+              aria-label="Add a branch"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={() => onAddBranch(root)}
+              className="rounded-full border bg-background p-1 shadow-sm"
+              style={{ borderColor: `hsl(${mapHue} 85% 62%)` }}
+            >
+              <PlusCircle className="size-4" />
+            </button>
           </div>
         ) : null}
       </div>
@@ -448,20 +436,11 @@ export function MindMapWheel({
                         <PlusCircle /> Add a branch beside this
                       </DropdownMenuItem>
 
-                      <DropdownMenuSeparator />
-                      <DropdownMenuLabel>Size</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => onReweight(node.id, 1.35)}>
-                        <PlusCircle /> Wider
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onReweight(node.id, 1 / 1.35)}>
-                        <MinusCircle /> Narrower
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onResize(node.id, 40)}>
-                        <PlusCircle /> Longer
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onResize(node.id, -40)}>
-                        <MinusCircle /> Shorter
-                      </DropdownMenuItem>
+                      {/* Size is not here. A branch is made wider by dragging
+                          the boundary it shares with its neighbour and longer by
+                          dragging its outer rim, and both grips are on the
+                          drawing. Four menu rows restating two visible handles is
+                          clutter on a menu with real choices left. */}
 
                       <DropdownMenuSeparator />
                       <DropdownMenuLabel>Emoji</DropdownMenuLabel>
