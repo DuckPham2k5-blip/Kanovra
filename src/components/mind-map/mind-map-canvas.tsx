@@ -21,6 +21,7 @@ import { UserAvatar, type AvatarUser } from "@/components/shared/user-avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -922,7 +923,23 @@ export function MindMapCanvas({
      * never stopped, so that button did nothing at all. Whether the press goes on
      * to start a drag is a separate decision, taken below.
      */
-    event.stopPropagation();
+    /*
+     * A press on a control is left alone; only a press on the node itself is
+     * swallowed.
+     *
+     * This used to swallow everything, and that is what killed every menu item on
+     * this canvas. React attaches at the root container, so `stopPropagation` on
+     * a synthetic event stops the *native* event too — and Radix's menu listens
+     * on `document`. Stopping the trigger's press there left the menu open but
+     * every row in it unreachable, which is the same failure this project already
+     * recorded from stopping the press on the trigger itself.
+     *
+     * Nothing is lost by letting it through: the viewport declines any press that
+     * started on a control, which is what the swallowing was protecting against.
+     */
+    const target = event.target as HTMLElement;
+    const onControl = Boolean(target.closest("button, textarea, [role='menuitem']"));
+    if (!onControl) event.stopPropagation();
 
     /*
      * Selected before any question about permission or type, because selection
@@ -932,10 +949,7 @@ export function MindMapCanvas({
      */
     setSelected(node.id);
 
-    if (!canEdit || structured) return;
-
-    const target = event.target as HTMLElement;
-    if (target.closest("button") || target.closest("textarea")) return;
+    if (!canEdit || structured || onControl) return;
 
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     const point = toWorld(event);
@@ -979,6 +993,15 @@ export function MindMapCanvas({
    */
   function onViewportPointerDown(event: React.PointerEvent) {
     if (dragging.current || resizing.current) return;
+    /*
+     * A press that began on a control is not a press on the plane.
+     *
+     * This is the other half of `onNodePointerDown` no longer swallowing those
+     * presses: they now reach here, and without this the viewport would capture
+     * the pointer to pan and eat the click — the dead-button bug this project has
+     * had three times.
+     */
+    if ((event.target as HTMLElement).closest("button, textarea, [role='menuitem']")) return;
     // Pressing the empty plane is how you let go of a node. Without this the
     // ring stays lit on whatever was touched last and Delete still points at it,
     // which is a loaded key aimed at something nobody is looking at.
@@ -1701,15 +1724,19 @@ export function MindMapCanvas({
                         {savedIds.has(node.id) && canComment ? (
                           <>
                             <DropdownMenuSeparator />
-                            <MenuRow
-                              onSelect={() => {
-                                setOpenMenu(null);
-                                openComments(node.id);
-                              }}
-                            >
-                              <MessageSquare className="size-4 shrink-0" />
+                            {/* The canary.
+                             *
+                             * The one row still built as a real
+                             * `DropdownMenuItem`, deliberately. Every item on
+                             * this canvas was dead until the press on a control
+                             * stopped being swallowed; if this row fires now, the
+                             * cause is confirmed and the `MenuRow` copies come
+                             * out. If it does not, the rest of the menu still
+                             * works and only this one line is affected. */}
+                            <DropdownMenuItem onSelect={() => openComments(node.id)}>
+                              <MessageSquare />
                               {threadSize > 0 ? `Comments (${threadSize})` : "Add a comment"}
-                            </MenuRow>
+                            </DropdownMenuItem>
                           </>
                         ) : null}
 
