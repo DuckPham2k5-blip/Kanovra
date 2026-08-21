@@ -6,7 +6,6 @@ import * as React from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -156,6 +155,19 @@ export function MindMapWheel({
    * rotating costs one attribute — and the real value is written once, on release.
    */
   const [liveRotation, setLiveRotation] = React.useState(0);
+  /*
+   * Whether the selected segment's menu is open.
+   *
+   * Controlled, because its rows are plain buttons rather than
+   * `DropdownMenuItem`s and a plain button does not close a Radix menu. Why
+   * plain buttons: on this canvas an item takes the press and neither `onClick`
+   * nor `onSelect` runs, while the emoji grid in the same menu has always
+   * worked, and it is plain buttons.
+   *
+   * One flag rather than one per node, because only the selected segment has a
+   * menu at all.
+   */
+  const [openMenu, setOpenMenu] = React.useState(false);
 
   const drag = React.useRef<
     | { kind: "rotate"; from: number }
@@ -431,38 +443,9 @@ export function MindMapWheel({
                   </button>
                 ) : null}
 
-                {/* Adding a branch and choosing a colour, out of the menu.
-                 *
-                 * Every `DropdownMenuItem` on this canvas is currently
-                 * unreachable — the owner reported the colour item, the comment
-                 * item and "add a branch beside this" all doing nothing, while
-                 * the plain buttons beside them work and the emoji grid inside
-                 * the same menu works, because those are plain buttons too. The
-                 * cause is still being narrowed; these are the two actions with
-                 * nowhere else to go, and the hub already proves the shape. */}
-                {canEdit ? (
-                  <>
-                    <button
-                      type="button"
-                      aria-label="Add a branch beside this"
-                      onClick={() => onAddBranch(node)}
-                      className="rounded-full border bg-background p-1 shadow-sm"
-                    >
-                      <PlusCircle className="size-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Change this branch's colour"
-                      onClick={() => onPickColor(node.id)}
-                      className="rounded-full border bg-background p-1 shadow-sm"
-                    >
-                      <Palette className="size-3.5" />
-                    </button>
-                  </>
-                ) : null}
 
                 {canEdit ? (
-                  <DropdownMenu>
+                  <DropdownMenu open={openMenu} onOpenChange={setOpenMenu}>
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
@@ -475,15 +458,26 @@ export function MindMapWheel({
                     <DropdownMenuContent align="start" className="w-60">
                       <DropdownMenuLabel>Split</DropdownMenuLabel>
                       {[2, 3, 4, 5].map((count) => (
-                        <DropdownMenuItem key={count} onSelect={() => onSplit(node, count)}>
-                          <Split /> Into {count}
-                        </DropdownMenuItem>
+                        <MenuRow
+                          key={count}
+                          onSelect={() => {
+                            setOpenMenu(false);
+                            onSplit(node, count);
+                          }}
+                        >
+                          <Split className="size-4 shrink-0" /> Into {count}
+                        </MenuRow>
                       ))}
 
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onSelect={() => onAddBranch(node)}>
-                        <PlusCircle /> Add a branch beside this
-                      </DropdownMenuItem>
+                      <MenuRow
+                        onSelect={() => {
+                          setOpenMenu(false);
+                          onAddBranch(node);
+                        }}
+                      >
+                        <PlusCircle className="size-4 shrink-0" /> Add a branch beside this
+                      </MenuRow>
 
                       {/* Size is not here. A branch is made wider by dragging
                           the boundary it shares with its neighbour and longer by
@@ -516,7 +510,12 @@ export function MindMapWheel({
                       {/* The same panel the boxes on a free canvas open. A
                           segment's colour is chosen the same way whatever shape
                           the map draws it as. */}
-                      <DropdownMenuItem onSelect={() => onPickColor(node.id)}>
+                      <MenuRow
+                        onSelect={() => {
+                          setOpenMenu(false);
+                          onPickColor(node.id);
+                        }}
+                      >
                         <span
                           aria-hidden
                           className="size-4 rounded border"
@@ -527,12 +526,18 @@ export function MindMapWheel({
                           }}
                         />
                         Change colour
-                      </DropdownMenuItem>
+                      </MenuRow>
 
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem variant="destructive" onSelect={() => onRemove(node.id)}>
-                        <Trash2 /> Remove this branch
-                      </DropdownMenuItem>
+                      <MenuRow
+                        destructive
+                        onSelect={() => {
+                          setOpenMenu(false);
+                          onRemove(node.id);
+                        }}
+                      >
+                        <Trash2 className="size-4 shrink-0" /> Remove this branch
+                      </MenuRow>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 ) : null}
@@ -664,6 +669,39 @@ function Handles({
 function polarPoint(r: number, degrees: number) {
   const rad = (degrees * Math.PI) / 180;
   return { x: r * Math.cos(rad), y: r * Math.sin(rad) };
+}
+
+/**
+ * A row in a segment's menu, built as a plain button.
+ *
+ * The twin of the one in `mind-map-canvas.tsx`, and for the same reason: a
+ * `DropdownMenuItem` on either of these canvases takes the press without ever
+ * running its handler. Kept separate rather than shared, because sharing it
+ * would outlive the bug that caused it — when the cause is found, both go.
+ */
+function MenuRow({
+  children,
+  destructive,
+  onSelect,
+}: {
+  children: React.ReactNode;
+  destructive?: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={onSelect}
+      className={cn(
+        "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5",
+        "text-left text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground",
+        destructive && "text-destructive hover:bg-destructive/10 hover:text-destructive",
+      )}
+    >
+      {children}
+    </button>
+  );
 }
 
 /** One ring segment: its fill, its label, and the text you can edit in place. */

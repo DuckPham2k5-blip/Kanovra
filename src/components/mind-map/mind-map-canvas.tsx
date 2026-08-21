@@ -4,7 +4,6 @@ import { MindMapType } from "@prisma/client";
 import {
   MessageSquare,
   MoreHorizontal,
-  Palette,
   Plus,
   Redo2,
   Trash2,
@@ -22,7 +21,6 @@ import { UserAvatar, type AvatarUser } from "@/components/shared/user-avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -193,6 +191,18 @@ export function MindMapCanvas({
   const [radial, setRadial] = React.useState<RadialSettings>(initialRadial);
   // Which node's colour is being chosen, and the colours this map has used.
   const [colouring, setColouring] = React.useState<string | null>(null);
+  /*
+   * Which node's `…` menu is open.
+   *
+   * Controlled, because the rows inside it are plain buttons rather than
+   * `DropdownMenuItem`s and a plain button does not close a Radix menu. They are
+   * plain buttons because the menu items do not work on this canvas: the item
+   * takes the press and neither `onClick` nor `onSelect` ever runs, while the
+   * emoji buttons in the same menu have always worked. Whatever the cause turns
+   * out to be, it is in `DropdownMenuItem`, and nothing here has to go through
+   * it.
+   */
+  const [openMenu, setOpenMenu] = React.useState<string | null>(null);
   const [recents, setRecents] = React.useState<NodeFill[]>(initialRecents);
   const isRadial = type === MindMapType.CIRCLE;
 
@@ -1601,32 +1611,10 @@ export function MindMapCanvas({
                         <Plus className="size-3.5" />
                       </button>
 
-                    {/* Colour, out of the menu and onto the node.
-                     *
-                     * It is still on the menu below, and this is not a shortcut
-                     * for regulars: "Change colour" was reported as doing
-                     * nothing on three map types, and the browser then showed
-                     * the panel was never in the document at all — one `aside`
-                     * on the page, 0x0 and z-10, which is the shell's own hidden
-                     * sidebar. Whatever swallows it happens inside a portalled
-                     * Radix menu, which is the one part of that path nothing
-                     * here can inspect.
-                     *
-                     * So the colour panel gets a way in that crosses no menu: a
-                     * plain button that swallows its own press, exactly like the
-                     * `+` beside it and the one on a wheel's hub. */}
-                    <button
-                      type="button"
-                      aria-label="Change this node's colour"
-                      onPointerDown={(event) => event.stopPropagation()}
-                      onClick={() => setColouring(node.id)}
-                      className="rounded-full border bg-background p-1 shadow-sm"
-                      style={{ borderColor: mindMapColor(palette, 0.5) }}
+                    <DropdownMenu
+                      open={openMenu === node.id}
+                      onOpenChange={(next) => setOpenMenu(next ? node.id : null)}
                     >
-                      <Palette className="size-3.5" />
-                    </button>
-
-                    <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button
                           type="button"
@@ -1686,10 +1674,15 @@ export function MindMapCanvas({
                             now a mix of up to four with a direction, which does
                             not fit in a menu — and the menu closes over the node
                             you are trying to judge the colour against. */}
-                        <DropdownMenuItem onSelect={() => setColouring(node.id)}>
+                        <MenuRow
+                          onSelect={() => {
+                            setOpenMenu(null);
+                            setColouring(node.id);
+                          }}
+                        >
                           <span
                             aria-hidden
-                            className="size-4 rounded border"
+                            className="size-4 shrink-0 rounded border"
                             style={{
                               background: node.fill
                                 ? fillCss(node.fill)
@@ -1697,7 +1690,7 @@ export function MindMapCanvas({
                             }}
                           />
                           Change colour
-                        </DropdownMenuItem>
+                        </MenuRow>
 
                         {/* Comments reachable from the menu as well as from the
                             badge. The badge is the one that can *tell* you there
@@ -1708,22 +1701,30 @@ export function MindMapCanvas({
                         {savedIds.has(node.id) && canComment ? (
                           <>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onSelect={() => openComments(node.id)}>
-                              <MessageSquare />
+                            <MenuRow
+                              onSelect={() => {
+                                setOpenMenu(null);
+                                openComments(node.id);
+                              }}
+                            >
+                              <MessageSquare className="size-4 shrink-0" />
                               {threadSize > 0 ? `Comments (${threadSize})` : "Add a comment"}
-                            </DropdownMenuItem>
+                            </MenuRow>
                           </>
                         ) : null}
 
                         {!isCentre ? (
                           <>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              variant="destructive"
-                              onSelect={() => remove(node.id)}
+                            <MenuRow
+                              destructive
+                              onSelect={() => {
+                                setOpenMenu(null);
+                                remove(node.id);
+                              }}
                             >
-                              <Trash2 /> Remove this node
-                            </DropdownMenuItem>
+                              <Trash2 className="size-4 shrink-0" /> Remove this node
+                            </MenuRow>
                           </>
                         ) : null}
                       </DropdownMenuContent>
@@ -1824,6 +1825,39 @@ export function MindMapCanvas({
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * A row in a node's menu, built as a plain button.
+ *
+ * Styled to match `DropdownMenuItem` exactly, and deliberately not one: on this
+ * canvas an item receives the press and its handler never runs. The emoji grid
+ * in the same menu is plain buttons and has always worked, which is the whole
+ * reason this shape was reached for.
+ */
+function MenuRow({
+  children,
+  destructive,
+  onSelect,
+}: {
+  children: React.ReactNode;
+  destructive?: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={onSelect}
+      className={cn(
+        "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5",
+        "text-left text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground",
+        destructive && "text-destructive hover:bg-destructive/10 hover:text-destructive",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
