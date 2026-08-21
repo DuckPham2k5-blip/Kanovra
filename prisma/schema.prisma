@@ -475,7 +475,6 @@ enum MindMapType {
   CIRCLE
   BUBBLE
   TREE
-  FLOW
   MULTI_FLOW
   BRACE
 }

@@ -82,28 +82,6 @@ export function MindMapGlyph({
         </svg>
       );
 
-    case MindMapType.FLOW:
-      return (
-        <svg {...common}>
-          {[
-            [10, 10],
-            [64, 10],
-            [10, 52],
-            [64, 52],
-          ].map(([x, y]) => (
-            <rect key={`${x}-${y}`} x={x} y={y} width="40" height="16" rx="2" fill={soft} />
-          ))}
-          {/* The bend down the right and back along the bottom is what makes a
-              flow read as a sequence rather than a row of boxes. */}
-          <path
-            d="M50 18h10M104 18h8v20h-8M60 60h-8M50 60H30"
-            stroke={line}
-            strokeWidth="1.5"
-          />
-          <path d="M56 18l4-2v4zM106 38l-4 2v-4z" fill={strong} />
-        </svg>
-      );
-
     case MindMapType.MULTI_FLOW:
       return (
         <svg {...common}>

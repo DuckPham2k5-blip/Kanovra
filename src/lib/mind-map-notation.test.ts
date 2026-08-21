@@ -2,7 +2,6 @@ import { MindMapType } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
 import {
-  DEFAULT_KIND,
   DEFAULT_THICKNESS,
   DEFAULT_WEIGHT,
   nodeSize,
@@ -34,7 +33,6 @@ function node(id: string, parentId: string | null, rank = 0, x = 0, y = 0): Canv
     rank,
     weight: DEFAULT_WEIGHT,
     thickness: DEFAULT_THICKNESS,
-    kind: DEFAULT_KIND,
   };
 }
 
@@ -57,7 +55,6 @@ describe("replacesEdges", () => {
     // edges *or* marks any more, because it is a wheel.
     expect(replacesEdges(MindMapType.CIRCLE)).toBe(false);
     expect(replacesEdges(MindMapType.TREE)).toBe(false);
-    expect(replacesEdges(MindMapType.FLOW)).toBe(false);
     expect(replacesEdges(MindMapType.MULTI_FLOW)).toBe(false);
     expect(replacesEdges(MindMapType.BUBBLE)).toBe(false);
   });

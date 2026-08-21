@@ -2,7 +2,6 @@ import { MindMapType } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
 import {
-  DEFAULT_KIND,
   DEFAULT_THICKNESS,
   DEFAULT_WEIGHT,
   nodeSize,
@@ -35,12 +34,7 @@ import { isStructured, layoutNodes } from "@/lib/mind-map-layout";
  *   - no edge passes through a node that is not one of its own two ends.
  */
 
-function node(
-  id: string,
-  parentId: string | null,
-  rank = 0,
-  kind: CanvasNode["kind"] = DEFAULT_KIND,
-): CanvasNode {
+function node(id: string, parentId: string | null, rank = 0): CanvasNode {
   return {
     id,
     text: id,
@@ -50,7 +44,6 @@ function node(
     rank,
     weight: DEFAULT_WEIGHT,
     thickness: DEFAULT_THICKNESS,
-    kind,
   };
 }
 
@@ -72,25 +65,6 @@ function fixture(type: MindMapType): CanvasNode[] {
         node("c", "root"),
         node("c1", "c", 4),
         node("c1x", "c1"),
-      ];
-
-    case MindMapType.FLOW:
-      // Mixed ranks, so the boxes are not all the same size — and long enough
-      // to wrap, which is the case the serpentine rows exist for. Two steps
-      // carry explanations, including one stacked two deep, so the columns
-      // hanging below a row are covered by the no-overlap assertion as well.
-      return [
-        node("root", null, 1),
-        node("s1", "root"),
-        node("s1n1", "s1", 0, "note"),
-        node("s1n2", "s1", 0, "note"),
-        node("s2", "s1", 2),
-        node("s3", "s2", -1),
-        node("s3n1", "s3", 1, "note"),
-        node("s3n1a", "s3n1", 0, "note"),
-        node("s4", "s3"),
-        node("s5", "s4", 1),
-        node("s6", "s5"),
       ];
 
     case MindMapType.MULTI_FLOW:
@@ -143,7 +117,6 @@ function rectsFor(type: MindMapType, nodes: CanvasNode[]): Map<string, Rect> {
 
 const STRUCTURED = [
   MindMapType.TREE,
-  MindMapType.FLOW,
   MindMapType.MULTI_FLOW,
   MindMapType.BRACE,
 ] as const;

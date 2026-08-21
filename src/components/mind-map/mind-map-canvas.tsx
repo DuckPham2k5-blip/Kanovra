@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MindMapWheel } from "@/components/mind-map/mind-map-wheel";
 import {
-  DEFAULT_KIND,
   DEFAULT_WEIGHT,
   clampRank,
   controlScale,
@@ -537,8 +536,7 @@ export function MindMapCanvas({
        * work that out was tried once for the bridge map and is what got that
        * signature simplified back again; the node already knows which it is.
        */
-      const axis =
-        type === MindMapType.FLOW && node.kind === "note" ? "v" : edgeAxis(type);
+      const axis = edgeAxis(type);
       if (axis === "free") {
         const [a, b] = trimStraight(from, to, style.node === "circle");
         out.push({
@@ -599,7 +597,7 @@ export function MindMapCanvas({
    */
   const seeded = React.useRef(false);
   React.useEffect(() => {
-    const seedable = type === MindMapType.MULTI_FLOW || type === MindMapType.FLOW;
+    const seedable = type === MindMapType.MULTI_FLOW;
     if (seeded.current || !seedable || !canEdit) return;
     if (nodes.length < 2 || nodes.some((node) => node.x !== 0 || node.y !== 0)) return;
 
@@ -631,26 +629,8 @@ export function MindMapCanvas({
     setDirty(true);
   }
 
-  function addChild(pressed: CanvasNode, rank: number, kind: CanvasNode["kind"] = DEFAULT_KIND) {
-    /*
-     * An explanation joins the bottom of the column already hanging off this
-     * step, rather than becoming a second child of the step itself.
-     *
-     * Two notes sharing a parent means two connectors leaving the same edge, and
-     * the router has to take the second one out and around the first — which
-     * draws a line looping into the box from the side for no reason a reader can
-     * see. Found by rendering a flow map with two explanations on one step and
-     * looking at it. Chained, each connector is a short hop straight down, which
-     * is also how the sketch this was built from draws them.
-     */
-    let parent = pressed;
-    if (kind === "note") {
-      for (let guard = 0; guard < 200; guard += 1) {
-        const next = nodes.find((n) => n.parentId === parent.id && n.kind === "note");
-        if (!next) break;
-        parent = next;
-      }
-    }
+  function addChild(pressed: CanvasNode, rank: number) {
+    const parent = pressed;
 
     /*
      * Below-right of its parent, then nudged clear of anything already there —
@@ -659,22 +639,10 @@ export function MindMapCanvas({
      *
      * Clearance is measured against both boxes rather than a fixed 60×50, which
      * let a large node land on top of a small one and still count as clear.
-     *
-     * An explanation on a flow map goes straight *down* instead, because that is
-     * what it means: it hangs off the bottom edge of its step. The wrapped layout
-     * used to place these, and it stopped when flow became a free canvas — so
-     * every explanation started landing below-right like an ordinary child, with
-     * its connector leaving the side of the box the sketch draws it under. A
-     * regression from making the type draggable, not from the drawing.
      */
     const box = nodeSize(type, rank);
-    const under = type === MindMapType.FLOW && kind === "note";
-    const x = under
-      ? parent.x
-      : parent.x + nodeSize(type, parent.rank).w / 2 + 70 + box.w / 2;
-    let y = under
-      ? parent.y + nodeSize(type, parent.rank).h / 2 + 54 + box.h / 2
-      : parent.y + 150;
+    const x = parent.x + nodeSize(type, parent.rank).w / 2 + 70 + box.w / 2;
+    let y = parent.y + 150;
     while (
       nodes.some((n) => {
         const other = nodeSize(type, n.rank);
@@ -693,7 +661,6 @@ export function MindMapCanvas({
       y,
       parentId: parent.id,
       rank,
-      kind,
       weight: DEFAULT_WEIGHT,
       thickness: RING_THICKNESS,
     };
@@ -850,7 +817,6 @@ export function MindMapCanvas({
         y: 0,
         parentId: parent.id,
         rank: 0,
-        kind: DEFAULT_KIND,
         weight: 1,
         thickness: RING_THICKNESS,
       });
@@ -882,7 +848,6 @@ export function MindMapCanvas({
       y: 0,
       parentId,
       rank: 0,
-      kind: DEFAULT_KIND,
       weight: 1,
       thickness: RING_THICKNESS,
     };
@@ -1625,28 +1590,6 @@ export function MindMapCanvas({
                         next step or explained by a box underneath it, and those
                         are different things that both hang off the same node.
                         Nothing else on the canvas has two kinds of child. */}
-                    {type === MindMapType.FLOW ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            type="button"
-                            aria-label="Add a step or an explanation"
-                            className="rounded-full border bg-background p-1 shadow-sm"
-                            style={{ borderColor: mindMapColor(palette, 0.5) }}
-                          >
-                            <Plus className="size-3.5" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          <DropdownMenuItem onClick={() => addChild(node, node.rank, "step")}>
-                            <Plus /> Add the next step
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => addChild(node, node.rank, "note")}>
-                            <MessageSquare /> Add an explanation
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    ) : (
                       <button
                         type="button"
                         aria-label="Add a connected node"
@@ -1657,7 +1600,6 @@ export function MindMapCanvas({
                       >
                         <Plus className="size-3.5" />
                       </button>
-                    )}
 
                     {/* Colour, out of the menu and onto the node.
                      *

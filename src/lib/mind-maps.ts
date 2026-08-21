@@ -5,12 +5,12 @@ import { type MapPalette, toneValues } from "@/lib/mind-map-palette";
 /**
  * The map types.
  *
- * Six of them. It began as the eight Thinking Maps; bridge and double bubble were
- * withdrawn and then removed outright, values and rows and all, so nothing in here
- * remembers them.
+ * Five of them. It began as the eight Thinking Maps; bridge, double bubble and
+ * flow were withdrawn and then removed outright, values and rows and all, so
+ * nothing in here remembers them.
  *
  * Each one answers a different question, and that is the whole point of having
- * six rather than one free-form canvas: choosing the map is choosing how to
+ * five rather than one free-form canvas: choosing the map is choosing how to
  * think about the thing. The descriptions below are written as that question,
  * not as a shape, so the picker helps someone decide rather than asking them to
  * recognise a diagram they may never have seen.
@@ -53,12 +53,6 @@ export const MIND_MAP_META: Record<MindMapType, MindMapMeta> = {
     question: "What are the groups, and what belongs in each?",
     hue: 38, // amber
   },
-  FLOW: {
-    type: MindMapType.FLOW,
-    label: "Flow map",
-    question: "What happens, in what order?",
-    hue: 202, // sky
-  },
   MULTI_FLOW: {
     type: MindMapType.MULTI_FLOW,
     label: "Multi-flow map",
@@ -77,7 +71,6 @@ export const MIND_MAP_ORDER: MindMapType[] = [
   MindMapType.CIRCLE,
   MindMapType.BUBBLE,
   MindMapType.TREE,
-  MindMapType.FLOW,
   MindMapType.MULTI_FLOW,
   MindMapType.BRACE,
 ];
@@ -274,7 +267,6 @@ const STYLES: Record<MindMapType, MindMapStyle> = {
   [MindMapType.TREE]: { node: "box", ring: false, edge: "elbow" },
   // One thing after another, as discrete states: square boxes and right-angled
   // arrows. It was a pill, which reads as softer than a step in a procedure.
-  [MindMapType.FLOW]: { node: "box", ring: false, edge: "arrow", corner: "sharp" },
   // Causes in, effects out — direction is the whole point.
   [MindMapType.MULTI_FLOW]: { node: "box", ring: false, edge: "arrow" },
   // A whole divided into parts, which is a bracket — an actual one, spanning

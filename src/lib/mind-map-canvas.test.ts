@@ -96,7 +96,7 @@ describe("nodeSize", () => {
   });
 
   it("draws the line-running types wider than they are tall", () => {
-    const pill = nodeSize(MindMapType.FLOW, 0);
+    const pill = nodeSize(MindMapType.MULTI_FLOW, 0);
     const box = nodeSize(MindMapType.TREE, 0);
     expect(pill.w).toBeGreaterThan(pill.h);
     expect(box.w).toBeGreaterThan(box.h);
