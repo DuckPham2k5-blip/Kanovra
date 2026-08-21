@@ -1,6 +1,7 @@
 import { MindMapType } from "@prisma/client";
 
-import { mindMapColor } from "@/lib/mind-maps";
+import type { MapPalette } from "@/lib/mind-map-palette";
+import { defaultPalette, mindMapColor } from "@/lib/mind-maps";
 
 /**
  * The shape of each map, drawn rather than photographed.
@@ -13,14 +14,22 @@ import { mindMapColor } from "@/lib/mind-maps";
  */
 export function MindMapGlyph({
   type,
+  palette,
   className,
 }: {
   type: MindMapType;
+  /**
+   * The colour to draw it in. A glyph stands for a *type* when it labels one —
+   * in the filter chips and the picker — and for a *map* when it sits on that
+   * map's card, which is why the caller decides rather than the type.
+   */
+  palette?: MapPalette;
   className?: string;
 }) {
-  const strong = mindMapColor(type);
-  const soft = mindMapColor(type, 0.42);
-  const line = mindMapColor(type, 0.55);
+  const colours = palette ?? defaultPalette(type);
+  const strong = mindMapColor(colours);
+  const soft = mindMapColor(colours, 0.42);
+  const line = mindMapColor(colours, 0.55);
 
   const common = { className, viewBox: "0 0 120 80", fill: "none" as const };
 

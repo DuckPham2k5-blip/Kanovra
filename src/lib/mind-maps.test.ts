@@ -1,6 +1,7 @@
 import { MindMapType } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
+import { MAP_TONES } from "@/lib/mind-map-palette";
 import { MIND_MAP_META, MIND_MAP_ORDER, mindMapStyle, radialShade } from "@/lib/mind-maps";
 
 /**
@@ -70,22 +71,36 @@ describe("radial segment outline", () => {
     return Number(match[1]);
   };
 
-  it("stays well darker than the fill it outlines, at every depth", () => {
-    for (let depth = 1; depth <= 12; depth++) {
-      const { fill, outline } = radialShade(120, depth);
-      expect(lightnessOf(fill) - lightnessOf(outline)).toBeGreaterThanOrEqual(20);
+  it("stays well darker than the fill it outlines, at every depth and every tone", () => {
+    for (const { tone } of MAP_TONES) {
+      for (let depth = 1; depth <= 12; depth++) {
+        const { fill, outline } = radialShade({ hue: 120, tone }, depth);
+        expect(lightnessOf(fill) - lightnessOf(outline)).toBeGreaterThanOrEqual(20);
+      }
+    }
+  });
+
+  it("keeps the label readable on the fill, at every depth and every tone", () => {
+    // The ink flips from near-white to near-black at a crossover, and a tone
+    // that moved the fills without moving the crossover would put dark text on
+    // a dark ring — which is the bug `radialShade` was written to prevent.
+    for (const { tone } of MAP_TONES) {
+      for (let depth = 1; depth <= 12; depth++) {
+        const { fill, ink } = radialShade({ hue: 120, tone }, depth);
+        expect(Math.abs(lightnessOf(fill) - lightnessOf(ink))).toBeGreaterThanOrEqual(30);
+      }
     }
   });
 
   it("keeps the segment's own hue, so one wheel stays one colour", () => {
     for (const hue of [0, 88, 210, 359]) {
-      expect(radialShade(hue, 3).outline.startsWith(`hsl(${hue} `)).toBe(true);
+      expect(radialShade({ hue, tone: "vivid" }, 3).outline.startsWith(`hsl(${hue} `)).toBe(true);
     }
   });
 
   it("never asks for a lightness outside the range a colour has", () => {
     for (let depth = 1; depth <= 12; depth++) {
-      const lightness = lightnessOf(radialShade(200, depth).outline);
+      const lightness = lightnessOf(radialShade({ hue: 200, tone: "vivid" }, depth).outline);
       expect(lightness).toBeGreaterThanOrEqual(0);
       expect(lightness).toBeLessThanOrEqual(100);
     }

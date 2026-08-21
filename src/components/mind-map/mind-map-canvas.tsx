@@ -54,13 +54,13 @@ import { notationFor, replacesEdges } from "@/lib/mind-map-notation";
 import { setPresenceFocus, useFocusGroups } from "@/lib/presence";
 import { emptyHistory, record, redo, undo } from "@/lib/undo-history";
 import {
-  MIND_MAP_META,
   mindMapColor,
   mindMapStyle,
   nodeBorderColor,
   NODE_EMOJI,
   NODE_HUES,
 } from "@/lib/mind-maps";
+import type { MapPalette } from "@/lib/mind-map-palette";
 import { cn, colorFromString } from "@/lib/utils";
 import { markNodeCommentsRead } from "@/server/actions/mind-map-comment";
 import { updateMindMapData } from "@/server/actions/mind-map";
@@ -95,6 +95,7 @@ type Snapshot = { nodes: CanvasNode[]; radial: RadialSettings };
 export function MindMapCanvas({
   mapId,
   type,
+  palette,
   title,
   initialNodes,
   initialRadial,
@@ -106,6 +107,8 @@ export function MindMapCanvas({
 }: {
   mapId: string;
   type: MindMapType;
+  /** The map's colour. Decided on the server so the first paint is already it. */
+  palette: MapPalette;
   title: string;
   initialNodes: CanvasNode[];
   initialRadial: RadialSettings;
@@ -1252,7 +1255,7 @@ export function MindMapCanvas({
               threadSizes={commentCounts}
               savedIds={savedIds}
               renderWatchers={renderWatchers}
-              hue={MIND_MAP_META[type].hue}
+              palette={palette}
               focusedNodeId={selected}
               onUpdate={update}
               onSplit={splitInto}
@@ -1297,7 +1300,7 @@ export function MindMapCanvas({
                 markerHeight="6"
                 orient="auto-start-reverse"
               >
-                <path d="M0 0 L10 5 L0 10 z" fill={mindMapColor(type, 0.75)} />
+                <path d="M0 0 L10 5 L0 10 z" fill={mindMapColor(palette, 0.75)} />
               </marker>
             </defs>
 
@@ -1313,7 +1316,7 @@ export function MindMapCanvas({
                 key={mark.id}
                 d={mark.d}
                 fill="none"
-                stroke={mindMapColor(type, 0.65)}
+                stroke={mindMapColor(palette, 0.65)}
                 strokeWidth="2"
                 strokeLinecap="round"
               />
@@ -1324,7 +1327,7 @@ export function MindMapCanvas({
                 key={route.id}
                 d={route.d}
                 fill="none"
-                stroke={mindMapColor(type, 0.5)}
+                stroke={mindMapColor(palette, 0.5)}
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -1413,7 +1416,7 @@ export function MindMapCanvas({
                   // its qualities, all of equal standing. Fading them was reading
                   // as a hierarchy the type does not have. Everywhere else the
                   // lighter fill still says "this hangs off that".
-                  background: mindMapColor(type, isCentre || type === MindMapType.BUBBLE ? 0.24 : 0.12),
+                  background: mindMapColor(palette, isCentre || type === MindMapType.BUBBLE ? 0.24 : 0.12),
                   // A node's own hue if it has been given one, otherwise the
                   // map's. Only the border is tinted: colouring the fill as well
                   // put nine differently-coloured washes on one backdrop and the
@@ -1423,7 +1426,7 @@ export function MindMapCanvas({
                   // wash it sits on — a shape you cannot see the extent of reads
                   // as a smudge rather than as a box. Still well under the
                   // centre's 0.7, so the hierarchy survives being legible.
-                  borderColor: nodeBorderColor(type, node.hue, isCentre ? 0.7 : 0.55),
+                  borderColor: nodeBorderColor(palette, node.hue, isCentre ? 0.7 : 0.55),
                   borderWidth: node.hue !== null && node.hue !== undefined ? 2 : isCentre ? 2 : 1.5,
                   // The lit ring: yours white, everyone else's their own colour.
                   // A box-shadow rather than an extra element, so it follows the
@@ -1440,7 +1443,7 @@ export function MindMapCanvas({
                       "pointer-events-none absolute inset-1.5",
                       round ? "rounded-full" : "rounded",
                     )}
-                    style={{ border: `1px solid ${mindMapColor(type, 0.45)}` }}
+                    style={{ border: `1px solid ${mindMapColor(palette, 0.45)}` }}
                   />
                 ) : null}
 
@@ -1528,7 +1531,7 @@ export function MindMapCanvas({
                       unread > 0 && "tf-unread",
                     )}
                     style={{
-                      borderColor: mindMapColor(type, 0.5),
+                      borderColor: mindMapColor(palette, 0.5),
                       scale: furniture,
                       // Pinned by its left edge, so growing with the node pushes
                       // it outward rather than back under the node's own border.
@@ -1593,7 +1596,7 @@ export function MindMapCanvas({
                             type="button"
                             aria-label="Add a step or an explanation"
                             className="rounded-full border bg-background p-1 shadow-sm"
-                            style={{ borderColor: mindMapColor(type, 0.5) }}
+                            style={{ borderColor: mindMapColor(palette, 0.5) }}
                           >
                             <Plus className="size-3.5" />
                           </button>
@@ -1614,7 +1617,7 @@ export function MindMapCanvas({
                         onPointerDown={(event) => event.stopPropagation()}
                         onClick={() => addChild(node, node.rank)}
                         className="rounded-full border bg-background p-1 shadow-sm"
-                        style={{ borderColor: mindMapColor(type, 0.5) }}
+                        style={{ borderColor: mindMapColor(palette, 0.5) }}
                       >
                         <Plus className="size-3.5" />
                       </button>
@@ -1626,7 +1629,7 @@ export function MindMapCanvas({
                           type="button"
                           aria-label="More for this node"
                           className="rounded-full border bg-background p-1 shadow-sm"
-                          style={{ borderColor: mindMapColor(type, 0.5) }}
+                          style={{ borderColor: mindMapColor(palette, 0.5) }}
                         >
                           <MoreHorizontal className="size-3.5" />
                         </button>
@@ -1677,7 +1680,7 @@ export function MindMapCanvas({
                                 ? "ring-2 ring-ring ring-offset-1 ring-offset-popover"
                                 : undefined,
                             )}
-                            style={{ borderColor: mindMapColor(type, 0.9) }}
+                            style={{ borderColor: mindMapColor(palette, 0.9) }}
                           />
                           {NODE_HUES.map(({ hue, label }) => (
                             <button

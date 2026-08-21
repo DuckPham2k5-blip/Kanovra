@@ -8,7 +8,7 @@ import * as React from "react";
 import { MindMapGlyph } from "@/components/mind-map/mind-map-glyph";
 import { Input } from "@/components/ui/input";
 import { fromNow } from "@/lib/date";
-import { MIND_MAP_META, MIND_MAP_ORDER, mindMapColor } from "@/lib/mind-maps";
+import { defaultPalette, MIND_MAP_META, MIND_MAP_ORDER, mindMapColor } from "@/lib/mind-maps";
 import { cn, deaccent } from "@/lib/utils";
 
 export type MapListEntry = {
@@ -143,7 +143,7 @@ export function MindMapList({
             key={type}
             active={open && only === type}
             expanded={open && only === type}
-            color={mindMapColor(type)}
+            color={mindMapColor(defaultPalette(type))}
             onClick={() => choose(type)}
           >
             {MIND_MAP_META[type].label} {counts.get(type)}
@@ -168,7 +168,7 @@ export function MindMapList({
               <Link
                 href={`/w/${workspaceSlug}/maps/${map.id}`}
                 className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/60"
-                style={{ borderColor: mindMapColor(map.type, 0.3) }}
+                style={{ borderColor: mindMapColor(defaultPalette(map.type), 0.3) }}
               >
                 <MindMapGlyph type={map.type} className="h-8 w-12 shrink-0" />
                 <span className="min-w-0 flex-1">

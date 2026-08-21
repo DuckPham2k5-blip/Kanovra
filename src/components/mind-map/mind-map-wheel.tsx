@@ -23,6 +23,7 @@ import {
   shortestTurn,
   type Sector,
 } from "@/lib/mind-map-radial";
+import type { MapPalette, MapTone } from "@/lib/mind-map-palette";
 import { NODE_EMOJI, NODE_HUES, radialShade } from "@/lib/mind-maps";
 import { cn } from "@/lib/utils";
 
@@ -58,7 +59,7 @@ export function MindMapWheel({
   threadSizes,
   savedIds,
   renderWatchers,
-  hue: mapHue,
+  palette,
   onUpdate,
   onSplit,
   onAddBranch,
@@ -91,7 +92,7 @@ export function MindMapWheel({
    * cannot drift into showing presence differently.
    */
   renderWatchers: (nodeId: string) => React.ReactNode;
-  hue: number;
+  palette: MapPalette;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   onSplit: (node: CanvasNode, count: number) => void;
   onAddBranch: (beside: CanvasNode) => void;
@@ -109,6 +110,9 @@ export function MindMapWheel({
   onFocusNode: (id: string | null) => void;
   focusedNodeId: string | null;
 }) {
+  // The hub, the grips and the furniture are drawn in the map's own colour; only
+  // a segment can be overridden by the node it stands for.
+  const mapHue = palette.hue;
   const sectors = React.useMemo(() => radialLayout(nodes, radial), [nodes, radial]);
   const byId = React.useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
   const reach = radialReach(sectors);
@@ -270,6 +274,7 @@ export function MindMapWheel({
             ordered={ordered}
             byId={byId}
             hueOf={hueOf}
+            tone={palette.tone}
             focusedNodeId={focusedNodeId}
             onFocusNode={onFocusNode}
           />
@@ -548,12 +553,15 @@ const Segments = React.memo(function Segments({
   ordered,
   byId,
   hueOf,
+  tone,
   focusedNodeId,
   onFocusNode,
 }: {
   ordered: Sector[];
   byId: Map<string, CanvasNode>;
   hueOf: (id: string) => number;
+  /** The map's tone. A node may override the hue; the tone is the map's. */
+  tone: MapTone;
   focusedNodeId: string | null;
   onFocusNode: (id: string | null) => void;
 }) {
@@ -567,7 +575,7 @@ const Segments = React.memo(function Segments({
             key={sector.id}
             sector={sector}
             node={node}
-            hue={hueOf(sector.id)}
+            palette={{ hue: hueOf(sector.id), tone }}
             selected={focusedNodeId === sector.id}
             onSelect={() => onFocusNode(sector.id)}
           />
@@ -647,13 +655,13 @@ function polarPoint(r: number, degrees: number) {
 function Segment({
   sector,
   node,
-  hue,
+  palette,
   selected,
   onSelect,
 }: {
   sector: Sector;
   node: CanvasNode;
-  hue: number;
+  palette: MapPalette;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -661,7 +669,7 @@ function Segment({
   const d = sectorPath(ring);
   if (!d) return null;
 
-  const { fill, ink, outline } = radialShade(hue, sector.depth);
+  const { fill, ink, outline } = radialShade(palette, sector.depth);
   const size = sector.depth === 1 ? 15 : 12;
   const text = node.emoji ? `${node.emoji} ${node.text}` : node.text;
   const place = labelPlacement(ring, text.length * size * LABEL_FUDGE);

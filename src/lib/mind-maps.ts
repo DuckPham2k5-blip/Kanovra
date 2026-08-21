@@ -1,5 +1,7 @@
 import { MindMapType } from "@prisma/client";
 
+import { type MapPalette, toneValues } from "@/lib/mind-map-palette";
+
 /**
  * The map types.
  *
@@ -147,9 +149,11 @@ export const NODE_EMOJI = [
  * Lightness steps outward so the hub is the darkest thing and each ring lifts
  * away from it, and saturation falls as it goes so ten rings do not fight.
  */
-export function radialShade(hue: number, depth: number) {
-  const lightness = Math.min(74, 30 + depth * 11);
-  const saturation = Math.max(34, 62 - depth * 6);
+export function radialShade(palette: MapPalette, depth: number) {
+  const { hue } = palette;
+  const ring = toneValues(palette.tone).ring;
+  const lightness = Math.min(ring.cap, ring.base + depth * ring.step);
+  const saturation = Math.max(ring.floor, ring.s - depth * ring.fade);
   return {
     fill: `hsl(${hue} ${saturation}% ${lightness}%)`,
     // The crossover sits where mid-grey text stops winning against the fill.
@@ -169,16 +173,33 @@ export function radialShade(hue: number, depth: number) {
   };
 }
 
-/** A node's own border colour, or the map's accent when it has none. */
-export function nodeBorderColor(type: MindMapType, hue: number | null | undefined, alpha: number) {
-  if (hue === null || hue === undefined) return mindMapColor(type, alpha);
+/** The palette a map of this type starts from, before anybody changes it. */
+export function defaultPalette(type: MindMapType): MapPalette {
+  return { hue: MIND_MAP_META[type].hue, tone: "vivid" };
+}
+
+/**
+ * A node's own border colour, or the map's accent when it has none.
+ *
+ * A node's hue is picked from `NODE_HUES` and keeps the vivid tone whatever the
+ * map is set to: the point of colouring one node is to pick it out of the map
+ * around it, so following the map's tone would take the difference away exactly
+ * where it was asked for.
+ */
+export function nodeBorderColor(
+  palette: MapPalette,
+  hue: number | null | undefined,
+  alpha: number,
+) {
+  if (hue === null || hue === undefined) return mindMapColor(palette, alpha);
   return `hsl(${hue} 88% 60% / ${alpha})`;
 }
 
 /** Full colour for a map's accent, matching `page-accent.ts`'s formula. */
-export function mindMapColor(type: MindMapType, alpha?: number) {
-  const { hue } = MIND_MAP_META[type];
-  return alpha === undefined ? `hsl(${hue} 88% 60%)` : `hsl(${hue} 88% 60% / ${alpha})`;
+export function mindMapColor(palette: MapPalette, alpha?: number) {
+  const { s, l } = toneValues(palette.tone).accent;
+  const base = `${palette.hue} ${s}% ${l}%`;
+  return alpha === undefined ? `hsl(${base})` : `hsl(${base} / ${alpha})`;
 }
 
 /**
@@ -187,11 +208,12 @@ export function mindMapColor(type: MindMapType, alpha?: number) {
  * strokes stop reading. Deliberately not the vivid accent itself, which is for
  * edges and highlights.
  */
-export function mindMapBackdrop(type: MindMapType) {
-  const { hue } = MIND_MAP_META[type];
+export function mindMapBackdrop(palette: MapPalette) {
+  const { hue } = palette;
+  const { s, l } = toneValues(palette.tone).ground;
   return (
-    `radial-gradient(120% 100% at 15% 0%, hsl(${hue} 60% 22% / 0.55) 0%, transparent 60%), ` +
-    `radial-gradient(100% 120% at 100% 100%, hsl(${(hue + 40) % 360} 55% 20% / 0.45) 0%, transparent 55%)`
+    `radial-gradient(120% 100% at 15% 0%, hsl(${hue} ${s}% ${l}% / 0.55) 0%, transparent 60%), ` +
+    `radial-gradient(100% 120% at 100% 100%, hsl(${(hue + 40) % 360} ${s - 5}% ${l - 2}% / 0.45) 0%, transparent 55%)`
   );
 }
 
@@ -208,13 +230,14 @@ export function mindMapBackdrop(type: MindMapType) {
  * card colour: it blocks what is behind *and* makes each of the eight legible
  * as itself, instead of eight variations on one dark grey.
  */
-export function mindMapCardBackground(type: MindMapType) {
-  const { hue } = MIND_MAP_META[type];
+export function mindMapCardBackground(palette: MapPalette) {
+  const { hue } = palette;
+  const { s, l } = toneValues(palette.tone).ground;
   return {
-    backgroundColor: `hsl(${hue} 45% 9%)`,
+    backgroundColor: `hsl(${hue} ${Math.max(6, s - 15)}% ${Math.max(6, l - 13)}%)`,
     backgroundImage:
-      `radial-gradient(130% 110% at 12% 0%, hsl(${hue} 60% 24%) 0%, transparent 60%), ` +
-      `radial-gradient(110% 130% at 100% 100%, hsl(${(hue + 40) % 360} 52% 20%) 0%, transparent 56%)`,
+      `radial-gradient(130% 110% at 12% 0%, hsl(${hue} ${s}% ${l + 2}%) 0%, transparent 60%), ` +
+      `radial-gradient(110% 130% at 100% 100%, hsl(${(hue + 40) % 360} ${s - 8}% ${l - 2}%) 0%, transparent 56%)`,
   };
 }
 

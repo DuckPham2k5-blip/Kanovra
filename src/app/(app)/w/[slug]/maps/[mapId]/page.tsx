@@ -7,7 +7,7 @@ import { MindMapCanvas } from "@/components/mind-map/mind-map-canvas";
 import { Button } from "@/components/ui/button";
 import { requireWorkspace } from "@/lib/auth";
 import { parseCanvas } from "@/lib/mind-map-canvas";
-import { MIND_MAP_META, mindMapBackdrop, mindMapColor } from "@/lib/mind-maps";
+import { defaultPalette, MIND_MAP_META, mindMapBackdrop, mindMapColor } from "@/lib/mind-maps";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Map" };
@@ -29,6 +29,8 @@ export default async function MapPage({
   if (!map) notFound();
 
   const meta = MIND_MAP_META[map.type];
+  // The map's own colour, falling back to the one its type is born with.
+  const palette = defaultPalette(map.type);
   const canvas = parseCanvas(map.data);
 
   const [comments, members, reads] = await Promise.all([
@@ -72,12 +74,12 @@ export default async function MapPage({
     <div
       className="fixed inset-0 z-40 flex flex-col"
       style={{
-        background: `${mindMapBackdrop(map.type)}, hsl(var(--background))`,
+        background: `${mindMapBackdrop(palette)}, hsl(var(--background))`,
       }}
     >
       <header
         className="flex shrink-0 items-center gap-3 border-b px-4 py-3"
-        style={{ borderColor: mindMapColor(map.type, 0.24) }}
+        style={{ borderColor: mindMapColor(palette, 0.24) }}
       >
         <Button asChild variant="outline" size="sm" className="tf-bar-control">
           <Link href={`/w/${slug}/maps`}>
@@ -96,6 +98,7 @@ export default async function MapPage({
       <MindMapCanvas
         mapId={map.id}
         type={map.type}
+        palette={palette}
         title={map.title}
         initialNodes={canvas.nodes}
         initialRadial={canvas.radial}

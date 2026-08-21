@@ -3,7 +3,7 @@
 import type { MindMapType } from "@prisma/client";
 
 import { MindMapGlyph } from "@/components/mind-map/mind-map-glyph";
-import { MIND_MAP_META, mindMapCardBackground, mindMapColor } from "@/lib/mind-maps";
+import { defaultPalette, MIND_MAP_META, mindMapCardBackground, mindMapColor } from "@/lib/mind-maps";
 import { cn } from "@/lib/utils";
 
 /**
@@ -49,8 +49,8 @@ export function MindMapTypeCard({
         "disabled:pointer-events-none disabled:opacity-60",
       )}
       style={{
-        ...mindMapCardBackground(type),
-        borderColor: mindMapColor(type, 0.35),
+        ...mindMapCardBackground(defaultPalette(type)),
+        borderColor: mindMapColor(defaultPalette(type), 0.35),
       }}
     >
       <span className="flex h-24 items-center justify-center">
@@ -58,7 +58,7 @@ export function MindMapTypeCard({
       </span>
 
       <span className="block space-y-1">
-        <span className="block text-sm font-semibold" style={{ color: mindMapColor(type) }}>
+        <span className="block text-sm font-semibold" style={{ color: mindMapColor(defaultPalette(type)) }}>
           {meta.label}
         </span>
         <span className="block text-xs leading-snug text-muted-foreground">{meta.question}</span>
