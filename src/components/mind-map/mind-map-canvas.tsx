@@ -40,7 +40,7 @@ import {
   type CanvasNode,
   type RadialSettings,
 } from "@/lib/mind-map-canvas";
-import { MindMapColorDialog } from "@/components/mind-map/mind-map-color-dialog";
+import { MindMapColorPanel } from "@/components/mind-map/mind-map-color-panel";
 import { fillBorder, fillCss, fillInk, rememberFill, type NodeFill } from "@/lib/mind-map-fill";
 import { RING_THICKNESS } from "@/lib/mind-map-radial";
 import {
@@ -66,8 +66,22 @@ import { cn, colorFromString } from "@/lib/utils";
 import { markNodeCommentsRead } from "@/server/actions/mind-map-comment";
 import { updateMindMapData } from "@/server/actions/mind-map";
 
-const MIN_SCALE = 0.2;
-const MAX_SCALE = 3;
+/*
+ * How far the sheet zooms.
+ *
+ * It was 0.2 to 3, which is a fifth of full size to three times it — a range
+ * chosen for a map that fits a screen, and far too narrow for one somebody has
+ * spread out. 0.02 shows a drawing fifty screens wide; 40 puts a single node's
+ * label across the whole viewport.
+ *
+ * Not literally unbounded, and the bound is not a design preference. The
+ * transform is `translate` then `scale` in doubles, so beyond roughly this the
+ * translation loses the precision that keeps a node under the pointer, and the
+ * browser stops rasterising text at all — the map would go blank rather than
+ * large. A number nobody reaches is the honest version of infinite here.
+ */
+const MIN_SCALE = 0.02;
+const MAX_SCALE = 40;
 
 /** What one undo step restores: the whole document, nodes and wheel together. */
 type Snapshot = { nodes: CanvasNode[]; radial: RadialSettings };
@@ -1794,8 +1808,7 @@ export function MindMapCanvas({
           panel open on a node somebody has just deleted is a panel colouring
           nothing. */}
       {colouring && nodes.some((node) => node.id === colouring) ? (
-        <MindMapColorDialog
-          open
+        <MindMapColorPanel
           label={nodes.find((node) => node.id === colouring)?.text ?? ""}
           fill={nodes.find((node) => node.id === colouring)?.fill ?? null}
           recents={recents}
@@ -1807,7 +1820,7 @@ export function MindMapCanvas({
             setRecents((list) => rememberFill(list, fill));
           }}
           onClear={() => update(colouring, { fill: null }, `fill:${colouring}`)}
-          onOpenChange={(next) => setColouring(next ? colouring : null)}
+          onClose={() => setColouring(null)}
         />
       ) : null}
     </div>
