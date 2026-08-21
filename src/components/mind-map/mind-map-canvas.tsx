@@ -4,6 +4,7 @@ import { MindMapType } from "@prisma/client";
 import {
   MessageSquare,
   MoreHorizontal,
+  Palette,
   Plus,
   Redo2,
   Trash2,
@@ -1657,6 +1658,31 @@ export function MindMapCanvas({
                         <Plus className="size-3.5" />
                       </button>
                     )}
+
+                    {/* Colour, out of the menu and onto the node.
+                     *
+                     * It is still on the menu below, and this is not a shortcut
+                     * for regulars: "Change colour" was reported as doing
+                     * nothing on three map types, and the browser then showed
+                     * the panel was never in the document at all — one `aside`
+                     * on the page, 0x0 and z-10, which is the shell's own hidden
+                     * sidebar. Whatever swallows it happens inside a portalled
+                     * Radix menu, which is the one part of that path nothing
+                     * here can inspect.
+                     *
+                     * So the colour panel gets a way in that crosses no menu: a
+                     * plain button that swallows its own press, exactly like the
+                     * `+` beside it and the one on a wheel's hub. */}
+                    <button
+                      type="button"
+                      aria-label="Change this node's colour"
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={() => setColouring(node.id)}
+                      className="rounded-full border bg-background p-1 shadow-sm"
+                      style={{ borderColor: mindMapColor(palette, 0.5) }}
+                    >
+                      <Palette className="size-3.5" />
+                    </button>
 
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
