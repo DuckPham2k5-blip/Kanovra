@@ -7,6 +7,7 @@ import { z } from "zod";
 import { ForbiddenError, getMembership, requireUser } from "@/lib/auth";
 import { logActivity } from "@/lib/events";
 import { canvasSchema } from "@/lib/mind-map-canvas";
+import { TONE_NAMES } from "@/lib/mind-map-palette";
 import { MIND_MAP_META } from "@/lib/mind-maps";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -24,6 +25,20 @@ const createSchema = z.object({
   type: z.nativeEnum(MindMapType),
   title: z.string().trim().min(1, "Give the map a title").max(120),
   projectId: z.string().min(1).nullish(),
+});
+
+/**
+ * A colour, validated as a hue and a tone rather than accepted as a string.
+ *
+ * `nullable` on both, and that is the reset: a map with neither draws in the hue
+ * its type is born with. The tone is checked against the list rather than stored
+ * as whatever arrives, because it reaches CSS — an unchecked string here is a
+ * value the browser will happily interpolate into a colour function.
+ */
+const paletteSchema = z.object({
+  mapId: z.string().min(1),
+  hue: z.number().int().min(0).max(359).nullable(),
+  tone: z.enum(TONE_NAMES).nullable(),
 });
 
 export async function createMindMap(input: unknown): Promise<ActionResult<{ id: string }>> {
@@ -177,6 +192,47 @@ export async function updateMindMapData(input: unknown): Promise<ActionResult> {
      */
 
     revalidatePath(`/w/${map.workspace.slug}/maps/${mapId}`);
+    return ok(undefined);
+  });
+}
+
+/**
+ * Sets a map's colour.
+ *
+ * Its own action rather than a field on `updateMindMapData`, because the two are
+ * saved on different terms: the drawing autosaves a second after every keystroke
+ * and drag, and a colour is chosen once and deliberately. Folding it into the
+ * document would also put it inside `MindMap.data`, where the last browser to
+ * autosave overwrites what anybody else picked.
+ *
+ * Both columns are written together, including the nulls: "put it back to the
+ * colour of its type" has to be expressible, and it is the only thing a reset
+ * button can send.
+ */
+export async function setMindMapPalette(input: unknown): Promise<ActionResult> {
+  return withErrorHandling(async () => {
+    const user = await requireUser();
+    const data = parse(paletteSchema, input);
+
+    const map = await prisma.mindMap.findUnique({
+      where: { id: data.mapId },
+      select: { workspaceId: true, workspace: { select: { slug: true } } },
+    });
+    if (!map) return fail(NOT_FOUND);
+
+    const membership = await getMembership(user.id, map.workspaceId);
+    if (!membership) return fail(NOT_FOUND);
+    if (!can(membership.role, "project:update")) throw new ForbiddenError();
+
+    await prisma.mindMap.update({
+      where: { id: data.mapId },
+      data: { hue: data.hue, tone: data.tone },
+    });
+
+    // Both the map itself and the list it appears in: a recoloured map wears its
+    // colour on its card too, and that page is cached separately.
+    revalidatePath(`/w/${map.workspace.slug}/maps/${data.mapId}`);
+    revalidatePath(`/w/${map.workspace.slug}/maps`);
     return ok(undefined);
   });
 }

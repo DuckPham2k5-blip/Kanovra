@@ -15,7 +15,7 @@ export default async function MapsPage({ params }: { params: Promise<{ slug: str
   const maps = await prisma.mindMap.findMany({
     where: { workspaceId: workspace.id },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, title: true, type: true, updatedAt: true },
+    select: { id: true, title: true, type: true, updatedAt: true, hue: true, tone: true },
   });
 
   /*

@@ -30,8 +30,17 @@
  * owner asked for, minus the corner of the space where the map stops working.
  */
 
-/** How saturated and how light a palette runs, across everything it touches. */
-export type MapTone = "vivid" | "soft" | "deep" | "mono";
+/**
+ * How saturated and how light a palette runs, across everything it touches.
+ *
+ * A tuple rather than a union written out, because the server action validates
+ * an incoming tone with `z.enum` and that needs the values at runtime. Two lists
+ * would drift, and the one that drifts is the validator — which is the one whose
+ * job is to keep a string out of a CSS colour function.
+ */
+export const TONE_NAMES = ["vivid", "soft", "deep", "mono"] as const;
+
+export type MapTone = (typeof TONE_NAMES)[number];
 
 export type MapPalette = {
   /** 0–359. */

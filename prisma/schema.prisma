@@ -490,6 +490,17 @@ model MindMap {
   /// The map's contents. Shape varies by `type`; validated on the way in by a
   /// zod schema per type rather than trusted because it is JSON.
   data        Json
+  /// The map's own colour, 0-359. Null means the hue its type is born with, so
+  /// a map nobody has recoloured draws exactly as it always did.
+  hue         Int?
+  /// How saturated and how light that hue runs: vivid, soft, deep or mono.
+  ///
+  /// A string and not an enum on purpose. Tones are a design vocabulary and will
+  /// be added to and dropped; removing a Prisma enum value means rebuilding the
+  /// type and casting every row across, which fails while any row still holds
+  /// the old value. A string that no longer matches falls back to vivid at the
+  /// point it is read, which costs nothing and loses nothing.
+  tone        String?
   createdById String
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt

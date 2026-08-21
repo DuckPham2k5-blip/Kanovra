@@ -8,6 +8,7 @@ import * as React from "react";
 import { MindMapGlyph } from "@/components/mind-map/mind-map-glyph";
 import { Input } from "@/components/ui/input";
 import { fromNow } from "@/lib/date";
+import { readPalette } from "@/lib/mind-map-palette";
 import { defaultPalette, MIND_MAP_META, MIND_MAP_ORDER, mindMapColor } from "@/lib/mind-maps";
 import { cn, deaccent } from "@/lib/utils";
 
@@ -16,6 +17,9 @@ export type MapListEntry = {
   title: string;
   type: MindMapType;
   updatedAt: string;
+  /** The map's own colour, straight off the row. Null means its type's. */
+  hue: number | null;
+  tone: string | null;
 };
 
 /**
@@ -34,6 +38,11 @@ export type MapListEntry = {
  * So the types stay on top as the way to start something, and this is the way
  * back to what is already there.
  */
+/** A row's palette: its own if it has one, its type's if it has not. */
+function paletteOf(map: MapListEntry) {
+  return readPalette(defaultPalette(map.type).hue, map.hue, map.tone);
+}
+
 export function MindMapList({
   workspaceSlug,
   maps,
@@ -168,9 +177,13 @@ export function MindMapList({
               <Link
                 href={`/w/${workspaceSlug}/maps/${map.id}`}
                 className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/60"
-                style={{ borderColor: mindMapColor(defaultPalette(map.type), 0.3) }}
+                style={{ borderColor: mindMapColor(paletteOf(map), 0.3) }}
               >
-                <MindMapGlyph type={map.type} className="h-8 w-12 shrink-0" />
+                {/* The glyph wears the map's colour, not its type's. Two circle
+                    maps side by side are two drawings, and the colour is the
+                    only thing on a row that says which is which before you have
+                    read the titles. */}
+                <MindMapGlyph type={map.type} palette={paletteOf(map)} className="h-8 w-12 shrink-0" />
                 <span className="min-w-0 flex-1">
                   {/* Titles are free text and some of them are one long word.
                       Without the truncate a single one stretches its column and
