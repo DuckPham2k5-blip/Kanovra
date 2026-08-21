@@ -10,6 +10,7 @@ import { MindMapCanvas } from "@/components/mind-map/mind-map-canvas";
 import { MindMapPalettePicker } from "@/components/mind-map/mind-map-palette-picker";
 import { Button } from "@/components/ui/button";
 import type { CanvasNode, RadialSettings } from "@/lib/mind-map-canvas";
+import type { NodeFill } from "@/lib/mind-map-fill";
 import { type MapPalette, type MapTone, readPalette } from "@/lib/mind-map-palette";
 import { defaultPalette, mindMapBackdrop, mindMapColor } from "@/lib/mind-maps";
 import type { AvatarUser } from "@/components/shared/user-avatar";
@@ -43,6 +44,7 @@ export function MindMapSurface({
   canComment,
   initialNodes,
   initialRadial,
+  initialRecents,
   comments,
   members,
   reads,
@@ -60,6 +62,7 @@ export function MindMapSurface({
   canComment: boolean;
   initialNodes: CanvasNode[];
   initialRadial: RadialSettings;
+  initialRecents: NodeFill[];
   comments: NodeComment[];
   members: AvatarUser[];
   reads: Record<string, string>;
@@ -154,6 +157,7 @@ export function MindMapSurface({
         title={title}
         initialNodes={initialNodes}
         initialRadial={initialRadial}
+        initialRecents={initialRecents}
         canEdit={canEdit}
         canComment={canComment}
         comments={comments}

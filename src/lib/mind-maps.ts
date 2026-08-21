@@ -83,27 +83,6 @@ export const MIND_MAP_ORDER: MindMapType[] = [
 ];
 
 /**
- * Border colours offered for a single node.
- *
- * Hues at the app's fixed saturation and lightness, so a node picked out in
- * red still belongs to the same drawing as one left on the map's own accent.
- * Free-form colour was the alternative and it lets somebody choose a border
- * indistinguishable from the backdrop, which reads as the border having
- * vanished.
- */
-export const NODE_HUES: { hue: number; label: string }[] = [
-  { hue: 0, label: "Red" },
-  { hue: 24, label: "Orange" },
-  { hue: 38, label: "Amber" },
-  { hue: 88, label: "Lime" },
-  { hue: 160, label: "Green" },
-  { hue: 190, label: "Cyan" },
-  { hue: 218, label: "Blue" },
-  { hue: 268, label: "Violet" },
-  { hue: 320, label: "Pink" },
-];
-
-/**
  * The emoji offered on a node.
  *
  * A fixed set rather than a full picker: the point of an emoji on a node is to
@@ -181,10 +160,11 @@ export function defaultPalette(type: MindMapType): MapPalette {
 /**
  * A node's own border colour, or the map's accent when it has none.
  *
- * A node's hue is picked from `NODE_HUES` and keeps the vivid tone whatever the
- * map is set to: the point of colouring one node is to pick it out of the map
- * around it, so following the map's tone would take the difference away exactly
- * where it was asked for.
+ * Only four nodes in this database still carry a `hue`; nothing sets one any
+ * more, because a node's colour is a `fill` now and fills the node rather than
+ * outlining it. It keeps the vivid tone whatever the map is set to — the point
+ * of colouring one node is to pick it out of the map around it, so following the
+ * map's tone would take the difference away exactly where it was asked for.
  */
 export function nodeBorderColor(
   palette: MapPalette,

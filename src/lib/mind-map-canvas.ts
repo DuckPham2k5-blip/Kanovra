@@ -1,6 +1,7 @@
 import { MindMapType } from "@prisma/client";
 import { z } from "zod";
 
+import { nodeFillSchema, RECENT_FILL_LIMIT } from "@/lib/mind-map-fill";
 import { mindMapStyle } from "@/lib/mind-maps";
 
 /**
@@ -92,11 +93,23 @@ export const canvasNodeSchema = z.object({
    */
   emoji: z.string().trim().max(12).nullish(),
   /**
-   * Border colour as a hue, matching how the rest of the app names a colour —
-   * saturation and lightness stay fixed so a node cannot be tinted into
-   * illegibility against its own backdrop. Null means the map's own accent.
+   * Border colour as a hue. Superseded by `fill`, and kept because four nodes in
+   * this database still carry one: dropping the field would fail their whole
+   * node at parse time, and `parseCanvas` answers a lost node by leaving it out
+   * of the drawing. A node with a `hue` and no `fill` still tints its border.
    */
   hue: z.number().int().min(0).max(359).nullish(),
+  /**
+   * This node's own colour: one colour, or several as a gradient with a
+   * direction. Null means it takes the map's.
+   *
+   * `nullish` and not `.default(...)`: a defaulted field lands on `CanvasNode` as
+   * required, and every place that builds a node by hand stops compiling — the
+   * seed, add-child and the test helpers. That is recorded as a trap in
+   * CLAUDE.md, and "this node has no colour of its own" is genuinely absent
+   * rather than a default anyway.
+   */
+  fill: nodeFillSchema.nullish(),
   /**
    * How much of its parent's angular span this branch takes, relative to its
    * siblings. Only a radial map reads it.
@@ -155,6 +168,20 @@ export const radialSchema = z.object({
 export const canvasSchema = z.object({
   nodes: z.array(canvasNodeSchema).max(200).default([]),
   radial: radialSchema.default({ start: -90, sweep: 360 }),
+  /**
+   * Colours used on this map, most recent first.
+   *
+   * In the document rather than in a column of its own, because it is written by
+   * exactly the write that saves the drawing — a colour is remembered at the
+   * moment it is applied to a node, and both land in the same save. A column
+   * would be a second write path for one list, and the comment table exists as a
+   * separate table for the opposite reason: it is written when nobody is saving
+   * the document.
+   *
+   * Per map, which is what was asked for: the colours in front of you are the
+   * ones this drawing uses, not every colour you have ever picked anywhere.
+   */
+  recents: z.array(nodeFillSchema).max(RECENT_FILL_LIMIT).default([]),
 });
 
 export type RadialSettings = z.infer<typeof radialSchema>;
@@ -218,9 +245,10 @@ export function parseCanvas(raw: unknown): CanvasData {
   const outer = z.object({
     nodes: z.array(z.unknown()).max(200).default([]),
     radial: z.unknown().optional(),
+    recents: z.array(z.unknown()).max(RECENT_FILL_LIMIT).default([]),
   });
   const result = outer.safeParse(raw ?? {});
-  if (!result.success) return { nodes: [], radial: fallback };
+  if (!result.success) return { nodes: [], radial: fallback, recents: [] };
 
   const nodes = result.data.nodes.flatMap((node) => {
     const parsed = canvasNodeSchema.safeParse(node);
@@ -233,8 +261,16 @@ export function parseCanvas(raw: unknown): CanvasData {
   // so it falls back to a closed wheel starting at the top.
   const radial = radialSchema.safeParse(result.data.radial ?? {});
 
+  // One at a time, like the nodes: a colour nobody can read is one swatch
+  // missing from a row, not a reason to forget every colour this map has used.
+  const recents = result.data.recents.flatMap((entry) => {
+    const parsed = nodeFillSchema.safeParse(entry);
+    return parsed.success ? [parsed.data] : [];
+  });
+
   return {
     radial: radial.success ? radial.data : fallback,
+    recents,
     nodes: nodes.map((node) =>
       node.parentId && !ids.has(node.parentId)
         ? { ...node, parentId: root?.id ?? null }

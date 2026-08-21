@@ -40,6 +40,8 @@ import {
   type CanvasNode,
   type RadialSettings,
 } from "@/lib/mind-map-canvas";
+import { MindMapColorDialog } from "@/components/mind-map/mind-map-color-dialog";
+import { fillBorder, fillCss, fillInk, rememberFill, type NodeFill } from "@/lib/mind-map-fill";
 import { RING_THICKNESS } from "@/lib/mind-map-radial";
 import {
   edgeAxis,
@@ -58,7 +60,6 @@ import {
   mindMapStyle,
   nodeBorderColor,
   NODE_EMOJI,
-  NODE_HUES,
 } from "@/lib/mind-maps";
 import type { MapPalette } from "@/lib/mind-map-palette";
 import { cn, colorFromString } from "@/lib/utils";
@@ -99,6 +100,7 @@ export function MindMapCanvas({
   title,
   initialNodes,
   initialRadial,
+  initialRecents,
   canEdit,
   canComment,
   comments,
@@ -112,6 +114,8 @@ export function MindMapCanvas({
   title: string;
   initialNodes: CanvasNode[];
   initialRadial: RadialSettings;
+  /** Colours already used on this map, most recent first. */
+  initialRecents: NodeFill[];
   canEdit: boolean;
   canComment: boolean;
   comments: NodeComment[];
@@ -173,6 +177,9 @@ export function MindMapCanvas({
    * is looking.
    */
   const [radial, setRadial] = React.useState<RadialSettings>(initialRadial);
+  // Which node's colour is being chosen, and the colours this map has used.
+  const [colouring, setColouring] = React.useState<string | null>(null);
+  const [recents, setRecents] = React.useState<NodeFill[]>(initialRecents);
   const isRadial = type === MindMapType.CIRCLE;
 
   live.current = { nodes, radial };
@@ -1080,13 +1087,13 @@ export function MindMapCanvas({
    * been sent — the one failure autosave exists to prevent, reintroduced by
    * autosave itself.
    */
-  const doc = React.useRef({ nodes, radial });
+  const doc = React.useRef({ nodes, radial, recents });
   const edits = React.useRef(0);
   const savedEdits = React.useRef(0);
   React.useEffect(() => {
-    doc.current = { nodes, radial };
+    doc.current = { nodes, radial, recents };
     edits.current += 1;
-  }, [nodes, radial]);
+  }, [nodes, radial, recents]);
 
   /**
    * Node ids as of the last time the server was asked to re-render.
@@ -1152,7 +1159,7 @@ export function MindMapCanvas({
     if (!canEdit || !dirty || busy) return;
     const timer = setTimeout(() => void save(), 1200);
     return () => clearTimeout(timer);
-  }, [canEdit, dirty, busy, nodes, radial, save]);
+  }, [canEdit, dirty, busy, nodes, radial, recents, save]);
 
   /**
    * The two ways a page ends.
@@ -1256,6 +1263,7 @@ export function MindMapCanvas({
               savedIds={savedIds}
               renderWatchers={renderWatchers}
               palette={palette}
+              onPickColor={(id) => setColouring(id)}
               focusedNodeId={selected}
               onUpdate={update}
               onSplit={splitInto}
@@ -1416,18 +1424,30 @@ export function MindMapCanvas({
                   // its qualities, all of equal standing. Fading them was reading
                   // as a hierarchy the type does not have. Everywhere else the
                   // lighter fill still says "this hangs off that".
-                  background: mindMapColor(palette, isCentre || type === MindMapType.BUBBLE ? 0.24 : 0.12),
-                  // A node's own hue if it has been given one, otherwise the
-                  // map's. Only the border is tinted: colouring the fill as well
-                  // put nine differently-coloured washes on one backdrop and the
-                  // map stopped reading as a single drawing.
-                  //
+                  // A node's own colour if it has been given one, otherwise the
+                  // map's wash. The old note here said colouring fills put nine
+                  // washes on one backdrop and the map stopped reading as one
+                  // drawing — true of nine nodes tinted from a fixed set, and not
+                  // an argument against colouring one box deliberately, which is
+                  // what a fill is. A node with no fill is untouched.
+                  background: node.fill
+                    ? fillCss(node.fill)
+                    : mindMapColor(palette, isCentre || type === MindMapType.BUBBLE ? 0.24 : 0.12),
+                  // The label is chosen from the fill's own lightness, or a
+                  // pale colour lands white text on a pale box.
+                  color: node.fill ? fillInk(node.fill) : undefined,
                   // 0.35 was too faint to find the edge of a box against the
                   // wash it sits on — a shape you cannot see the extent of reads
                   // as a smudge rather than as a box. Still well under the
                   // centre's 0.7, so the hierarchy survives being legible.
-                  borderColor: nodeBorderColor(palette, node.hue, isCentre ? 0.7 : 0.55),
-                  borderWidth: node.hue !== null && node.hue !== undefined ? 2 : isCentre ? 2 : 1.5,
+                  //
+                  // A filled node takes its edge from its fill instead, because a
+                  // fill can land on the backdrop's own colour and a node with no
+                  // visible extent is a node nobody can find.
+                  borderColor: node.fill
+                    ? fillBorder(node.fill)
+                    : nodeBorderColor(palette, node.hue, isCentre ? 0.7 : 0.55),
+                  borderWidth: node.fill || (node.hue !== null && node.hue !== undefined) ? 2 : isCentre ? 2 : 1.5,
                   // The lit ring: yours white, everyone else's their own colour.
                   // A box-shadow rather than an extra element, so it follows the
                   // node's own corner radius without anything restating it — and
@@ -1667,38 +1687,22 @@ export function MindMapCanvas({
                         </div>
 
                         <DropdownMenuSeparator />
-                        <DropdownMenuLabel>Border</DropdownMenuLabel>
-                        <div className="flex flex-wrap gap-1 px-1.5 pb-1">
-                          <button
-                            type="button"
-                            aria-label="Use the map's colour"
-                            title="Map colour"
-                            onClick={() => update(node.id, { hue: null }, `style:${node.id}`)}
-                            className={cn(
-                              "size-5 rounded-full border-2",
-                              node.hue === null || node.hue === undefined
-                                ? "ring-2 ring-ring ring-offset-1 ring-offset-popover"
-                                : undefined,
-                            )}
-                            style={{ borderColor: mindMapColor(palette, 0.9) }}
+                        {/* One item rather than a row of swatches. A colour is
+                            now a mix of up to four with a direction, which does
+                            not fit in a menu — and the menu closes over the node
+                            you are trying to judge the colour against. */}
+                        <DropdownMenuItem onClick={() => setColouring(node.id)}>
+                          <span
+                            aria-hidden
+                            className="size-4 rounded border"
+                            style={{
+                              background: node.fill
+                                ? fillCss(node.fill)
+                                : mindMapColor(palette, 0.9),
+                            }}
                           />
-                          {NODE_HUES.map(({ hue, label }) => (
-                            <button
-                              key={hue}
-                              type="button"
-                              aria-label={label}
-                              title={label}
-                              onClick={() => update(node.id, { hue }, `style:${node.id}`)}
-                              className={cn(
-                                "size-5 rounded-full border-2",
-                                node.hue === hue
-                                  ? "ring-2 ring-ring ring-offset-1 ring-offset-popover"
-                                  : undefined,
-                              )}
-                              style={{ borderColor: `hsl(${hue} 88% 60%)` }}
-                            />
-                          ))}
-                        </div>
+                          Change colour
+                        </DropdownMenuItem>
 
                         {/* Comments reachable from the menu as well as from the
                             badge. The badge is the one that can *tell* you there
@@ -1783,6 +1787,27 @@ export function MindMapCanvas({
           comments={comments}
           canComment={canComment}
           onClose={() => setOpenThread(null)}
+        />
+      ) : null}
+
+      {/* Same reasoning as the thread panel above, and the same guard: a colour
+          panel open on a node somebody has just deleted is a panel colouring
+          nothing. */}
+      {colouring && nodes.some((node) => node.id === colouring) ? (
+        <MindMapColorDialog
+          open
+          label={nodes.find((node) => node.id === colouring)?.text ?? ""}
+          fill={nodes.find((node) => node.id === colouring)?.fill ?? null}
+          recents={recents}
+          onApply={(fill) => {
+            update(colouring, { fill }, `fill:${colouring}`);
+            // Remembered as the colour is applied, not when the panel closes:
+            // the panel can be dismissed by pressing Escape, and a colour you
+            // chose and looked at is one you may want again either way.
+            setRecents((list) => rememberFill(list, fill));
+          }}
+          onClear={() => update(colouring, { fill: null }, `fill:${colouring}`)}
+          onOpenChange={(next) => setColouring(next ? colouring : null)}
         />
       ) : null}
     </div>

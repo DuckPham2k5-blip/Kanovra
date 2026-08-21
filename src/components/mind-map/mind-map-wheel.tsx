@@ -24,7 +24,8 @@ import {
   type Sector,
 } from "@/lib/mind-map-radial";
 import type { MapPalette, MapTone } from "@/lib/mind-map-palette";
-import { NODE_EMOJI, NODE_HUES, radialShade } from "@/lib/mind-maps";
+import { fillBorder, fillCss, fillInk, gradientEnds } from "@/lib/mind-map-fill";
+import { NODE_EMOJI, radialShade } from "@/lib/mind-maps";
 import { cn } from "@/lib/utils";
 
 /**
@@ -71,6 +72,7 @@ export function MindMapWheel({
   onSetWeights,
   onCommitRotation,
   onOpenThread,
+  onPickColor,
   onFocusNode,
   focusedNodeId,
   siblingsOf,
@@ -107,6 +109,8 @@ export function MindMapWheel({
   /** Commits a rotation once the drag ends. */
   onCommitRotation: (start: number) => void;
   onOpenThread: (id: string) => void;
+  /** Opens the canvas-wide colour panel on this segment. */
+  onPickColor: (id: string) => void;
   onFocusNode: (id: string | null) => void;
   focusedNodeId: string | null;
 }) {
@@ -481,38 +485,21 @@ export function MindMapWheel({
                       </div>
 
                       <DropdownMenuSeparator />
-                      <DropdownMenuLabel>Colour</DropdownMenuLabel>
-                      <div className="flex flex-wrap gap-1 px-1.5 pb-1">
-                        <button
-                          type="button"
-                          aria-label="Inherit from the branch"
-                          title="Inherit"
-                          onClick={() => onUpdate(node.id, { hue: null })}
-                          className={cn(
-                            "size-5 rounded-full border-2",
-                            node.hue === null || node.hue === undefined
-                              ? "ring-2 ring-ring ring-offset-1 ring-offset-popover"
-                              : undefined,
-                          )}
-                          style={{ borderColor: `hsl(${mapHue} 88% 60%)` }}
+                      {/* The same panel the boxes on a free canvas open. A
+                          segment's colour is chosen the same way whatever shape
+                          the map draws it as. */}
+                      <DropdownMenuItem onClick={() => onPickColor(node.id)}>
+                        <span
+                          aria-hidden
+                          className="size-4 rounded border"
+                          style={{
+                            background: node.fill
+                              ? fillCss(node.fill)
+                              : `hsl(${mapHue} 88% 60%)`,
+                          }}
                         />
-                        {NODE_HUES.map(({ hue, label }) => (
-                          <button
-                            key={hue}
-                            type="button"
-                            aria-label={label}
-                            title={label}
-                            onClick={() => onUpdate(node.id, { hue })}
-                            className={cn(
-                              "size-5 rounded-full border-2",
-                              node.hue === hue
-                                ? "ring-2 ring-ring ring-offset-1 ring-offset-popover"
-                                : undefined,
-                            )}
-                            style={{ borderColor: `hsl(${hue} 88% 60%)` }}
-                          />
-                        ))}
-                      </div>
+                        Change colour
+                      </DropdownMenuItem>
 
                       <DropdownMenuSeparator />
                       <DropdownMenuItem variant="destructive" onClick={() => onRemove(node.id)}>
@@ -670,6 +657,22 @@ function Segment({
   if (!d) return null;
 
   const { fill, ink, outline } = radialShade(palette, sector.depth);
+
+  /*
+   * A segment's own colour, if it has been given one, otherwise the shade its
+   * depth works out to.
+   *
+   * Not inherited down the branch the way `hue` is. An inherited hue answers
+   * "which trunk is this part of", which is what a reader needs from a wheel; an
+   * explicit colour answers "I want *this* one this colour", and pushing that
+   * onto the children would colour things nobody asked about.
+   */
+  const custom = node.fill ?? null;
+  const gradientId = custom && custom.colors.length > 1 ? `mmfill-${node.id}` : null;
+  const ends = custom && gradientId ? gradientEnds(custom.angle) : null;
+  const paint = custom ? (gradientId ? `url(#${gradientId})` : custom.colors[0]) : fill;
+  const edge = custom ? fillBorder(custom) : outline;
+  const label = custom ? fillInk(custom) : ink;
   const size = sector.depth === 1 ? 15 : 12;
   const text = node.emoji ? `${node.emoji} ${node.text}` : node.text;
   const place = labelPlacement(ring, text.length * size * LABEL_FUDGE);
@@ -694,10 +697,28 @@ function Segment({
 
           Selection still overrides it with white, which is why this is one
           `stroke` chosen two ways rather than a second path underneath. */}
+      {/* The gradient lives beside the path that uses it. SVG allows `defs`
+          anywhere, and keeping it here means a segment carries everything it
+          needs to draw itself — no registry to keep in step as nodes come and
+          go. `objectBoundingBox` is the default, so the ends are fractions of
+          this segment's own box rather than of the wheel. */}
+      {ends && custom ? (
+        <defs>
+          <linearGradient id={gradientId!} x1={ends.x1} y1={ends.y1} x2={ends.x2} y2={ends.y2}>
+            {custom.colors.map((colour, index) => (
+              <stop
+                key={index}
+                offset={custom.colors.length === 1 ? 0 : index / (custom.colors.length - 1)}
+                stopColor={colour}
+              />
+            ))}
+          </linearGradient>
+        </defs>
+      ) : null}
       <path
         d={d}
-        fill={fill}
-        stroke={selected ? "hsl(0 0% 100% / 0.9)" : outline}
+        fill={paint}
+        stroke={selected ? "hsl(0 0% 100% / 0.9)" : edge}
         strokeWidth={selected ? 2.5 : 1.8}
       />
       {place.orientation === "none" ? null : (
@@ -708,7 +729,7 @@ function Segment({
           dominantBaseline="middle"
           transform={`rotate(${place.rotation.toFixed(2)} ${place.x.toFixed(2)} ${place.y.toFixed(2)})`}
           fontSize={size}
-          fill={ink}
+          fill={label}
           // The segment answers the pointer, not the words on it — otherwise
           // clicking a label is a different act from clicking the branch.
           style={{ pointerEvents: "none", userSelect: "none" }}

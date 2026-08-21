@@ -19,7 +19,9 @@
  * fixed distance from the others so the words stay readable and the boundary
  * stays visible. Hand it an arbitrary colour and those distances are whatever
  * the chooser happened to pick — a fill that swallows its own label, a border
- * indistinguishable from the backdrop. `NODE_HUES` exists for the same reason.
+ * indistinguishable from the backdrop. A node's own colour answers this at the
+ * other end instead — see `mind-map-fill.ts`, where the label's colour and the
+ * node's edge are both computed from whatever was chosen.
  *
  * Hue is safe to hand over completely, because it never changes contrast: every
  * one of the 360 keeps the same lightness relationships. Tone moves saturation

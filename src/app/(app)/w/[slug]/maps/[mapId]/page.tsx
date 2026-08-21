@@ -72,6 +72,7 @@ export default async function MapPage({
       canComment={can("comment:create")}
       initialNodes={canvas.nodes}
       initialRadial={canvas.radial}
+      initialRecents={canvas.recents}
       // `mine` is decided here rather than compared in the browser: whether
       // the delete control appears is a permission question, and a permission
       // question answered by the client is a suggestion.
