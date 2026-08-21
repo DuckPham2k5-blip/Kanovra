@@ -47,6 +47,7 @@ const DIRECTIONS = [
 const DEFAULT_FILL: NodeFill = { colors: ["#60a5fa"], angle: 135 };
 
 export function MindMapColorPanel({
+  side,
   label,
   fill,
   recents,
@@ -54,6 +55,8 @@ export function MindMapColorPanel({
   onClear,
   onClose,
 }: {
+  /** Which edge to dock to — the caller picks the one away from the node. */
+  side: "left" | "right";
   /** The node's own words, so the preview shows the thing being coloured. */
   label: string;
   fill: NodeFill | null;
@@ -90,7 +93,12 @@ export function MindMapColorPanel({
   }
 
   return (
-    <aside className="tf-pop-in absolute bottom-4 left-4 top-4 z-20 flex w-72 flex-col gap-3 overflow-y-auto rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur">
+    <aside
+      className={cn(
+        "tf-pop-in absolute bottom-4 top-4 z-20 flex w-72 flex-col gap-3 overflow-y-auto rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur",
+        side === "left" ? "left-4" : "right-4",
+      )}
+    >
       <header className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold">Colour</p>

@@ -1810,6 +1810,25 @@ export function MindMapCanvas({
           nothing. */}
       {colouring && nodes.some((node) => node.id === colouring) ? (
         <MindMapColorPanel
+          /*
+           * On the far side of the screen from the node being coloured.
+           *
+           * It docked to the left, always. That put it up to a whole viewport
+           * away from the node just clicked, and "Change colour" was reported as
+           * doing nothing — three times — by somebody looking at the node. A
+           * panel nobody finds is indistinguishable from a panel that never
+           * opened, and the console showed the press reaching the menu item
+           * perfectly well.
+           *
+           * The far side rather than the near one: the near side would cover the
+           * thing whose colour is being judged.
+           */
+          side={
+            positionOf(nodes.find((node) => node.id === colouring)!).x * scale + offset.x >
+            (viewportRef.current?.clientWidth ?? 0) / 2
+              ? "left"
+              : "right"
+          }
           label={nodes.find((node) => node.id === colouring)?.text ?? ""}
           fill={nodes.find((node) => node.id === colouring)?.fill ?? null}
           recents={recents}
