@@ -132,8 +132,9 @@ Everything here was confirmed on their own screen.
 - The appearance panel: the drawn backgrounds, and a map keeping one across a
   reload.
 - The flow map type gone from the picker and the list.
-- Every row of a map node's `…` menu, after they were rebuilt as plain buttons:
-  Change colour, Add a comment, Remove, and Split on a wheel.
+- Every row of a map node's `…` menu, once the node stopped swallowing presses
+  meant for a control: Change colour, Add a comment, Remove, and Split on a
+  wheel.
 - The `…` menu on a map node, after the control-scale fix.
 
 ---
@@ -168,18 +169,6 @@ Older, and unchanged by this session:
 snapshot lives on the server for 24 hours, but the only route in is the toast, so
 a reload loses it. That was deliberate for "undo what I just did". The owner was
 told, and replied *"tạm gác lại điều đấy"* — parked, not refused.
-
-**Worked around, cause unknown: `DropdownMenuItem` does not fire on a map
-canvas.** Neither `onClick` nor `onSelect` runs. Both map menus are built from
-plain `MenuRow` buttons instead, styled to match, with the menus controlled so a
-plain button can close them; the owner has confirmed all four rows working.
-`CLAUDE.md` carries the detail and the three fixes that did not work.
-
-The observation still missing, and the one that would let the workaround be
-deleted: **does a `DropdownMenuItem` work on the Kanban board?** If it does, the
-fault is something the map canvas does — the `stopPropagation` on a node's
-`pointerdown`, or the `fixed inset-0 z-40` overlay. If it does not, every menu in
-the app is affected and that is a much larger problem than it looks.
 
 **Remaining feature gaps** (from `CLAUDE.md`): task dependencies (blocked by /
 blocks), saved and shareable filter views, recurring tasks, actual time tracking,

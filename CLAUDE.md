@@ -369,27 +369,36 @@ stack.
   same substitution put `[^\s"'()\\<>]` into a regex as `[^\s"'()\<>]`, which
   parses and quietly stops excluding backslashes. The existing note says to use
   the file-writing tool; it applies to *every* shell, not only heredocs.
-- **`DropdownMenuItem` does not fire on either map canvas.** Neither `onClick`
-  nor `onSelect` runs; the item takes the press and nothing happens. Both props
-  are dispatched from the same place in Radix, so failing together means Radix
-  never treats the press as a *selection* — it is not a wiring mistake at the
-  call site. Radix menus work elsewhere in this app, so it is something these
-  canvases do; the cause is still unknown.
+- **Swallowing a `pointerdown` on a canvas kills every menu item on it.** React
+  attaches its listeners at the root container, so `stopPropagation` on a
+  synthetic event stops the *native* event too — and Radix's menu machinery
+  listens on `document`. A blanket `event.stopPropagation()` at the top of a
+  node's press handler meant the trigger's press never reached Radix: the menu
+  opened, because the trigger has its own handler, and **every row inside it was
+  unreachable**. Neither `onClick` nor `onSelect` ran, which is what proves it is
+  not a wiring mistake — both are dispatched from the same place.
 
-  What works, and what the way round is built on: the emoji grid **inside the
-  same menu** has always worked, because it is plain buttons. So every row in
-  both map menus is a plain `MenuRow` button styled to match an item, and the
-  menus are *controlled* — a plain button cannot close a Radix menu by itself.
-  Confirmed working by the owner on all four rows.
+  This project had already recorded the same symptom from stopping the press on
+  the *trigger*. The blanket call one level up hid it for a whole session.
 
-  `MenuRow` is deliberately written twice rather than shared. Sharing it would
-  outlive the bug: when the cause is found, both copies go and the rows become
-  items again.
+  The rule, now that it is understood: **swallow a press only when it is a press
+  on the thing you are protecting.** `swallowUnlessControl` on the wheel and the
+  guard in `onNodePointerDown` both skip anything inside a
+  `button, textarea, [role='menuitem']`. The other half is that the viewport
+  declines any press that began on a control — that is what the swallowing was
+  protecting against, and without it the plane captures the pointer to pan and
+  eats the click, which is the dead-button bug this project has had three times.
 
-  Three things were tried and did not fix it, so nobody repeats them: swapping
-  `onClick` for `onSelect`; docking the panel the item opens somewhere more
-  visible; and looking for a geometric cause — the control cluster overlapping a
-  neighbour was measured against real coordinates and does not happen.
+  How it was found, after three rounds of reading the render tree found nothing:
+  the database said no node on a free canvas had *ever* been given a colour,
+  which made it a canvas problem rather than a colour problem; the theme toggle
+  proved `DropdownMenuItem` works everywhere else in the app; and one row left
+  as a real item after the fix, as a canary, confirmed the cause.
+
+  Things that looked promising and were not: swapping `onClick` for `onSelect`
+  (same dispatch), moving the panel somewhere more visible, and a geometric
+  cause — the control cluster overlapping a neighbour was measured against real
+  coordinates and does not happen.
 - **A second agent session on the same working tree will sweep your unfinished
   edits into its own commit.** One ran `git add -A` while a file was half-edited
   here; nothing was lost that time, and nothing would have said so if it had
@@ -1013,10 +1022,12 @@ read it, exactly as `role` existed for double bubble.
 
 ### The menus, and what it took to make them work
 
-**Every `DropdownMenuItem` on a map canvas is dead** — see the trap above for
-the shape of it and for the three fixes that did not work. Both map menus are
-built from plain buttons now and the owner has confirmed all four rows firing:
-Change colour, Comments, Remove, and Split.
+**Every `DropdownMenuItem` on a map canvas was dead**, and the cause is the
+blanket `stopPropagation` in the node's press handler — see the trap above. Both
+menus are ordinary Radix menus again; the plain-button rows that stood in for
+them while it was unknown are gone, along with the controlled-open state they
+needed. Confirmed by the owner: the canary row fired the moment the press stopped
+being swallowed.
 
 The evidence that made this findable was not in the code. It was the database:
 **no node on a free canvas had ever been given a colour**, while circle, tree

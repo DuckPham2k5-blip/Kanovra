@@ -192,18 +192,6 @@ export function MindMapCanvas({
   const [radial, setRadial] = React.useState<RadialSettings>(initialRadial);
   // Which node's colour is being chosen, and the colours this map has used.
   const [colouring, setColouring] = React.useState<string | null>(null);
-  /*
-   * Which node's `…` menu is open.
-   *
-   * Controlled, because the rows inside it are plain buttons rather than
-   * `DropdownMenuItem`s and a plain button does not close a Radix menu. They are
-   * plain buttons because the menu items do not work on this canvas: the item
-   * takes the press and neither `onClick` nor `onSelect` ever runs, while the
-   * emoji buttons in the same menu have always worked. Whatever the cause turns
-   * out to be, it is in `DropdownMenuItem`, and nothing here has to go through
-   * it.
-   */
-  const [openMenu, setOpenMenu] = React.useState<string | null>(null);
   const [recents, setRecents] = React.useState<NodeFill[]>(initialRecents);
   const isRadial = type === MindMapType.CIRCLE;
 
@@ -1634,10 +1622,7 @@ export function MindMapCanvas({
                         <Plus className="size-3.5" />
                       </button>
 
-                    <DropdownMenu
-                      open={openMenu === node.id}
-                      onOpenChange={(next) => setOpenMenu(next ? node.id : null)}
-                    >
+                    <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button
                           type="button"
@@ -1697,15 +1682,10 @@ export function MindMapCanvas({
                             now a mix of up to four with a direction, which does
                             not fit in a menu — and the menu closes over the node
                             you are trying to judge the colour against. */}
-                        <MenuRow
-                          onSelect={() => {
-                            setOpenMenu(null);
-                            setColouring(node.id);
-                          }}
-                        >
+                        <DropdownMenuItem onSelect={() => setColouring(node.id)}>
                           <span
                             aria-hidden
-                            className="size-4 shrink-0 rounded border"
+                            className="size-4 rounded border"
                             style={{
                               background: node.fill
                                 ? fillCss(node.fill)
@@ -1713,7 +1693,7 @@ export function MindMapCanvas({
                             }}
                           />
                           Change colour
-                        </MenuRow>
+                        </DropdownMenuItem>
 
                         {/* Comments reachable from the menu as well as from the
                             badge. The badge is the one that can *tell* you there
@@ -1724,15 +1704,6 @@ export function MindMapCanvas({
                         {savedIds.has(node.id) && canComment ? (
                           <>
                             <DropdownMenuSeparator />
-                            {/* The canary.
-                             *
-                             * The one row still built as a real
-                             * `DropdownMenuItem`, deliberately. Every item on
-                             * this canvas was dead until the press on a control
-                             * stopped being swallowed; if this row fires now, the
-                             * cause is confirmed and the `MenuRow` copies come
-                             * out. If it does not, the rest of the menu still
-                             * works and only this one line is affected. */}
                             <DropdownMenuItem onSelect={() => openComments(node.id)}>
                               <MessageSquare />
                               {threadSize > 0 ? `Comments (${threadSize})` : "Add a comment"}
@@ -1743,15 +1714,9 @@ export function MindMapCanvas({
                         {!isCentre ? (
                           <>
                             <DropdownMenuSeparator />
-                            <MenuRow
-                              destructive
-                              onSelect={() => {
-                                setOpenMenu(null);
-                                remove(node.id);
-                              }}
-                            >
-                              <Trash2 className="size-4 shrink-0" /> Remove this node
-                            </MenuRow>
+                            <DropdownMenuItem variant="destructive" onSelect={() => remove(node.id)}>
+                              <Trash2 /> Remove this node
+                            </DropdownMenuItem>
                           </>
                         ) : null}
                       </DropdownMenuContent>
@@ -1852,39 +1817,6 @@ export function MindMapCanvas({
         />
       ) : null}
     </div>
-  );
-}
-
-/**
- * A row in a node's menu, built as a plain button.
- *
- * Styled to match `DropdownMenuItem` exactly, and deliberately not one: on this
- * canvas an item receives the press and its handler never runs. The emoji grid
- * in the same menu is plain buttons and has always worked, which is the whole
- * reason this shape was reached for.
- */
-function MenuRow({
-  children,
-  destructive,
-  onSelect,
-}: {
-  children: React.ReactNode;
-  destructive?: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={onSelect}
-      className={cn(
-        "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5",
-        "text-left text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground",
-        destructive && "text-destructive hover:bg-destructive/10 hover:text-destructive",
-      )}
-    >
-      {children}
-    </button>
   );
 }
 

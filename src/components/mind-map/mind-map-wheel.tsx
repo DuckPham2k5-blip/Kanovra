@@ -6,6 +6,7 @@ import * as React from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -45,6 +46,20 @@ import { cn } from "@/lib/utils";
  * edited a click at a time, and shipping the geometry without any way to change
  * it would have made the map read-only for as long as that took.
  */
+
+/**
+ * Swallows a press so the canvas underneath cannot turn it into a pan — unless it
+ * landed on a control, in which case it has somewhere to be.
+ *
+ * Radix's menu machinery listens on `document`, and React's synthetic
+ * `stopPropagation` stops the native event as well, so swallowing a trigger's
+ * press leaves the menu open with every row in it unreachable. That was true here
+ * and on the box canvas, and it is recorded in CLAUDE.md.
+ */
+function swallowUnlessControl(event: React.PointerEvent) {
+  if ((event.target as HTMLElement).closest("button, textarea, [role='menuitem']")) return;
+  event.stopPropagation();
+}
 
 const LABEL_FUDGE = 0.56;
 /** Gap between neighbouring segments, as a distance rather than an angle. */
@@ -155,19 +170,6 @@ export function MindMapWheel({
    * rotating costs one attribute — and the real value is written once, on release.
    */
   const [liveRotation, setLiveRotation] = React.useState(0);
-  /*
-   * Whether the selected segment's menu is open.
-   *
-   * Controlled, because its rows are plain buttons rather than
-   * `DropdownMenuItem`s and a plain button does not close a Radix menu. Why
-   * plain buttons: on this canvas an item takes the press and neither `onClick`
-   * nor `onSelect` runs, while the emoji grid in the same menu has always
-   * worked, and it is plain buttons.
-   *
-   * One flag rather than one per node, because only the selected segment has a
-   * menu at all.
-   */
-  const [openMenu, setOpenMenu] = React.useState(false);
 
   const drag = React.useRef<
     | { kind: "rotate"; from: number }
@@ -343,10 +345,12 @@ export function MindMapWheel({
           be a poor place for the one control every map has. */}
       <div
         // Swallowed, or the viewport underneath captures the pointer to pan and
-        // neither the title box nor the add button ever receives its click. Every
-        // HTML control layered over this canvas needs this; forgetting it is the
-        // single recurring cause of a dead button in this project.
-        onPointerDown={(event) => event.stopPropagation()}
+        // neither the title box nor the add button ever receives its click.
+        //
+        // Only when the press is on the hub itself. A blanket stop is what killed
+        // every row in the menus on this map: React attaches at the root, so it
+        // stops the native event too, and Radix's menu listens on `document`.
+        onPointerDown={swallowUnlessControl}
         className="absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 text-center"
         style={{
           left: 0,
@@ -421,9 +425,9 @@ export function MindMapWheel({
 
             return (
               <div
-                // Same reason as the hub: the `…` menu, the comment button and the
-                // avatars all sit over the pannable canvas.
-                onPointerDown={(event) => event.stopPropagation()}
+                // Same reason as the hub, and the same exception: a press on a
+                // control is left alone so it reaches `document`.
+                onPointerDown={swallowUnlessControl}
                 className="absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-1"
                 style={{ left: place.x, top: place.y }}
               >
@@ -445,7 +449,7 @@ export function MindMapWheel({
 
 
                 {canEdit ? (
-                  <DropdownMenu open={openMenu} onOpenChange={setOpenMenu}>
+                  <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
@@ -458,26 +462,15 @@ export function MindMapWheel({
                     <DropdownMenuContent align="start" className="w-60">
                       <DropdownMenuLabel>Split</DropdownMenuLabel>
                       {[2, 3, 4, 5].map((count) => (
-                        <MenuRow
-                          key={count}
-                          onSelect={() => {
-                            setOpenMenu(false);
-                            onSplit(node, count);
-                          }}
-                        >
-                          <Split className="size-4 shrink-0" /> Into {count}
-                        </MenuRow>
+                        <DropdownMenuItem key={count} onSelect={() => onSplit(node, count)}>
+                          <Split /> Into {count}
+                        </DropdownMenuItem>
                       ))}
 
                       <DropdownMenuSeparator />
-                      <MenuRow
-                        onSelect={() => {
-                          setOpenMenu(false);
-                          onAddBranch(node);
-                        }}
-                      >
-                        <PlusCircle className="size-4 shrink-0" /> Add a branch beside this
-                      </MenuRow>
+                      <DropdownMenuItem onSelect={() => onAddBranch(node)}>
+                        <PlusCircle /> Add a branch beside this
+                      </DropdownMenuItem>
 
                       {/* Size is not here. A branch is made wider by dragging
                           the boundary it shares with its neighbour and longer by
@@ -510,12 +503,7 @@ export function MindMapWheel({
                       {/* The same panel the boxes on a free canvas open. A
                           segment's colour is chosen the same way whatever shape
                           the map draws it as. */}
-                      <MenuRow
-                        onSelect={() => {
-                          setOpenMenu(false);
-                          onPickColor(node.id);
-                        }}
-                      >
+                      <DropdownMenuItem onSelect={() => onPickColor(node.id)}>
                         <span
                           aria-hidden
                           className="size-4 rounded border"
@@ -526,18 +514,12 @@ export function MindMapWheel({
                           }}
                         />
                         Change colour
-                      </MenuRow>
+                      </DropdownMenuItem>
 
                       <DropdownMenuSeparator />
-                      <MenuRow
-                        destructive
-                        onSelect={() => {
-                          setOpenMenu(false);
-                          onRemove(node.id);
-                        }}
-                      >
-                        <Trash2 className="size-4 shrink-0" /> Remove this branch
-                      </MenuRow>
+                      <DropdownMenuItem variant="destructive" onSelect={() => onRemove(node.id)}>
+                        <Trash2 /> Remove this branch
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 ) : null}
@@ -669,39 +651,6 @@ function Handles({
 function polarPoint(r: number, degrees: number) {
   const rad = (degrees * Math.PI) / 180;
   return { x: r * Math.cos(rad), y: r * Math.sin(rad) };
-}
-
-/**
- * A row in a segment's menu, built as a plain button.
- *
- * The twin of the one in `mind-map-canvas.tsx`, and for the same reason: a
- * `DropdownMenuItem` on either of these canvases takes the press without ever
- * running its handler. Kept separate rather than shared, because sharing it
- * would outlive the bug that caused it — when the cause is found, both go.
- */
-function MenuRow({
-  children,
-  destructive,
-  onSelect,
-}: {
-  children: React.ReactNode;
-  destructive?: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={onSelect}
-      className={cn(
-        "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5",
-        "text-left text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground",
-        destructive && "text-destructive hover:bg-destructive/10 hover:text-destructive",
-      )}
-    >
-      {children}
-    </button>
-  );
 }
 
 /** One ring segment: its fill, its label, and the text you can edit in place. */
