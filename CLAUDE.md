@@ -350,6 +350,30 @@ stack.
   in. So that table under-reports a shell-level regression: the icon chunk was
   attributed to three routes and was in fact loaded by all of them. To see one, sum
   the gzip of both entries rather than reading the column.
+- **When an animation does not run, check `prefers-reduced-motion` before
+  anything else.** This machine has it on, and it has now silently switched off
+  four separate requested effects. The fourth was the map backdrop: three
+  drifting lights, correct in every respect, reported as “no movement at all, on
+  every map”. Nothing is broken in that state and nothing logs, so it costs a
+  whole round of diagnosis every time. The map surface is now the one place that
+  ignores the preference by default — see the ninth pass for the trade.
+- **Identify the element before concluding anything from it.** `[DOMRect]` in the
+  console was read as “the colour panel is mounted, they simply cannot see it”,
+  and a fix was shipped on that reading. The rectangle was `0×0` at the origin
+  with `z-index: 10`: the *shell's own sidebar*, hidden because the window was
+  narrower than `lg`. The panel was never in the document. One more line of that
+  console — the size and the z-index — turned the conclusion inside out.
+- **Writing source through a Python one-liner mangles escapes exactly as a bash
+  heredoc does.** `OUT.join("\n")` arrived in the file as a real line break inside
+  a string literal, which is a syntax error rather than a subtle bug — but the
+  same substitution put `[^\s"'()\\<>]` into a regex as `[^\s"'()\<>]`, which
+  parses and quietly stops excluding backslashes. The existing note says to use
+  the file-writing tool; it applies to *every* shell, not only heredocs.
+- **A second agent session on the same working tree will sweep your unfinished
+  edits into its own commit.** One ran `git add -A` while a file was half-edited
+  here; nothing was lost that time, and nothing would have said so if it had
+  been. Check `git log` for commits you did not make before assuming the tree is
+  yours, and ask the owner to run one session at a time.
 
 ---
 
@@ -617,7 +641,8 @@ selected-segment furniture.
 
 **Bridge and double bubble are gone.** Not hidden — removed. The enum values, the
 13 rows, the layouts, the notation, the glyphs, the `role` field on a node and the
-tests all went. There are six map types now.
+tests all went. There were six map types after that; flow went in the ninth pass
+and there are five.
 
 It happened in two steps on purpose. The first withdrew them from the interface
 while keeping the enum, because rows existed and deleting them is irreversible; the
@@ -886,6 +911,111 @@ the owner is signed in would open all of this for good.
 
 Still waiting on a pointer and a session: **the circle map segment outlines** and
 **the star field's density and colours**.
+
+---
+
+## Built after the ninth pass (2026-08-21)
+
+Seventeen commits, all of them about what a map looks like. The owner drove the
+browser throughout and reported back after every one, which is why this pass has
+more corrections in it than features.
+
+**A map carries its own colour, as a hue and a tone.** `MIND_MAP_META[type].hue`
+is now only the default a map starts from. A free colour field was asked for and
+is the one thing this drawing cannot take: the shades are *derived*, and
+`radialShade` keeps fixed distances between a segment's fill, the ink on it and
+its outline so the words stay readable. Hue can be handed over completely
+because it never changes contrast; tone moves saturation and lightness together
+in four steps that were rendered and looked at. 360 × 4, minus the corner of the
+space where the map stops working.
+
+**A node's own colour is the other end of the same argument.** It is chosen, not
+derived, and it can be two colours at once, so it arrives whole — up to four hex
+stops with an angle — and the two things that must stay readable are computed
+*from* it. `fillInk` picks the label colour from the fill's own luminance,
+weighted the way the eye weights it; a plain average calls pure blue mid-bright
+and puts black text on it. A blend is judged by its **lightest** stop, because
+the words run across all of it. `fillBorder` always draws an edge a fixed
+distance from the fill, because a fill can land on the backdrop's own colour and
+a node with no visible extent is a node nobody can find.
+
+Hex is validated by a strict regex rather than accepted as “a CSS colour”. It is
+interpolated into `linear-gradient(...)` and into an SVG `stop-color`, and the
+document is JSON anybody with edit rights can post.
+
+**A map stands on scenery: thirteen backgrounds, or a link.** Every one is a
+small SVG embedded as a data URI, for the reason project headers are gradients
+rather than photographs — no upload, no cropping, and a darkness known in
+advance. Three more properties come free: sharp at any zoom, which matters on a
+surface people magnify forty times; nothing fetched from anywhere; and it can be
+rendered from a test and looked at. A test asserts the middle one as an
+invariant, because one `<image href="https://…">` would put every viewer's
+address in somebody's logs and would be **invisible on screen**.
+
+A photograph cannot be shipped with the app, so the way to one is a link.
+`isSafeImageUrl` is the guard — https only, no quotes, brackets, backslashes or
+whitespace — because the value ends up inside a CSS `url(...)`.
+`verifyRemoteImage` runs too and is a *courtesy*: the picture is fetched by each
+viewer's browser, not by this server, so what it buys is being told “that is not
+a picture” while the link is still in the box.
+
+**The map surface is the one place that ignores `prefers-reduced-motion`.** Three
+soft lights drift behind the drawing, on the surface layer outside the pan-and-
+zoom transform, so magnifying the map does not magnify them. They stopped under
+the preference at first, which is what this project does everywhere else; the
+owner asked twice for a moving backdrop, could not see it move, and asked again
+once the preference was explained. So movement is the default here and a switch
+at the top of the appearance panel is how anybody stops it — per person, in
+their own browser, never on the map. A document that could switch motion *on*
+for whoever opened it would be the author answering a medical question for a
+reader they have never met. Naming the cost plainly: somebody who has told their
+computer that moving pictures make them unwell now sees one until they find that
+switch, which is why it is the first control in the panel.
+
+**Zoom runs 0.02 to 40**, from a fifth-to-triple that suited a map fitting one
+screen. Not unbounded, and the bound is arithmetic rather than taste: past it the
+translation loses the precision that keeps a node under the pointer and the
+browser stops rasterising text, so the map would go blank rather than large.
+
+**Flow is gone. Five types.** Fifteen rows, the enum value, the layout, the
+glyph, the fixtures and the tests, the same way bridge and double bubble went and
+with the same migration shape. The node's `kind` (`step` / `note`) went with it:
+it existed because a flow map needed two sorts of child and nothing else ever
+read it, exactly as `role` existed for double bubble.
+
+### Still broken, and narrowed to one component
+
+**Every `DropdownMenuItem` on a map canvas is dead.** Not the menu — the menu
+opens, and the emoji grid *inside* it works, because those are plain buttons in a
+menu rather than menu items. What is established, from the owner's own console:
+the `…` trigger receives its press, a menu item receives its press, and the panel
+the item opens is never added to the document. The same call from a plain button
+beside it mounts it immediately.
+
+The evidence that made this findable was not in the code. It was the database:
+**no node on a free canvas had ever been given a colour**, while circle, tree and
+brace had twelve between them, and no bubble, flow or multi-flow map had ever
+recorded a single colour choice. Three rounds of reading the render tree found
+nothing, because there is nothing — the panel mounts from the same place for
+every type.
+
+Every affected action now has a plain-button route: a palette button on the node
+and on a wheel's hub and segment, `+` for a branch, the comment badge, and the
+Delete key for removal. The menu items stay, so the duplication comes out rather
+than the capability when the cause is found. **One action has no way round it:
+splitting a wheel branch into 2–5.**
+
+The question that halves the search and has not been answered: does a
+`DropdownMenuItem` work on the Kanban board? Menus elsewhere in the app appear
+to; if they do, the fault is something this canvas does — the `stopPropagation`
+on a node's `pointerdown`, or the `fixed inset-0 z-40` overlay.
+
+**Verified:** lint, typecheck, 238 tests, a production build with the port check
+in the same command, four migrations applied and read back, thirteen backgrounds
+and a wheel of filled segments rendered to pictures and looked at, and — by the
+owner, in the browser — the node palette button, the appearance panel, the
+backgrounds, and the flow map's absence. **Not verified:** the drifting lights
+actually moving, and whether a linked picture paints.
 
 ---
 

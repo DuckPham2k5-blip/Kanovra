@@ -16,24 +16,31 @@ proven, what has not, and what is open.
 - Working directory: `C:\Users\PC\OneDrive\TaskForge`
 - Branch `main`, working tree clean
 - This session starts at `d755608` — `git log --oneline d755608..HEAD` lists it
-  (42 commits at the time of writing)
+  (60 commits at the time of writing)
 - Check port 3000 before assuming the dev server is up or down
 
 | Check | Result |
 |---|---|
 | `npm run lint` | clean |
 | `npm run typecheck` | clean |
-| `npm test` | **195 / 195** (142 at session start) |
+| `npm test` | **238 / 238** (142 at session start) |
 | `npm run build` | green on the last code commit |
 
 Fifteen tests across three files need Postgres (`docker start kanovra-db`).
 No `DATABASE_URL` is a legitimate skip; configured-but-unreachable is a failure.
 
-**Two migrations were added.** Both additive, no data-loss warning, both must run
-on the VPS at deploy:
+**Five migrations were added**, and they must run on the VPS at deploy **in this
+order**:
 
-- `20260818041355_add_mind_map_comment_reads`
-- `20260818180704_add_deleted_task_snapshots`
+- `20260818041355_add_mind_map_comment_reads` — additive
+- `20260818180704_add_deleted_task_snapshots` — additive
+- `20260821035544_add_mind_map_palette` — additive, two nullable columns
+- `20260821085208_add_mind_map_background` — additive, two nullable columns
+- `20260821143000_remove_flow_map` — **destructive**: deletes every FLOW row,
+  then rebuilds the `MindMapType` enum without it. Hand-written, applied with
+  `prisma migrate deploy`; `migrate dev` refuses non-interactively once it has a
+  data-loss warning. The `DELETE` must stay *inside* it — pre-cleaning by hand
+  works here and fails on a VPS where nobody has.
 
 ---
 
@@ -86,6 +93,21 @@ The reasoning for each is in `CLAUDE.md`.
 **Shell**
 - Ambient star field on every page, direction and colour by theme.
 
+**Map appearance** (the ninth pass — reasoning in `CLAUDE.md`)
+- A map has its own colour: a hue anywhere on the circle and one of four tones,
+  in two nullable columns. Not a free colour field, and the reason is written
+  down.
+- A node has its own colour: one to four hex stops with a direction, stored in
+  the document. The label's ink and the node's edge are computed from it.
+- Thirteen backgrounds drawn as SVG data URIs, plus a box for a link to any
+  picture — https only, checked once on the server, and guarded by a regex
+  because the value lands inside a CSS `url(...)`.
+- Three lights drift behind the drawing. **This surface deliberately ignores
+  `prefers-reduced-motion`**; the switch at the top of the appearance panel is
+  how anybody stops it, per person, in their own browser.
+- Zoom runs 0.02 to 40.
+- **Flow is removed.** Five map types. The node's `kind` went with it.
+
 ---
 
 ## 4. What the owner has actually seen working
@@ -105,6 +127,11 @@ Everything here was confirmed on their own screen.
   reports the number of tasks chosen.
 - Project and notification icons after the icon registry replaced the namespace
   import.
+- The palette button on a map node opening the colour panel, after the same
+  action inside the `…` menu did nothing.
+- The appearance panel: the drawn backgrounds, and a map keeping one across a
+  reload.
+- The flow map type gone from the picker and the list.
 - The `…` menu on a map node, after the control-scale fix.
 
 ---
@@ -121,6 +148,8 @@ owner's own session — is not connected. Anything behind sign-in needs the owne
 2. **Circle map segment outlines.**
 3. **The unread comment pulse.** Not possible here at all — it needs a comment
    written by somebody else, and the workspace has one member.
+4. **The map's drifting lights actually moving**, and whether a **linked picture**
+   paints as a background.
 
 Older, and unchanged by this session:
 
@@ -138,6 +167,19 @@ snapshot lives on the server for 24 hours, but the only route in is the toast, s
 a reload loses it. That was deliberate for "undo what I just did". The owner was
 told, and replied *"tạm gác lại điều đấy"* — parked, not refused.
 
+**The live bug: every `DropdownMenuItem` on a map canvas is dead.** The menu
+opens, the item takes the press, and nothing happens; the emoji grid inside the
+same menu works, because those are plain buttons. Every affected action has a
+plain-button route now — palette buttons on the node, the hub and a segment,
+`+`, the comment badge, the Delete key — except **splitting a wheel branch into
+2–5**, which has no way round.
+
+The evidence is in `CLAUDE.md`; what is missing is one observation: **does a
+`DropdownMenuItem` work on the Kanban board?** If it does, the fault is
+something the map canvas does — the `stopPropagation` on a node's
+`pointerdown`, or the `fixed inset-0 z-40` overlay. If it does not, every menu
+in the app is broken and that is a much larger problem.
+
 **Remaining feature gaps** (from `CLAUDE.md`): task dependencies (blocked by /
 blocks), saved and shareable filter views, recurring tasks, actual time tracking,
 project templates, keyboard shortcuts beyond ⌘K, CSV export, public read-only
@@ -152,6 +194,30 @@ Clerk dashboard; apply `deploy/nginx.conf`; `git push`.
 
 Read this before writing code. Each cost the owner a round of testing, and one
 destroyed data.
+
+### Concluding from a fact without checking what the fact was
+
+`[DOMRect]` in the console was read as “the colour panel is mounted and simply
+unseen”, and a fix shipped on that reading. Printing the numbers showed `0×0` at
+the origin with `z-index: 10` — the shell's own sidebar, hidden because the
+window was narrower than `lg`. The panel had never been in the document. Ask what
+an element *is* before concluding anything from the fact that it exists.
+
+### Reading a class name off a screenshot and building on it
+
+One word in a small console screenshot looked like `cursor-default` where the
+source says `cursor-pointer`, and a theory about a stale bundle grew out of it
+immediately. It was dropped before it reached code, but only because the next
+check contradicted it. An image is not a transcript.
+
+### Three rounds of reading code when the answer was in the data
+
+“Change colour does not work on some maps” took three passes through the render
+tree, which found nothing, because there *is* nothing — every type mounts the
+same panel from the same place. One query settled its shape: no node on a free
+canvas had ever been given a colour, and no such map had ever recorded a colour
+choice. The rule at the top of this section is about features; it applies to
+bugs just as hard.
 
 ### Building on an assumption about the data's shape — three times
 
