@@ -1,10 +1,12 @@
 /**
  * Whether the lights behind a map drift, and who decides.
  *
- * The system preference is the default and stays the default: somebody whose
- * computer asks for less movement gets less movement without touching anything
- * here. What this adds is the other half — the person looking may put the
- * movement back, for themselves.
+ * The lights move by default, for everybody, and the switch is how one person
+ * stops them in their own browser. It began the other way round — following
+ * `prefers-reduced-motion` — and the owner asked twice for a backdrop that
+ * moves, could not see it move on their own machine because of that preference,
+ * and asked again once it was explained. `globals.css` carries the trade in
+ * full.
  *
  * ## Why this is not stored on the map
  *
@@ -18,9 +20,9 @@
  * So it lives in the browser it was chosen in. The cost is real and small: the
  * choice does not follow you to another machine.
  *
- * The override is also one-directional in the sense that matters. Choosing
- * `moving` only ever affects the chooser; choosing `still` is always allowed,
- * because asking for less movement needs no permission from anybody.
+ * Either way the choice only ever affects the person who made it. Asking for
+ * less movement needs no permission from anybody, and asking for more cannot be
+ * done on anybody else's behalf.
  */
 
 export type MotionChoice = "system" | "moving" | "still";
@@ -34,13 +36,15 @@ export function readMotionChoice(raw: string | null | undefined): MotionChoice {
 }
 
 /**
- * Whether the lights should be moving, given the choice and what the system
- * asked for.
+ * Whether the lights should be moving.
+ *
+ * They move unless somebody has said not to. `prefers-reduced-motion` used to
+ * decide this and no longer does — see the note in `globals.css` for what that
+ * costs and why it was asked for anyway. The choice is still per person and per
+ * browser; what changed is only which way it starts.
  */
-export function motionIsOn(choice: MotionChoice, systemPrefersReduced: boolean): boolean {
-  if (choice === "moving") return true;
-  if (choice === "still") return false;
-  return !systemPrefersReduced;
+export function motionIsOn(choice: MotionChoice): boolean {
+  return choice !== "still";
 }
 
 /**

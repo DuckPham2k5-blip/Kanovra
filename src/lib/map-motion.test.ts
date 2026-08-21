@@ -8,25 +8,20 @@ import {
 } from "@/lib/map-motion";
 
 /**
- * The whole point of this module is one table, and the row that matters is the
- * last: somebody whose computer asks for less movement, who has not said
- * otherwise, gets none. The switch exists so they *can* say otherwise — for
- * themselves, on their own machine.
+ * One table, and the row that matters is `still`: it is the only value that
+ * stops the lights, and it can only ever be written by the person looking at
+ * them.
  */
 describe("who decides whether the map moves", () => {
-  it("follows the system until somebody says otherwise", () => {
-    expect(motionIsOn("system", false)).toBe(true);
-    expect(motionIsOn("system", true)).toBe(false);
+  it("moves until somebody says not to", () => {
+    expect(motionIsOn("system")).toBe(true);
+    expect(motionIsOn("moving")).toBe(true);
+    expect(motionIsOn("still")).toBe(false);
   });
 
-  it("lets an explicit choice win in both directions", () => {
-    expect(motionIsOn("moving", true)).toBe(true);
-    expect(motionIsOn("still", false)).toBe(false);
-  });
-
-  it("says nothing at all while the choice is the system's", () => {
-    // No class, so the stylesheet's own media query answers. A class restating
-    // the system preference would have to be recomputed every time it changed.
+  it("says nothing at all until somebody has chosen", () => {
+    // No class, so the stylesheet's own rule runs and the lights drift. Only
+    // `still` needs to say anything, because only `still` changes what happens.
     expect(motionClass("system")).toBe("");
     expect(motionClass("moving")).toBe("tf-map-moving");
     expect(motionClass("still")).toBe("tf-map-still");

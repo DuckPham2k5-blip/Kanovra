@@ -113,6 +113,25 @@ export function MindMapAppearancePicker({
 
       {!mounted ? null : (
         <PopoverContent align="end" className="max-h-[76vh] w-[26rem] space-y-4 overflow-y-auto">
+          {/* Motion is the one control here that is not about the map. It is
+              stored in this browser and changes nothing for anybody else — see
+              `map-motion.ts` for why a document must not answer this question on
+              a reader's behalf. */}
+          <section className="flex items-start justify-between gap-3 border-b pb-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-muted-foreground">Motion</p>
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                The lights behind the map drift. Turn it off here to stop them — the
+                setting is yours and stays on this computer.
+              </p>
+            </div>
+            <Switch
+              checked={motionOn}
+              onCheckedChange={onMotionChange}
+              aria-label="Background motion"
+            />
+          </section>
+
           <section className="space-y-2">
             <p className="text-xs font-semibold text-muted-foreground">Plain</p>
             <div className="grid grid-cols-3 gap-2">
@@ -179,25 +198,6 @@ export function MindMapAppearancePicker({
               everyone who opens the map, so the site hosting it can see them.
             </p>
             {linkError ? <p className="text-[11px] text-destructive">{linkError}</p> : null}
-          </section>
-
-          {/* Motion is the one control here that is not about the map. It is
-              stored in this browser and changes nothing for anybody else — see
-              `map-motion.ts` for why a document must not answer this question on
-              a reader's behalf. */}
-          <section className="flex items-start justify-between gap-3 border-t pt-3">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold text-muted-foreground">Motion</p>
-              <p className="text-[11px] leading-snug text-muted-foreground">
-                The lights behind the map drift. Follows your system setting until you
-                change it here, and only on this computer.
-              </p>
-            </div>
-            <Switch
-              checked={motionOn}
-              onCheckedChange={onMotionChange}
-              aria-label="Background motion"
-            />
           </section>
 
           <section className="space-y-2 border-t pt-3">

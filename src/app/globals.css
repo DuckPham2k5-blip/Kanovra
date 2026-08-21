@@ -1307,15 +1307,15 @@
 }
 
 .tf-map-drift-a {
-  animation: tf-map-drift-a 52s ease-in-out infinite;
+  animation: tf-map-drift-a 18s ease-in-out infinite;
 }
 
 .tf-map-drift-b {
-  animation: tf-map-drift-b 67s ease-in-out infinite;
+  animation: tf-map-drift-b 24s ease-in-out infinite;
 }
 
 .tf-map-drift-c {
-  animation: tf-map-drift-c 83s ease-in-out infinite;
+  animation: tf-map-drift-c 30s ease-in-out infinite;
 }
 
 @keyframes tf-map-drift-a {
@@ -1358,43 +1358,25 @@
    else. The lights still glow where they are; they simply stop travelling.
    `animation: none` rather than pinning a transform, because a plain declaration
    cannot beat a running keyframe and the override would do nothing at all. */
-@media (prefers-reduced-motion: reduce) {
-  .tf-map-drift-a,
-  .tf-map-drift-b,
-  .tf-map-drift-c {
-    animation: none;
-  }
-}
-
 /* ---------------------------------------------------------------------------
-   And the same preference, answered by hand.
+   Stillness is asked for, not assumed.
 
-   The block above is the default and stays the default. These two classes are
-   the map's own switch, and they belong to the person looking rather than to the
-   map: the preference exists because moving pictures make some people ill, so a
-   document that could turn motion on for whoever opened it would be the exact
-   harm it is there to prevent.
+   These lights used to stop under `prefers-reduced-motion`, which is what this
+   project does everywhere else and what it will keep doing everywhere else. The
+   owner asked twice for a map backdrop that moves, could not see it move on
+   their own machine because of that preference, and asked again with the
+   preference explained. So on this one surface the movement is the default and
+   the switch in the map's panel is how anybody stops it — including anybody who
+   arrived with the preference already set.
 
-   Both rules out-specify the ones they override — a class inside a class beats a
-   class — so neither depends on where it sits in the file.
+   That is a real trade and it is worth naming: somebody who has told their
+   computer that moving pictures make them unwell now sees a moving backdrop
+   until they find one switch. The switch is at the top of the panel for exactly
+   that reason, and it is the first control in it.
 --------------------------------------------------------------------------- */
 
 .tf-map-still .tf-map-drift-a,
 .tf-map-still .tf-map-drift-b,
 .tf-map-still .tf-map-drift-c {
   animation: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tf-map-moving .tf-map-drift-a {
-    animation: tf-map-drift-a 52s ease-in-out infinite;
-  }
-
-  .tf-map-moving .tf-map-drift-b {
-    animation: tf-map-drift-b 67s ease-in-out infinite;
-  }
-
-  .tf-map-moving .tf-map-drift-c {
-    animation: tf-map-drift-c 83s ease-in-out infinite;
-  }
 }

@@ -114,24 +114,14 @@ export function MindMapSurface({
   /*
    * Whether the lights drift, as the person looking has decided.
    *
-   * Both values are read after mount rather than during the render: neither
-   * `localStorage` nor `matchMedia` exists on the server, and a decorative layer
-   * that starts still for one frame costs nothing. Guessing at either would cost
-   * a hydration mismatch on every map.
-   *
-   * The system preference is subscribed to, not sampled — somebody who turns it
-   * on mid-session has just asked for the movement to stop.
+   * Read after mount rather than during the render: `localStorage` does not
+   * exist on the server, and one frame of a decorative layer starting in its
+   * default state costs nothing next to a hydration mismatch on every map.
    */
   const [choice, setChoice] = React.useState<MotionChoice>("system");
-  const [systemReduced, setSystemReduced] = React.useState(false);
 
   React.useEffect(() => {
     setChoice(readMotionChoice(window.localStorage.getItem(MOTION_KEY)));
-    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setSystemReduced(query.matches);
-    const listen = (event: MediaQueryListEvent) => setSystemReduced(event.matches);
-    query.addEventListener("change", listen);
-    return () => query.removeEventListener("change", listen);
   }, []);
 
   const setMotion = React.useCallback((on: boolean) => {
@@ -289,7 +279,7 @@ export function MindMapSurface({
           isDefaultPalette={isDefault}
           disabled={!canEdit}
           onBackground={applyBackground}
-          motionOn={motionIsOn(choice, systemReduced)}
+          motionOn={motionIsOn(choice)}
           onMotionChange={setMotion}
           onPalette={(next, options) =>
             save({ hue: next.hue, tone: next.tone }, options?.continuous)
