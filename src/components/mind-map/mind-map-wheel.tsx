@@ -431,6 +431,36 @@ export function MindMapWheel({
                   </button>
                 ) : null}
 
+                {/* Adding a branch and choosing a colour, out of the menu.
+                 *
+                 * Every `DropdownMenuItem` on this canvas is currently
+                 * unreachable — the owner reported the colour item, the comment
+                 * item and "add a branch beside this" all doing nothing, while
+                 * the plain buttons beside them work and the emoji grid inside
+                 * the same menu works, because those are plain buttons too. The
+                 * cause is still being narrowed; these are the two actions with
+                 * nowhere else to go, and the hub already proves the shape. */}
+                {canEdit ? (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Add a branch beside this"
+                      onClick={() => onAddBranch(node)}
+                      className="rounded-full border bg-background p-1 shadow-sm"
+                    >
+                      <PlusCircle className="size-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Change this branch's colour"
+                      onClick={() => onPickColor(node.id)}
+                      className="rounded-full border bg-background p-1 shadow-sm"
+                    >
+                      <Palette className="size-3.5" />
+                    </button>
+                  </>
+                ) : null}
+
                 {canEdit ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
