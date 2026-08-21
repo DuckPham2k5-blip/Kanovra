@@ -1198,7 +1198,7 @@ export function MindMapCanvas({
   }, []);
 
   return (
-    <div className="relative min-h-0 flex-1">
+    <div className="relative z-10 min-h-0 flex-1">
       {/* Floating rather than in a row of its own: on a full-screen canvas the
           pixels belong to the map. */}
       <div className="pointer-events-none absolute right-4 top-4 z-10 flex items-center gap-2">
@@ -1283,8 +1283,6 @@ export function MindMapCanvas({
               onSplit={splitInto}
               onAddBranch={addBranch}
               onRemove={remove}
-              onReweight={reweight}
-              onResize={resize}
               onRotate={(degrees) => {
                 remember("rotate");
                 setRadial((prev) => ({ ...prev, start: prev.start + degrees }));
@@ -1432,6 +1430,23 @@ export function MindMapCanvas({
                   top: point.y,
                   width: w,
                   height: h,
+                  /*
+                   * Small nodes stack above large ones, and whatever is selected
+                   * sits above everything.
+                   *
+                   * Without this the order is the order of the array, which is
+                   * the order they were made in — so a node dragged several ranks
+                   * up can bury its neighbours, and the press that should grab it
+                   * lands on whichever small node happens to sit on top. From the
+                   * outside that reads as "I tried to move the big one and
+                   * something else moved", which is how it was reported.
+                   *
+                   * Sorted by drawn width rather than by rank so the two drawings
+                   * agree: rank is a step count, and what buries what is measured
+                   * in pixels.
+                   */
+                  zIndex:
+                    selected === node.id ? 900 : Math.round(800 - Math.min(w, 780)),
                   fontSize: `${Math.max(0.68, shrink) * 100}%`,
                   // A bubble map's children are not subordinate to its centre —
                   // the centre is the thing and every bubble round it is one of
@@ -1447,9 +1462,6 @@ export function MindMapCanvas({
                   background: node.fill
                     ? fillCss(node.fill)
                     : mindMapColor(palette, isCentre || type === MindMapType.BUBBLE ? 0.24 : 0.12),
-                  // The label is chosen from the fill's own lightness, or a
-                  // pale colour lands white text on a pale box.
-                  color: node.fill ? fillInk(node.fill) : undefined,
                   // 0.35 was too faint to find the edge of a box against the
                   // wash it sits on — a shape you cannot see the extent of reads
                   // as a smudge rather than as a box. Still well under the
@@ -1524,6 +1536,15 @@ export function MindMapCanvas({
                     "tf-map-node-text h-full w-full resize-none bg-transparent text-center text-[1em] leading-snug outline-none placeholder:text-muted-foreground",
                     isCentre && "font-semibold",
                   )}
+                  // The ink goes on the words, not on the node.
+                  //
+                  // It was on the node's own style at first, and `color`
+                  // inherits: the `+`, the `…` and the comment badge all sit
+                  // *inside* the node, so a pale fill turned every white glyph on
+                  // them dark — on their own dark chips, which is invisible
+                  // rather than merely wrong. The one element that has to answer
+                  // to the fill is the one drawn on top of it.
+                  style={{ color: node.fill ? fillInk(node.fill) : undefined }}
                 />
 
                 {/* Who else is on this node, and how much has been said about

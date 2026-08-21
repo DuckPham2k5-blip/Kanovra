@@ -302,13 +302,19 @@ export function rankScale(rank: number) {
  * menu opened somewhere the pointer could not follow. Both failures have been
  * reported, in that order.
  *
- * A square root sits between the two, and the cap catches the far end where even
- * that outpaces what a control should be. The floor keeps them clickable on a
- * node somebody has shrunk to a dot.
+ * It was a square root for exactly that reason, and the owner has since asked for
+ * the opposite: controls that follow the node's size. So they do, one for one —
+ * and the cap is what remains of the old argument rather than a preference. Past
+ * it the failure above is real and was reported: a control large enough to be
+ * measured in hundreds of pixels stops reading as a control, hides the resize
+ * grip under itself, and anchors its menu somewhere the pointer is not.
+ *
+ * Six is where that starts, not where it was going to look untidy. The floor
+ * keeps them clickable on a node somebody has shrunk to a dot.
  */
 export function controlScale(rank: number): number {
   const scale = rankScale(Number.isFinite(rank) ? rank : 0);
-  return Math.min(Math.max(0.85, Math.sqrt(scale)), 4);
+  return Math.min(Math.max(0.85, scale), 6);
 }
 
 /**

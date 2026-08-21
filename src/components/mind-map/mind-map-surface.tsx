@@ -37,6 +37,13 @@ import { setMindMapBackground, setMindMapPalette } from "@/server/actions/mind-m
  * a signed-in user's whole rate-limit allowance on one gesture — the same reason
  * a bulk edit is one request rather than a loop.
  */
+/** Where each drifting light starts, and how big it is. */
+const DRIFTS = [
+  { className: "tf-map-drift-a", size: "46vw", left: "-10vw", top: "-14vh" },
+  { className: "tf-map-drift-b", size: "38vw", left: "58vw", top: "-6vh" },
+  { className: "tf-map-drift-c", size: "44vw", left: "16vw", top: "52vh" },
+];
+
 export function MindMapSurface({
   slug,
   mapId,
@@ -190,11 +197,40 @@ export function MindMapSurface({
         surface ?? { background: `${mindMapBackdrop(palette)}, hsl(var(--background))` }
       }
     >
+      {/* Three soft lights drifting behind the drawing.
+       *
+       * On the surface layer, outside the pan-and-zoom transform: the scenery
+       * stays put while the drawing moves over it, which is what was asked for.
+       *
+       * Painted in the map's own accent so it belongs to whatever scenery is
+       * behind it, and quieter on light scenery — the same glow that reads as a
+       * glow on a nebula reads as a stain on paper.
+       *
+       * `z-0` here with the content lifted to `z-10`. At `-z-10` a decorative
+       * layer lands in the root stacking context and paints behind the shell's
+       * own opaque background, invisible at any opacity.
+       */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+        {DRIFTS.map((drift) => (
+          <span
+            key={drift.className}
+            className={`tf-map-drift ${drift.className}`}
+            style={{
+              background: mindMapColor(palette, scenery?.kind === "preset" && scenery.background.scheme === "light" ? 0.22 : 0.5),
+              width: drift.size,
+              height: drift.size,
+              left: drift.left,
+              top: drift.top,
+            }}
+          />
+        ))}
+      </div>
+
       {/* A strip behind the header, not a change to it. The scenery can be a
           photograph nobody here has seen, so the bar reads as a bar rather than
           as words floating on whatever happens to be under them. */}
       <header
-        className="flex shrink-0 items-center gap-3 border-b bg-background/70 px-4 py-3 backdrop-blur"
+        className="relative z-10 flex shrink-0 items-center gap-3 border-b bg-background/70 px-4 py-3 backdrop-blur"
         style={{ borderColor: mindMapColor(palette, 0.24), color: ink }}
       >
         <Button asChild variant="outline" size="sm" className="tf-bar-control">

@@ -198,11 +198,17 @@ describe("rankFromRatio", () => {
  * The controls that hang off a node: the `+`, the `…`, the comment badge, the
  * resize grip.
  *
- * This has been wrong twice, in opposite directions, and both were reported. A
- * hard ceiling froze them on any node past about rank 6 — the exact complaint
- * scaling was added to fix. Removing the ceiling was worse: an overlay that
- * keeps pace with its host eventually covers it, and a 10× node wore a 10×
- * cluster that sat over the shape and put the `…` menu out of reach.
+ * This has been wrong twice in opposite directions, and is now settled a third
+ * way — by the owner, who asked for controls that follow the node's size after
+ * using the compromise. A hard ceiling froze them on any node past about rank 6.
+ * A square root fixed that and left them looking detached on a large node, which
+ * is the complaint that arrived next.
+ *
+ * They keep pace with the node now, and the cap is all that survives of the
+ * middle position: past roughly six times, an overlay large enough to be measured
+ * in hundreds of pixels covers the shape it belongs to, hides the resize grip and
+ * anchors its menu away from the pointer. That failure was reported once and the
+ * cap is where it starts.
  *
  * So the invariant, rather than the formula, is what these hold.
  */
@@ -213,15 +219,15 @@ describe("controlScale", () => {
   });
 
   /*
-   * The one that matters. Chrome must lose ground to its host as the host grows,
-   * or it ends up on top of it — measured as a fraction of the node, a control
-   * has to get smaller, not stay level.
+   * The one that matters now. A control has to stay the same *fraction* of its
+   * node between the floor and the cap, or it reads as belonging to the canvas
+   * rather than to the node it hangs off — which is what was reported.
    */
-  it("grows slower than the node it hangs off", () => {
-    for (const rank of [2, 6, 10, 16]) {
+  it("keeps pace with the node between the floor and the cap", () => {
+    for (const rank of [1, 2, 4, 6]) {
       const node = rankScale(rank);
-      expect(controlScale(rank)).toBeLessThan(node);
-      expect(controlScale(rank) / node).toBeLessThan(controlScale(0) / rankScale(0));
+      if (node > 6 || node < 0.85) continue;
+      expect(controlScale(rank)).toBeCloseTo(node, 6);
     }
   });
 
@@ -229,7 +235,7 @@ describe("controlScale", () => {
     for (const rank of [-40, -12, -1, 0, 1, 12, 40]) {
       const scale = controlScale(rank);
       expect(scale).toBeGreaterThanOrEqual(0.85);
-      expect(scale).toBeLessThanOrEqual(4);
+      expect(scale).toBeLessThanOrEqual(6);
       expect(Number.isFinite(scale)).toBe(true);
     }
   });
