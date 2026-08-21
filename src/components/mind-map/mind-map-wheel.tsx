@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageSquare, MoreHorizontal, PlusCircle, Split, Trash2 } from "lucide-react";
+import { MessageSquare, MoreHorizontal, Palette, PlusCircle, Split, Trash2 } from "lucide-react";
 import * as React from "react";
 
 import {
@@ -341,8 +341,12 @@ export function MindMapWheel({
           top: 0,
           width: HUB_RADIUS * 2,
           height: HUB_RADIUS * 2,
-          background: `hsl(${mapHue} 60% 16%)`,
-          borderColor: `hsl(${mapHue} 85% 62%)`,
+          // The hub is a node like any other and takes its own colour when it has
+          // been given one. It used to read only the map's hue, so the one item
+          // on a wheel that names the whole subject was the one item nobody could
+          // colour.
+          background: root.fill ? fillCss(root.fill) : `hsl(${mapHue} 60% 16%)`,
+          borderColor: root.fill ? fillBorder(root.fill) : `hsl(${mapHue} 85% 62%)`,
         }}
       >
         <textarea
@@ -352,6 +356,9 @@ export function MindMapWheel({
           placeholder="Main title"
           onChange={(event) => onUpdate(root.id, { text: event.target.value })}
           className="h-2/3 w-3/4 resize-none bg-transparent text-center text-sm font-semibold leading-snug outline-none placeholder:text-muted-foreground"
+          // On the words, not on the hub: `color` inherits, and the controls
+          // pinned to the hub's corners sit inside it.
+          style={{ color: root.fill ? fillInk(root.fill) : undefined }}
         />
 
         {canEdit && mounted ? (
@@ -360,7 +367,7 @@ export function MindMapWheel({
           // turned by dragging the hub's rim, which is the gesture this control
           // sits next to. A `+` that opens a list to offer the thing the `+`
           // already means is a step nobody asked for.
-          <div className="absolute -right-1 -top-1">
+          <div className="absolute -right-1 -top-1 flex gap-1">
             <button
               type="button"
               aria-label="Add a branch"
@@ -370,6 +377,18 @@ export function MindMapWheel({
               style={{ borderColor: `hsl(${mapHue} 85% 62%)` }}
             >
               <PlusCircle className="size-4" />
+            </button>
+            {/* The hub's own colour. A plain button rather than a menu with one
+                item on it, matching the `+` beside it. */}
+            <button
+              type="button"
+              aria-label="Change the hub's colour"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={() => onPickColor(root.id)}
+              className="rounded-full border bg-background p-1 shadow-sm"
+              style={{ borderColor: `hsl(${mapHue} 85% 62%)` }}
+            >
+              <Palette className="size-4" />
             </button>
           </div>
         ) : null}
