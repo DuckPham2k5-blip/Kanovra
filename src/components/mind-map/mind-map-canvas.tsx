@@ -43,6 +43,7 @@ import {
 import { MindMapColorPanel } from "@/components/mind-map/mind-map-color-panel";
 import { fillBorder, fillCss, fillInk, rememberFill, type NodeFill } from "@/lib/mind-map-fill";
 import { RING_THICKNESS } from "@/lib/mind-map-radial";
+import { MAP_MOVED_ON } from "@/lib/mind-map-version";
 import {
   edgeAxis,
   pathFromPoints,
@@ -116,6 +117,7 @@ export function MindMapCanvas({
   initialRadial,
   initialRecents,
   unreadable,
+  initialVersion,
   canEdit,
   canComment,
   comments,
@@ -138,6 +140,8 @@ export function MindMapCanvas({
    * the one case where an empty canvas must *not* be saved.
    */
   unreadable: boolean;
+  /** Which version of the document this page was built from. */
+  initialVersion: string;
   canEdit: boolean;
   canComment: boolean;
   comments: NodeComment[];
@@ -1112,19 +1116,51 @@ export function MindMapCanvas({
    */
   const refreshedIds = React.useRef<string>("");
 
-  const save = React.useCallback(async () => {
+  /**
+   * The version of the document this page's edits are based on.
+   *
+   * A ref rather than state: it is read inside `save` and changes on every
+   * successful write, and as state it would rebuild the callback and restart the
+   * autosave timer on each save — a timer that resets itself every time it fires
+   * is not a debounce any more.
+   */
+  const version = React.useRef(initialVersion);
+
+  /**
+   * Somebody else has written to this map, so nothing here is being saved.
+   *
+   * Held rather than merely reported, because the alternative is the autosave
+   * timer trying again 1.2 seconds later, for as long as the page is open — a
+   * failing request every second and a half, against a rate limit shared with
+   * everything else this person does.
+   */
+  const [conflict, setConflict] = React.useState(false);
+
+  const save = React.useCallback(async (force = false) => {
     const at = edits.current;
     setBusy(true);
     try {
       // `radial` goes with the nodes. Left out, a rotation survives on screen
       // until the next reload and then quietly reverts, which reads as the save
       // having failed at something else entirely.
-      const result = await updateMindMapData({ mapId, data: doc.current });
+      const result = await updateMindMapData({
+        mapId,
+        data: doc.current,
+        // Omitted on purpose when forcing: no version means no check, which is
+        // what "save mine anyway" is.
+        version: force ? null : version.current,
+      });
       if (!result.success) {
+        if (result.error === MAP_MOVED_ON) {
+          setConflict(true);
+          return;
+        }
         toast.error(result.error);
         return;
       }
 
+      version.current = result.data.version;
+      setConflict(false);
       savedEdits.current = at;
       // Only if nothing was typed while that was in the air.
       if (edits.current === at) setDirty(false);
@@ -1157,15 +1193,19 @@ export function MindMapCanvas({
    * would be a notification every time somebody pauses to think.
    *
    * The trade being accepted, plainly: a save writes the whole document, so two
-   * people editing one map now overwrite each other continuously instead of
-   * rarely. Explicit saving was what kept that rare. Nothing here fixes it —
-   * that needs per-node merging, which is a different piece of work.
+   * people editing one map would overwrite each other continuously, where
+   * explicit saving made it rare.
+   * Merging two drawings properly is per-node work and still undone; what is
+   * done is that the loss is no longer *silent* — a save carries the version it
+   * was based on and is refused if that has moved, which is what `conflict`
+   * below holds. Refusing is not the same as fixing, and the person is offered
+   * both ways out rather than being told which one they wanted.
    */
   React.useEffect(() => {
-    if (!canEdit || !dirty || busy) return;
+    if (!canEdit || !dirty || busy || conflict) return;
     const timer = setTimeout(() => void save(), 1200);
     return () => clearTimeout(timer);
-  }, [canEdit, dirty, busy, nodes, radial, recents, save]);
+  }, [canEdit, dirty, busy, conflict, nodes, radial, recents, save]);
 
   /**
    * The two ways a page ends.
@@ -1175,8 +1215,17 @@ export function MindMapCanvas({
    * Action cannot be awaited from `beforeunload` — so that case can only warn,
    * and the browser shows its own dialog.
    */
-  const pending = React.useRef({ dirty, save });
-  pending.current = { dirty, save };
+  /*
+   * The two halves are deliberately not the same test.
+   *
+   * The warning asks "is there unsaved work here", and a conflict makes the
+   * answer *more* emphatically yes — that is the moment the work is least safe.
+   * The flush asks "should I write it on the way out", and there the answer is
+   * no: that write has been refused once already, and repeating it from an
+   * unmount spends a request to be told so again with no page left to say it on.
+   */
+  const pending = React.useRef({ dirty, conflict, save });
+  pending.current = { dirty, conflict, save };
   React.useEffect(() => {
     function onBeforeUnload(event: BeforeUnloadEvent) {
       if (!pending.current.dirty) return;
@@ -1185,7 +1234,7 @@ export function MindMapCanvas({
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => {
       window.removeEventListener("beforeunload", onBeforeUnload);
-      if (pending.current.dirty) void pending.current.save();
+      if (pending.current.dirty && !pending.current.conflict) void pending.current.save();
     };
   }, []);
 
@@ -1241,24 +1290,70 @@ export function MindMapCanvas({
         </button>
       </div>
 
-      {/* Said out loud rather than left to look like a blank map.
-          The stored document is still there and this build cannot draw it, so
-          the sheet below is a stand-in — and the one thing that must not happen
-          is somebody taking it for the real map and typing over it without ever
-          being told there was something underneath. Top *left*: the corner
-          opposite is where the save state, undo and zoom already live. */}
-      {unreadable ? (
-        <div className="pointer-events-none absolute left-4 top-4 z-10 flex max-w-sm items-start gap-2 rounded-lg border border-amber-500/40 bg-background/90 px-3 py-2 text-xs text-muted-foreground backdrop-blur">
-          <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
-          <span>
-            <span className="font-medium text-foreground">
-              This map was saved in a format this version cannot read.
-            </span>{" "}
-            Nothing has been overwritten — what is stored stays as it is until you
-            change something here.
-          </span>
-        </div>
-      ) : null}
+      {/* One column, because both of these can be true at once — an unreadable
+          map somebody has started editing while a teammate saves over it — and
+          two things pinned to the same corner cover each other. Top *left*: the
+          opposite corner is where the save state, undo and zoom already live.
+
+          Not inside the viewport, so a press on a button here never reaches the
+          pan handler. That is the dead-button bug this project has had three
+          times, and being a sibling rather than a child is what avoids it
+          without a `stopPropagation` that would break something else. */}
+      <div className="pointer-events-none absolute left-4 top-4 z-20 flex max-w-sm flex-col gap-2">
+        {/* Said out loud rather than left to look like a blank map. The stored
+            document is still there and this build cannot draw it, so the sheet
+            behind is a stand-in — and the one thing that must not happen is
+            somebody taking it for the real map and typing over it without ever
+            being told there was something underneath. */}
+        {unreadable ? (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-background/90 px-3 py-2 text-xs text-muted-foreground backdrop-blur">
+            <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
+            <span>
+              <span className="font-medium text-foreground">
+                This map was saved in a format this version cannot read.
+              </span>{" "}
+              Nothing has been overwritten — what is stored stays as it is until
+              you change something here.
+            </span>
+          </div>
+        ) : null}
+
+        {/* Both ways out, and neither chosen for them. Taking theirs throws away
+            what is on this screen; keeping mine throws away what they did. Only
+            the person looking at it knows which is the smaller loss — and the
+            one thing that must not happen, one of the two disappearing with
+            nobody told, has already been prevented by the time this appears. */}
+        {conflict ? (
+          <div className="pointer-events-auto rounded-lg border border-destructive/50 bg-background/95 px-3 py-2 text-xs backdrop-blur">
+            <p className="flex items-start gap-2 text-muted-foreground">
+              <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-destructive" />
+              <span>
+                <span className="font-medium text-foreground">{MAP_MOVED_ON}</span>{" "}
+                Your changes are still on screen here, and are not being saved.
+              </span>
+            </p>
+            <div className="mt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="rounded-md border px-2 py-1 text-muted-foreground"
+              >
+                Load theirs
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConflict(false);
+                  void save(true);
+                }}
+                className="rounded-md bg-foreground px-2 py-1 text-background"
+              >
+                Keep mine
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       <div
         ref={viewportRef}

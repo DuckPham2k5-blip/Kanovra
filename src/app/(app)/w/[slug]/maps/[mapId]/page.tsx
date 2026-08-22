@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { MindMapSurface } from "@/components/mind-map/mind-map-surface";
 import { requireWorkspace } from "@/lib/auth";
 import { parseCanvas } from "@/lib/mind-map-canvas";
+import { mapVersion } from "@/lib/mind-map-version";
 import { MIND_MAP_META } from "@/lib/mind-maps";
 import { prisma } from "@/lib/prisma";
 
@@ -87,6 +88,9 @@ export default async function MapPage({
       // The row held something and none of it could be read. Handed down so the
       // canvas can decline to autosave over it — see `parseCanvas`.
       unreadable={canvas.unreadable}
+      // Of the document as *stored*, not as parsed: a save has to be compared
+      // against what is in the row, including the parts this build dropped.
+      initialVersion={mapVersion(map.data)}
       // `mine` is decided here rather than compared in the browser: whether
       // the delete control appears is a permission question, and a permission
       // question answered by the client is a suggestion.

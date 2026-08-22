@@ -7,6 +7,7 @@ import { z } from "zod";
 import { ForbiddenError, getMembership, requireUser } from "@/lib/auth";
 import { logActivity } from "@/lib/events";
 import { canvasSchema } from "@/lib/mind-map-canvas";
+import { MAP_MOVED_ON, mapVersion } from "@/lib/mind-map-version";
 import { findBackground, isSafeImageUrl } from "@/lib/map-backgrounds";
 import { TONE_NAMES } from "@/lib/mind-map-palette";
 import { verifyRemoteImage } from "@/lib/remote-image";
@@ -151,17 +152,31 @@ export async function renameMindMap(input: unknown): Promise<ActionResult> {
  * the row rather than taken from the request — otherwise a caller could send a
  * bridge map's shape to a tree map and store something no renderer can read.
  */
-export async function updateMindMapData(input: unknown): Promise<ActionResult> {
+export async function updateMindMapData(
+  input: unknown,
+): Promise<ActionResult<{ version: string }>> {
   return withErrorHandling(async () => {
     const user = await requireUser();
-    const { mapId, data } = parse(
-      z.object({ mapId: z.string().min(1), data: z.unknown() }),
+    const { mapId, data, version } = parse(
+      z.object({
+        mapId: z.string().min(1),
+        data: z.unknown(),
+        /**
+         * The version this edit was based on.
+         *
+         * Optional, and absent means "write regardless" — that is the client's
+         * "save mine anyway" after being told the map moved. It is not a hole:
+         * anybody who may write may already write anything, and the point of the
+         * check is to stop an *accident*, not an intent.
+         */
+        version: z.string().max(64).nullish(),
+      }),
       input,
     );
 
     const map = await prisma.mindMap.findUnique({
       where: { id: mapId },
-      select: { type: true, workspaceId: true, workspace: { select: { slug: true } } },
+      select: { type: true, workspaceId: true, data: true, workspace: { select: { slug: true } } },
     });
     if (!map) return fail(NOT_FOUND);
 
@@ -171,6 +186,14 @@ export async function updateMindMapData(input: unknown): Promise<ActionResult> {
 
     const parsed = canvasSchema.safeParse(data ?? {});
     if (!parsed.success) return fail("Some of that could not be saved. Check the lengths.");
+
+    /*
+     * Refused rather than merged. Merging two drawings is per-node work and a
+     * different piece of it; what this closes is the case where the loss is
+     * invisible — somebody's afternoon disappearing under a teammate's autosave
+     * with nothing on either screen to say it happened.
+     */
+    if (version && mapVersion(map.data) !== version) return fail(MAP_MOVED_ON);
 
     await prisma.mindMap.update({
       where: { id: mapId },
@@ -206,7 +229,11 @@ export async function updateMindMapData(input: unknown): Promise<ActionResult> {
      */
 
     revalidatePath(`/w/${map.workspace.slug}/maps/${mapId}`);
-    return ok(undefined);
+
+    // Fingerprinted from what was written rather than read back out of the row:
+    // the fingerprint is canonical, so `jsonb` reordering the keys on its way in
+    // cannot make this disagree with the next save's check.
+    return ok({ version: mapVersion(parsed.data) });
   });
 }
 

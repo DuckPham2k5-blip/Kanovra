@@ -77,6 +77,7 @@ export function MindMapSurface({
   initialRadial,
   initialRecents,
   unreadable,
+  initialVersion,
   comments,
   members,
   reads,
@@ -99,6 +100,8 @@ export function MindMapSurface({
   initialRecents: NodeFill[];
   /** The stored document held something none of which could be read. */
   unreadable: boolean;
+  /** Which version of the document this page was built from. */
+  initialVersion: string;
   comments: NodeComment[];
   members: AvatarUser[];
   reads: Record<string, string>;
@@ -310,6 +313,7 @@ export function MindMapSurface({
         initialRadial={initialRadial}
         initialRecents={initialRecents}
         unreadable={unreadable}
+        initialVersion={initialVersion}
         canEdit={canEdit}
         canComment={canComment}
         comments={comments}
