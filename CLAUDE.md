@@ -71,6 +71,24 @@ pub/sub bus with no Redis, no third-party service and nothing added to the
 client bundle. Published from `logActivity` — the one call every mutation
 already makes — rather than from 26 separate sites.
 
+**A map save carries the version it was based on.** Autosave writes the whole
+document, so two people on one map overwrite each other continuously; the real
+fix is per-node merging and is still undone. This is the smaller half — the loss
+is no longer *silent*. The version is a **fingerprint of the document**, not the
+row's `updatedAt`, because rename, colour and background all write that row
+without touching the drawing: keyed on the timestamp, somebody's own colour
+change would make their own canvas stale and refuse every autosave for the rest
+of the session, on a map nobody else has open. A false conflict with no way out
+is worse than the overwrite it replaces. The fingerprint is canonical because the
+comparison crosses `jsonb`, which reorders keys — verified against real Postgres,
+where the keys do come back in a different order and the fingerprint survives;
+with a plain `JSON.stringify` every save after the first would conflict with
+itself and every unit test would still pass. On a conflict the person is offered
+both ways out and neither is chosen for them, the state is *held* so the 1.2s
+timer stops retrying against a shared rate limit, and the unmount flush stops
+while the close-the-tab warning stays — a conflict is when unsaved work is least
+safe. Omitting the version means no check, and that is what "keep mine" sends.
+
 **Notifications say only *that* something changed.** The browser refetches
 through the normal data path. A pushed copy of the data can drift from the real
 thing, and when it does the bug is invisible until someone reloads.
