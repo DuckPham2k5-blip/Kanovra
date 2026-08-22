@@ -7,6 +7,7 @@ import {
   Plus,
   Redo2,
   Trash2,
+  TriangleAlert,
   Undo2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -114,6 +115,7 @@ export function MindMapCanvas({
   initialNodes,
   initialRadial,
   initialRecents,
+  unreadable,
   canEdit,
   canComment,
   comments,
@@ -129,6 +131,13 @@ export function MindMapCanvas({
   initialRadial: RadialSettings;
   /** Colours already used on this map, most recent first. */
   initialRecents: NodeFill[];
+  /**
+   * The stored document held something, and none of it could be read.
+   *
+   * Distinct from "no nodes", which is every new map. See `dirty` below: this is
+   * the one case where an empty canvas must *not* be saved.
+   */
+  unreadable: boolean;
   canEdit: boolean;
   canComment: boolean;
   comments: NodeComment[];
@@ -141,7 +150,18 @@ export function MindMapCanvas({
   const [nodes, setNodes] = React.useState<CanvasNode[]>(() =>
     initialNodes.length ? initialNodes : seedNodes(type, title),
   );
-  const [dirty, setDirty] = React.useState(initialNodes.length === 0);
+  /*
+   * A map with no nodes is saved as soon as it opens, so the seeded centre node
+   * is really there rather than only on screen.
+   *
+   * Except when the document could not be read. Then the seeded node is standing
+   * in for content that still exists in the database, and saving it — which
+   * autosave does about a second after this mounts — replaces that content with
+   * a blank map, silently, as a consequence of somebody merely opening the page.
+   * The first deliberate edit sets this the usual way, so overwriting stays
+   * possible; it just stops being something the page does on its own.
+   */
+  const [dirty, setDirty] = React.useState(initialNodes.length === 0 && !unreadable);
   const [busy, setBusy] = React.useState(false);
 
   /**
@@ -1220,6 +1240,25 @@ export function MindMapCanvas({
           {Math.round(scale * 100)}%
         </button>
       </div>
+
+      {/* Said out loud rather than left to look like a blank map.
+          The stored document is still there and this build cannot draw it, so
+          the sheet below is a stand-in — and the one thing that must not happen
+          is somebody taking it for the real map and typing over it without ever
+          being told there was something underneath. Top *left*: the corner
+          opposite is where the save state, undo and zoom already live. */}
+      {unreadable ? (
+        <div className="pointer-events-none absolute left-4 top-4 z-10 flex max-w-sm items-start gap-2 rounded-lg border border-amber-500/40 bg-background/90 px-3 py-2 text-xs text-muted-foreground backdrop-blur">
+          <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
+          <span>
+            <span className="font-medium text-foreground">
+              This map was saved in a format this version cannot read.
+            </span>{" "}
+            Nothing has been overwritten — what is stored stays as it is until you
+            change something here.
+          </span>
+        </div>
+      ) : null}
 
       <div
         ref={viewportRef}

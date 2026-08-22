@@ -2,6 +2,7 @@ import { MindMapType } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
 import {
+  NODE_LIMIT,
   RANK_MAX,
   RANK_MIN,
   RANK_RATIO,
@@ -12,6 +13,7 @@ import {
   rankFromRatio,
   rankScale,
 } from "@/lib/mind-map-canvas";
+import { RECENT_FILL_LIMIT } from "@/lib/mind-map-fill";
 
 /**
  * Reading a map back out of the database.
@@ -86,6 +88,76 @@ describe("parseCanvas", () => {
 
   it("does not confuse an empty map with a broken one", () => {
     expect(parseCanvas({ nodes: [] }).nodes).toEqual([]);
+  });
+});
+
+/*
+ * The other half of the argument above.
+ *
+ * Dropping every node still hands back an empty canvas, and the caller answers
+ * an empty canvas by seeding a fresh centre node — which autosave commits about
+ * a second later. So a document this build cannot read is destroyed by being
+ * opened, silently, by whoever opened it. One row in this database is already in
+ * that state: the shape the circle map used before it became a wheel.
+ *
+ * What the flag has to get right is the *distinction*, not the detection. An
+ * empty map must stay saveable — `createMindMap` writes `{}` and there are 53
+ * rows of it — or every new map arrives read-only.
+ */
+describe("parseCanvas — an empty map against an unreadable one", () => {
+  it("says nothing was lost when the document is genuinely new", () => {
+    expect(parseCanvas({}).unreadable).toBe(false);
+    expect(parseCanvas(null).unreadable).toBe(false);
+    expect(parseCanvas(undefined).unreadable).toBe(false);
+    expect(parseCanvas({ nodes: [] }).unreadable).toBe(false);
+  });
+
+  it("flags a document written in a shape this build does not know", () => {
+    // The real row, verbatim.
+    const legacy = { centre: "Businesses", context: ["Management", "Storage"] };
+    expect(parseCanvas(legacy).unreadable).toBe(true);
+    expect(parseCanvas(legacy).nodes).toEqual([]);
+    expect(parseCanvas({ slots: ["old"] }).unreadable).toBe(true);
+  });
+
+  it("flags a document whose nodes were all unreadable", () => {
+    expect(parseCanvas({ nodes: [null, "nope", 7] }).unreadable).toBe(true);
+  });
+
+  it("does not flag a document where one node survived", () => {
+    expect(parseCanvas({ nodes: [good, null] }).unreadable).toBe(false);
+  });
+
+  it("flags a document whose nodes are not a list at all", () => {
+    expect(parseCanvas({ nodes: "everything" }).unreadable).toBe(true);
+  });
+
+  /*
+   * These two were `.max()` on the outer arrays, which failed the whole parse —
+   * one array over its limit and the entire map read as empty, then autosaved
+   * over. That is the failure the per-node parse exists to prevent, one level up.
+   */
+  it("keeps the first NODE_LIMIT nodes rather than losing the map", () => {
+    const many = Array.from({ length: NODE_LIMIT + 10 }, (_, i) => ({
+      ...good,
+      id: `n${i}`,
+      parentId: i === 0 ? null : "n0",
+    }));
+
+    const canvas = parseCanvas({ nodes: many });
+    expect(canvas.nodes).toHaveLength(NODE_LIMIT);
+    expect(canvas.unreadable).toBe(false);
+  });
+
+  it("trims an over-long colour list rather than losing the map", () => {
+    const canvas = parseCanvas({
+      nodes: [good],
+      recents: Array.from({ length: RECENT_FILL_LIMIT + 5 }, () => ({ colors: ["#112233"] })),
+    });
+
+    expect(canvas.nodes).toHaveLength(1);
+    expect(canvas.recents).toHaveLength(RECENT_FILL_LIMIT);
+    expect(canvas.unreadable).toBe(false);
   });
 });
 

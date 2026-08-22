@@ -84,6 +84,9 @@ export default async function MapPage({
       initialNodes={canvas.nodes}
       initialRadial={canvas.radial}
       initialRecents={canvas.recents}
+      // The row held something and none of it could be read. Handed down so the
+      // canvas can decline to autosave over it — see `parseCanvas`.
+      unreadable={canvas.unreadable}
       // `mine` is decided here rather than compared in the browser: whether
       // the delete control appears is a permission question, and a permission
       // question answered by the client is a suggestion.

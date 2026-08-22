@@ -139,8 +139,18 @@ export const radialSchema = z.object({
   sweep: z.number().finite().min(20).max(360).default(360),
 });
 
+/**
+ * The most nodes one document may hold.
+ *
+ * Exported for the reason `RANK_MIN` and `RANK_MAX` are: the schema that
+ * *writes* a document and the parse that *reads* one have to agree, and this was
+ * two separate literals. Raising it on the write side alone would store a map
+ * the reader then trims without saying so.
+ */
+export const NODE_LIMIT = 200;
+
 export const canvasSchema = z.object({
-  nodes: z.array(canvasNodeSchema).max(200).default([]),
+  nodes: z.array(canvasNodeSchema).max(NODE_LIMIT).default([]),
   radial: radialSchema.default({ start: -90, sweep: 360 }),
   /**
    * Colours used on this map, most recent first.
@@ -212,18 +222,49 @@ export function seedNodes(_type: MindMapType, title: string): CanvasNode[] {
  * answers an empty canvas by seeding a fresh centre node — so "one node had a
  * hue out of range" and "this map has been wiped" looked identical to whoever
  * opened it. Losing one node loudly beats appearing to lose all of them.
+ *
+ * That argument has a second half, and `unreadable` is it. Dropping every node
+ * still hands the caller an empty canvas, the caller still seeds a centre node,
+ * and autosave still commits it about a second later — so a document this build
+ * cannot read is *destroyed by being opened*, silently, by whoever opened it.
+ * One row in this database is already in that state, in the shape the circle map
+ * used before it became a wheel. The flag is what lets the caller tell "nobody
+ * has drawn here yet" apart from "there is something here I cannot show you".
  */
-export function parseCanvas(raw: unknown): CanvasData {
+export type ParsedCanvas = CanvasData & {
+  /** The stored document held something, and none of it could be read. */
+  unreadable: boolean;
+};
+
+export function parseCanvas(raw: unknown): ParsedCanvas {
   const fallback: RadialSettings = { start: -90, sweep: 360 };
+
+  /*
+   * Both questions are asked of the *raw* value, not of the parsed one, because
+   * the parse can fail outright and "did this document claim to hold anything?"
+   * still has to be answerable afterwards.
+   */
+  const record = raw !== null && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+  const declared = record && Array.isArray(record.nodes) ? record.nodes : null;
+  const anyKeys = record ? Object.keys(record).length > 0 : false;
+
   const outer = z.object({
-    nodes: z.array(z.unknown()).max(200).default([]),
+    nodes: z.array(z.unknown()).default([]),
     radial: z.unknown().optional(),
-    recents: z.array(z.unknown()).max(RECENT_FILL_LIMIT).default([]),
+    recents: z.array(z.unknown()).default([]),
   });
   const result = outer.safeParse(raw ?? {});
-  if (!result.success) return { nodes: [], radial: fallback, recents: [] };
+  if (!result.success) {
+    return { nodes: [], radial: fallback, recents: [], unreadable: anyKeys };
+  }
 
-  const nodes = result.data.nodes.flatMap((node) => {
+  /*
+   * Sliced, not capped. `.max()` on these arrays failed the *whole* document
+   * over one array being too long — which is precisely the failure the per-node
+   * parse below exists to avoid. That argument does not stop at the array's
+   * edge: an over-long list should cost its tail, not the map.
+   */
+  const nodes = result.data.nodes.slice(0, NODE_LIMIT).flatMap((node) => {
     const parsed = canvasNodeSchema.safeParse(node);
     return parsed.success ? [parsed.data] : [];
   });
@@ -236,7 +277,7 @@ export function parseCanvas(raw: unknown): CanvasData {
 
   // One at a time, like the nodes: a colour nobody can read is one swatch
   // missing from a row, not a reason to forget every colour this map has used.
-  const recents = result.data.recents.flatMap((entry) => {
+  const recents = result.data.recents.slice(0, RECENT_FILL_LIMIT).flatMap((entry) => {
     const parsed = nodeFillSchema.safeParse(entry);
     return parsed.success ? [parsed.data] : [];
   });
@@ -244,6 +285,13 @@ export function parseCanvas(raw: unknown): CanvasData {
   return {
     radial: radial.success ? radial.data : fallback,
     recents,
+    /*
+     * A document that named its nodes and lost every one of them is unreadable;
+     * one that named none is simply new. A document in a shape with no `nodes`
+     * at all is unreadable if it holds anything — `{}` is what `createMindMap`
+     * writes, and is the one empty that means "nobody has drawn here yet".
+     */
+    unreadable: declared ? declared.length > 0 && nodes.length === 0 : anyKeys,
     nodes: nodes.map((node) =>
       node.parentId && !ids.has(node.parentId)
         ? { ...node, parentId: root?.id ?? null }
