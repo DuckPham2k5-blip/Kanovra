@@ -16,8 +16,11 @@ proven, what has not, and what is open.
 - Working directory: `C:\Users\PC\OneDrive\TaskForge`
 - Branch `main`, working tree clean
 - This session starts at `d755608` — `git log --oneline d755608..HEAD` lists it
-  (60 commits at the time of writing)
+  (66 commits at the time of writing)
 - Check port 3000 before assuming the dev server is up or down
+- **Not built since `795b084`.** The owner's dev server was up; lint, typecheck
+  and the suite are green, and `npm run build` is the one check outstanding. Run
+  it with the port check in the same command, once they confirm dev is stopped.
 
 | Check | Result |
 |---|---|
@@ -151,8 +154,11 @@ owner's own session — is not connected. Anything behind sign-in needs the owne
 2. **Circle map segment outlines.**
 3. **The unread comment pulse.** Not possible here at all — it needs a comment
    written by somebody else, and the workspace has one member.
-4. **The map's drifting lights actually moving**, and whether a **linked picture**
-   paints as a background.
+4. **The map's drifting lights actually moving**, whether each background moves
+   in its *own* way, and whether a **linked picture** paints as a background.
+5. **The menu rows after the workaround was unwound.** The owner confirmed the
+   canary row ("Add a comment") firing; the other six went back to
+   `DropdownMenuItem` on the same reasoning and have not been pressed since.
 
 Older, and unchanged by this session:
 
@@ -170,6 +176,15 @@ snapshot lives on the server for 24 hours, but the only route in is the toast, s
 a reload loses it. That was deliberate for "undo what I just did". The owner was
 told, and replied *"tạm gác lại điều đấy"* — parked, not refused.
 
+**Next, in order:**
+
+1. Owner starts dev, presses the six menu rows that were not the canary, and
+   drags a node and pans the map — the last change touched the press path, so
+   that is where a side effect would be.
+2. Owner stops dev; run the port check and `npm run build` in one command.
+3. Five migrations are waiting for the VPS. The last one is **destructive** — see
+   section 1 for the order and the rule.
+
 **Remaining feature gaps** (from `CLAUDE.md`): task dependencies (blocked by /
 blocks), saved and shareable filter views, recurring tasks, actual time tracking,
 project templates, keyboard shortcuts beyond ⌘K, CSV export, public read-only
@@ -184,6 +199,15 @@ Clerk dashboard; apply `deploy/nginx.conf`; `git push`.
 
 Read this before writing code. Each cost the owner a round of testing, and one
 destroyed data.
+
+### Three rounds of reading code when one query would have done
+
+The menus were dead for a whole session. What finally located it was not the
+render tree — it was the database saying no node on a free canvas had *ever* been
+given a colour, which turned "the colour feature is broken" into "this canvas is
+broken", and then the theme toggle proving `DropdownMenuItem` works everywhere
+else. **Ask the data what the shape of the bug is before reading code for its
+cause.**
 
 ### Concluding from a fact without checking what the fact was
 
