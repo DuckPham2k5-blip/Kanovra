@@ -263,6 +263,20 @@ stack.
   caller answers an empty canvas by seeding a fresh centre node — so "one node
   had a hue out of range" and "this map has been wiped" looked identical to
   whoever opened it. Losing one node loudly beats appearing to lose all of them.
+- **An empty canvas and an unreadable one are different, and autosave is why.**
+  The half above stops one bad node costing the map; it does not stop *every* node
+  being unreadable, which still hands back an empty canvas. The caller seeds a
+  centre node into an empty canvas and marks it dirty, and autosave commits that
+  1.2s later — so a document this build cannot read was **destroyed by being
+  opened**, silently, with no log, by whoever merely looked at the page. One row
+  was already in that state: a circle map in the shape used before it became a
+  wheel. `parseCanvas` reports `unreadable` now and the canvas declines to start
+  dirty on it. `{}` is deliberately *not* unreadable — that is what `createMindMap`
+  writes, and 53 rows hold it, so flagging it would leave every new map unable to
+  save itself. The outer arrays are sliced rather than `.max()`-capped for the
+  same reason as the per-node rule: one over-long list should cost its tail, not
+  the document. Proven by running the real parser over all 104 real rows — one
+  flagged, 53 empty ones still saveable — not by a fixture.
 - **Prisma's `notIn: []` matches everything**, the exact opposite of `in: []`.
   The comment cleanup on map save depends on it; getting it backwards either
   orphans every comment forever or deletes them all on the next save, and neither
