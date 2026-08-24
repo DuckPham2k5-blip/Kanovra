@@ -76,6 +76,20 @@ const taskSchema = z.object({
   checklist: z.array(checklistSchema),
   comments: z.array(commentSchema),
   attachments: z.array(attachmentSchema),
+  /**
+   * The dependency edges this task sat on, both ways round.
+   *
+   * `.default([])` and not required, because this schema also reads payloads
+   * written before the field existed. A required field here would fail the parse
+   * of every stored snapshot, and the only thing that reads them is undo — so
+   * the whole point of the row, on the day somebody needs it.
+   *
+   * Ids of the task at the *other* end. Which end this task is at is carried by
+   * the field name rather than by a pair, so a snapshot cannot record an edge
+   * whose direction disagrees with where it was stored.
+   */
+  blockedBy: z.array(z.string().min(1)).default([]),
+  blocks: z.array(z.string().min(1)).default([]),
 });
 
 /**
@@ -116,6 +130,11 @@ export async function snapshotTasks(rootIds: string[]): Promise<Snapshot> {
       checklistItems: true,
       comments: true,
       attachments: true,
+      // Both directions. A deleted task is usually waiting on something, and is
+      // sometimes what something else is waiting on; the second kind vanishes
+      // from a *neighbour's* card, where nobody is looking when it happens.
+      blockedBy: { select: { blockingTaskId: true } },
+      blocks: { select: { blockedTaskId: true } },
     },
   });
 
@@ -165,6 +184,8 @@ export async function snapshotTasks(rootIds: string[]): Promise<Snapshot> {
         size: file.size,
         createdAt: file.createdAt,
       })),
+      blockedBy: row.blockedBy.map((edge) => edge.blockingTaskId),
+      blocks: row.blocks.map((edge) => edge.blockedTaskId),
     }));
 
   return { tasks };
@@ -291,6 +312,52 @@ export async function restoreTasks(
           data: task.attachments.map((file) => ({ ...file, taskId: task.id })),
           skipDuplicates: true,
         });
+      }
+    }
+
+    /*
+     * The dependency edges, after every task in this batch exists.
+     *
+     * Not inside the loop, because an edge between two tasks of the same batch
+     * has a foreign key at both ends and the second one is not written yet on
+     * the first pass. Deduplicated first: an edge between two restored tasks is
+     * described twice, once from each end.
+     *
+     * The other end is checked against what is actually in the table right now,
+     * so an edge to a task somebody deleted separately is dropped rather than
+     * failing the rescue — the same trade as a label or an assignee that has
+     * gone. And a restore is never refused for closing a loop: the edges were
+     * consistent when they were captured, the walk in `task-dependencies.ts`
+     * survives meeting one, and a task nobody can get back is the worse failure.
+     */
+    const wanted = new Map<string, { blockedTaskId: string; blockingTaskId: string }>();
+    for (const task of pending) {
+      for (const blockingTaskId of task.blockedBy) {
+        wanted.set(`${task.id}>${blockingTaskId}`, { blockedTaskId: task.id, blockingTaskId });
+      }
+      for (const blockedTaskId of task.blocks) {
+        wanted.set(`${blockedTaskId}>${task.id}`, { blockedTaskId, blockingTaskId: task.id });
+      }
+    }
+
+    if (wanted.size) {
+      const endpoints = new Set<string>();
+      for (const edge of wanted.values()) {
+        endpoints.add(edge.blockedTaskId);
+        endpoints.add(edge.blockingTaskId);
+      }
+
+      const live = await tx.task.findMany({
+        where: { id: { in: [...endpoints] } },
+        select: { id: true },
+      });
+      const liveIds = new Set(live.map((row) => row.id));
+
+      const edges = [...wanted.values()].filter(
+        (edge) => liveIds.has(edge.blockedTaskId) && liveIds.has(edge.blockingTaskId),
+      );
+      if (edges.length) {
+        await tx.taskDependency.createMany({ data: edges, skipDuplicates: true });
       }
     }
   });

@@ -116,21 +116,21 @@ model User {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  ownedWorkspaces    Workspace[]       @relation("WorkspaceOwner")
+  ownedWorkspaces    Workspace[]          @relation("WorkspaceOwner")
   memberships        WorkspaceMember[]
   projectMembers     ProjectMember[]
-  createdProjects    Project[]         @relation("ProjectCreator")
-  createdTasks       Task[]            @relation("TaskCreator")
-  assignedTasks      Task[]            @relation("TaskAssignee")
+  createdProjects    Project[]            @relation("ProjectCreator")
+  createdTasks       Task[]               @relation("TaskCreator")
+  assignedTasks      Task[]               @relation("TaskAssignee")
   comments           Comment[]
-  activities         Activity[]        @relation("ActivityActor")
-  notifications      Notification[]    @relation("NotificationRecipient")
-  mindMaps           MindMap[]         @relation("MindMapAuthor")
-  mindMapComments    MindMapComment[]  @relation("MindMapCommentAuthor")
+  activities         Activity[]           @relation("ActivityActor")
+  notifications      Notification[]       @relation("NotificationRecipient")
+  mindMaps           MindMap[]            @relation("MindMapAuthor")
+  mindMapComments    MindMapComment[]     @relation("MindMapCommentAuthor")
   mindMapReads       MindMapCommentRead[]
   deletedTasks       DeletedTask[]
-  actedNotifications Notification[]    @relation("NotificationActor")
-  invitationsSent    Invitation[]      @relation("InvitationInviter")
+  actedNotifications Notification[]       @relation("NotificationActor")
+  invitationsSent    Invitation[]         @relation("InvitationInviter")
 
   @@index([email])
   @@map("users")
@@ -322,17 +322,21 @@ model Task {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  column         BoardColumn?    @relation(fields: [columnId], references: [id], onDelete: SetNull)
-  assignee       User?           @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  createdBy      User            @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  parent         Task?           @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
-  subtasks       Task[]          @relation("TaskSubtasks")
+  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  column         BoardColumn?     @relation(fields: [columnId], references: [id], onDelete: SetNull)
+  assignee       User?            @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdBy      User             @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  parent         Task?            @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
+  subtasks       Task[]           @relation("TaskSubtasks")
   labels         TaskLabel[]
   checklistItems ChecklistItem[]
   comments       Comment[]
   attachments    Attachment[]
   activities     Activity[]
+  /// What this task is waiting on.
+  blockedBy      TaskDependency[] @relation("TaskBlocked")
+  /// What is waiting on this task.
+  blocks         TaskDependency[] @relation("TaskBlocking")
 
   @@unique([projectId, number])
   @@index([projectId, columnId, order])
@@ -368,6 +372,36 @@ model TaskLabel {
   @@id([taskId, labelId])
   @@index([labelId])
   @@map("task_labels")
+}
+
+/// One task waiting on another.
+///
+/// A row reads in one direction only: `blockedTask` is waiting, `blockingTask`
+/// is what it waits on. The two names are not "from" and "to" because a
+/// dependency written backwards still saves and still draws, and says the
+/// opposite of what somebody meant — see `lib/task-dependencies.ts`.
+///
+/// Both ends cascade. A deleted task cannot block anything and cannot be waiting
+/// on anything, and an edge pointing at a row that is gone is not a fact worth
+/// keeping. Undo restores the edges from the snapshot instead, so a delete that
+/// is taken back does not quietly lose them.
+///
+/// The unique pair makes "add it twice" a no-op at the database rather than a
+/// race between two people pressing the same button. The second index is for the
+/// other direction: the *blocked* side is indexed by the unique pair already, and
+/// asking "what is waiting on this?" has no index without it.
+model TaskDependency {
+  id             String   @id @default(cuid())
+  blockedTaskId  String
+  blockingTaskId String
+  createdAt      DateTime @default(now())
+
+  blockedTask  Task @relation("TaskBlocked", fields: [blockedTaskId], references: [id], onDelete: Cascade)
+  blockingTask Task @relation("TaskBlocking", fields: [blockingTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([blockedTaskId, blockingTaskId])
+  @@index([blockingTaskId])
+  @@map("task_dependencies")
 }
 
 model ChecklistItem {
@@ -480,18 +514,18 @@ enum MindMapType {
 }
 
 model MindMap {
-  id          String      @id @default(cuid())
-  workspaceId String
+  id              String      @id @default(cuid())
+  workspaceId     String
   /// Optional: a map can belong to one project, or sit loose in the workspace.
-  projectId   String?
-  type        MindMapType
-  title       String
+  projectId       String?
+  type            MindMapType
+  title           String
   /// The map's contents. Shape varies by `type`; validated on the way in by a
   /// zod schema per type rather than trusted because it is JSON.
-  data        Json
+  data            Json
   /// The map's own colour, 0-359. Null means the hue its type is born with, so
   /// a map nobody has recoloured draws exactly as it always did.
-  hue         Int?
+  hue             Int?
   /// The scenery the map is drawn on: the id of one of the drawn backgrounds, or
   /// an https link to a picture. Null is the plain backdrop built from the hue.
   ///
@@ -507,14 +541,14 @@ model MindMap {
   /// type and casting every row across, which fails while any row still holds
   /// the old value. A string that no longer matches falls back to vivid at the
   /// point it is read, which costs nothing and loses nothing.
-  tone        String?
-  createdById String
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  tone            String?
+  createdById     String
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
-  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  project   Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  createdBy User             @relation("MindMapAuthor", fields: [createdById], references: [id], onDelete: Cascade)
+  workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdBy User                 @relation("MindMapAuthor", fields: [createdById], references: [id], onDelete: Cascade)
   comments  MindMapComment[]
   reads     MindMapCommentRead[]
 
@@ -568,7 +602,7 @@ model MindMapComment {
 /// foreign key to enforce, exactly as `MindMapComment` does. A row whose node has
 /// gone is harmless: nothing looks it up, and it disappears with the map.
 model MindMapCommentRead {
-  id     String @id @default(cuid())
+  id     String   @id @default(cuid())
   userId String
   mapId  String
   /// The `id` of a node inside `MindMap.data`, not a row anywhere.

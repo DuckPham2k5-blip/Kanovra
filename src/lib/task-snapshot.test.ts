@@ -275,6 +275,79 @@ describe.skipIf(!CONFIGURED)("task snapshot and restore", () => {
     await prisma.project.delete({ where: { id: second.id } });
   });
 
+  /*
+   * A dependency is the one thing a delete takes from a *neighbour's* card.
+   *
+   * The deleted task's own edges go with it, which is visible; the edges where it
+   * was the blocker disappear from tasks nobody was looking at. Both directions
+   * are captured and both are put back, or undo quietly returns a task that has
+   * forgotten what it was waiting on and what was waiting on it.
+   */
+  it("brings a task's dependencies back, in both directions", async () => {
+    const blocker = await prisma.task.create({
+      data: { projectId, columnId, number: 700, title: "Blocker", createdById: userId },
+    });
+    const middle = await prisma.task.create({
+      data: { projectId, columnId, number: 701, title: "Middle", createdById: userId },
+    });
+    const waiting = await prisma.task.create({
+      data: { projectId, columnId, number: 702, title: "Waiting", createdById: userId },
+    });
+
+    // middle waits on blocker; waiting waits on middle.
+    await prisma.taskDependency.create({
+      data: { blockedTaskId: middle.id, blockingTaskId: blocker.id },
+    });
+    await prisma.taskDependency.create({
+      data: { blockedTaskId: waiting.id, blockingTaskId: middle.id },
+    });
+
+    const snapshot = await snapshotTasks([middle.id]);
+    expect(snapshot.tasks[0].blockedBy).toEqual([blocker.id]);
+    expect(snapshot.tasks[0].blocks).toEqual([waiting.id]);
+
+    await prisma.task.delete({ where: { id: middle.id } });
+    // The cascade really does take the neighbour's edge with it.
+    expect(await prisma.taskDependency.count({ where: { blockedTaskId: waiting.id } })).toBe(0);
+
+    await restoreTasks(snapshot, new Set([projectId]));
+
+    const back = await prisma.taskDependency.findMany({
+      where: { OR: [{ blockedTaskId: middle.id }, { blockingTaskId: middle.id }] },
+      select: { blockedTaskId: true, blockingTaskId: true },
+    });
+    expect(back).toHaveLength(2);
+    expect(back).toContainEqual({ blockedTaskId: middle.id, blockingTaskId: blocker.id });
+    expect(back).toContainEqual({ blockedTaskId: waiting.id, blockingTaskId: middle.id });
+
+    await prisma.task.deleteMany({ where: { projectId } });
+  });
+
+  it("drops an edge whose other end has gone, and still restores the task", async () => {
+    const blocker = await prisma.task.create({
+      data: { projectId, columnId, number: 800, title: "Blocker", createdById: userId },
+    });
+    const waiting = await prisma.task.create({
+      data: { projectId, columnId, number: 801, title: "Waiting", createdById: userId },
+    });
+    await prisma.taskDependency.create({
+      data: { blockedTaskId: waiting.id, blockingTaskId: blocker.id },
+    });
+
+    const snapshot = await snapshotTasks([waiting.id]);
+    await prisma.task.delete({ where: { id: waiting.id } });
+    // The thing it was waiting on is deleted separately, and never comes back.
+    await prisma.task.delete({ where: { id: blocker.id } });
+
+    const result = await restoreTasks(snapshot, new Set([projectId]));
+
+    expect(result.restored).toBe(1);
+    expect(await prisma.task.findUnique({ where: { id: waiting.id } })).not.toBeNull();
+    expect(await prisma.taskDependency.count({ where: { blockedTaskId: waiting.id } })).toBe(0);
+
+    await prisma.task.deleteMany({ where: { projectId } });
+  });
+
   it("refuses to write a snapshot into a project it did not come from", async () => {
     const other = await prisma.project.create({
       data: { workspaceId, name: "Elsewhere", key: "ELS", createdById: userId },
