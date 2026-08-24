@@ -1234,7 +1234,9 @@ export function MindMapCanvas({
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => {
       window.removeEventListener("beforeunload", onBeforeUnload);
-      if (pending.current.dirty && !pending.current.conflict) void pending.current.save();
+      if (pending.current.dirty && !pending.current.conflict) {
+        void pending.current.save();
+      }
     };
   }, []);
 

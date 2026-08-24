@@ -195,9 +195,21 @@ export async function updateMindMapData(
      */
     if (version && mapVersion(map.data) !== version) return fail(MAP_MOVED_ON);
 
-    await prisma.mindMap.update({
+    /*
+     * `select` so the version below is taken from the row as *stored*.
+     *
+     * Fingerprinting `parsed.data` — the document we meant to write — was wrong
+     * in a way nothing local could show: a `Json` column does not round-trip a
+     * double that needs 17 significant digits, so a node dragged to
+     * x = 1142.6673120666271 is stored as 1142.667312066627, and the token handed
+     * back described a document the database does not hold. The next save then
+     * conflicted with itself. RETURNING sends the value back out through the same
+     * conversion the next read uses, which is the only way to be sure they agree.
+     */
+    const written = await prisma.mindMap.update({
       where: { id: mapId },
       data: { data: parsed.data },
+      select: { data: true },
     });
 
     /*
@@ -230,10 +242,7 @@ export async function updateMindMapData(
 
     revalidatePath(`/w/${map.workspace.slug}/maps/${mapId}`);
 
-    // Fingerprinted from what was written rather than read back out of the row:
-    // the fingerprint is canonical, so `jsonb` reordering the keys on its way in
-    // cannot make this disagree with the next save's check.
-    return ok({ version: mapVersion(parsed.data) });
+    return ok({ version: mapVersion(written.data) });
   });
 }
 

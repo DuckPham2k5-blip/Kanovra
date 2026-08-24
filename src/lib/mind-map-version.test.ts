@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { MindMapType } from "@prisma/client";
+import { afterAll, describe, expect, it } from "vitest";
 
 import { mapVersion } from "@/lib/mind-map-version";
+import { prisma } from "@/lib/prisma";
 
 /**
  * What counts as "somebody else has changed this map".
@@ -81,4 +83,82 @@ describe("mapVersion", () => {
   it("does not confuse a number with the string of it", () => {
     expect(mapVersion({ rank: 1 })).not.toBe(mapVersion({ rank: "1" }));
   });
+});
+
+/**
+ * The half of this that only a real database can answer.
+ *
+ * The version handed back after a write has to equal the version the *next*
+ * request computes when it reads the row. That sounds like arithmetic and is
+ * not: a `Json` column does not round-trip a double needing 17 significant
+ * digits. A node dragged to x = 1142.6673120666271 is stored as
+ * 1142.667312066627, so fingerprinting the document we *meant* to write
+ * described something the database does not hold — and the next save conflicted
+ * with itself. It shipped, because every unit test here passed: the fixtures
+ * were written by hand and were too tidy to contain a dragged coordinate.
+ *
+ * Skipped with no database configured. Configured but unreachable is a failure,
+ * not a skip.
+ */
+const CONFIGURED = !!process.env.DATABASE_URL;
+const TAG = `mmv-test-${Date.now().toString(36)}`;
+
+describe.skipIf(!CONFIGURED)("a version taken from the row as stored", () => {
+  const made: string[] = [];
+
+  afterAll(async () => {
+    if (made.length) await prisma.user.deleteMany({ where: { id: { in: made } } });
+  }, 30_000);
+
+  it("still matches when the next request reads it back", async () => {
+    const user = await prisma.user.create({
+      data: { clerkId: `${TAG}-clerk`, email: `${TAG}@example.test`, name: "Version Fixture" },
+    });
+    made.push(user.id);
+
+    const workspace = await prisma.workspace.create({
+      data: { name: "Version Fixture", slug: TAG, ownerId: user.id },
+    });
+
+    const map = await prisma.mindMap.create({
+      data: {
+        workspaceId: workspace.id,
+        type: MindMapType.BUBBLE,
+        title: "Version Fixture",
+        data: {},
+        createdById: user.id,
+      },
+      select: { id: true },
+    });
+
+    // Coordinates of the kind a drag produces, which is where this bites.
+    const document = {
+      nodes: [
+        { id: "a", text: "", x: 1142.6673120666271, y: 150, parentId: null, rank: 0 },
+        { id: "b", text: "", x: 0.1 + 0.2, y: -906.5000000000001, parentId: "a", rank: 0 },
+      ],
+      radial: { start: -90, sweep: 360 },
+      recents: [],
+    };
+
+    const written = await prisma.mindMap.update({
+      where: { id: map.id },
+      data: { data: document },
+      select: { data: true },
+    });
+
+    const readAgain = await prisma.mindMap.findUniqueOrThrow({
+      where: { id: map.id },
+      select: { data: true },
+    });
+
+    /*
+     * The first line is the whole reason the second one is written the way it
+     * is. If this ever stops being true — a Prisma release that keeps the 17th
+     * digit — it fails, and that is a signal to come back and read this, not to
+     * delete the line.
+     */
+    expect(mapVersion(document)).not.toBe(mapVersion(readAgain.data));
+    expect(mapVersion(written.data)).toBe(mapVersion(readAgain.data));
+  }, 30_000);
 });
