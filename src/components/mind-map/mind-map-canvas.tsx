@@ -1318,18 +1318,22 @@ export function MindMapCanvas({
           </div>
         ) : null}
 
-        {/* Both ways out, and neither chosen for them. Taking theirs throws away
-            what is on this screen; keeping mine throws away what they did. Only
-            the person looking at it knows which is the smaller loss — and the
-            one thing that must not happen, one of the two disappearing with
-            nobody told, has already been prevented by the time this appears. */}
+        {/* Both ways out, and neither chosen for them. Loading the saved one
+            throws away what is on this screen; keeping this one throws away what
+            was saved. Only the person looking at it knows which is the smaller
+            loss — and the one thing that must not happen, one of the two
+            disappearing with nobody told, has already been prevented by the time
+            this appears.
+
+            Worded without a "them", because the other writer is as likely to be
+            this same person in a second tab. */}
         {conflict ? (
           <div className="pointer-events-auto rounded-lg border border-destructive/50 bg-background/95 px-3 py-2 text-xs backdrop-blur">
             <p className="flex items-start gap-2 text-muted-foreground">
               <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-destructive" />
               <span>
                 <span className="font-medium text-foreground">{MAP_MOVED_ON}</span>{" "}
-                Your changes are still on screen here, and are not being saved.
+                What is on this screen is not being saved.
               </span>
             </p>
             <div className="mt-2 flex justify-end gap-2">
@@ -1338,7 +1342,7 @@ export function MindMapCanvas({
                 onClick={() => window.location.reload()}
                 className="rounded-md border px-2 py-1 text-muted-foreground"
               >
-                Load theirs
+                Load the saved one
               </button>
               <button
                 type="button"

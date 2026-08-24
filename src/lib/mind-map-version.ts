@@ -82,8 +82,14 @@ export function mapVersion(data: unknown): string {
 /**
  * What the server says when a save is based on a version that has moved on.
  *
+ * It said "somebody else has changed this map", and the first person to see it
+ * was the only member of their workspace: the other writer was their own second
+ * tab, and the message accused a teammate who does not exist. The check cannot
+ * tell the two apart and does not need to — what matters either way is that this
+ * page is holding an older document, so that is what it says now.
+ *
  * A shared constant rather than a string the client matches by eye, and it lives
  * here rather than beside the action because a `"use server"` module may export
  * nothing but async functions.
  */
-export const MAP_MOVED_ON = "Somebody else has changed this map since you opened it.";
+export const MAP_MOVED_ON = "This map changed elsewhere — in another tab, or by a teammate.";
