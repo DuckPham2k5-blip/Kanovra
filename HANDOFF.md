@@ -17,16 +17,15 @@ proven, what has not, and what is open.
 - Branch `main`, working tree clean
 - This session starts at `4728cc9` — `git log --oneline 4728cc9..HEAD` lists it
 - Check port 3000 before assuming the dev server is up or down
-- **Not built since `14b0901`.** The build was run and green at `4921977`; three
-  commits landed after it while the owner's dev server was up. Run it with the
-  port check in the same command, once they confirm dev is stopped.
+- **All four checks are green on `fa08f46`**, the build included. It was run with
+  the port check in the same command, which is the only way this project runs it.
 
 | Check | Result |
 |---|---|
 | `npm run lint` | clean |
 | `npm run typecheck` | clean |
 | `npm test` | **256 / 256** (240 at session start) |
-| `npm run build` | green at `4921977`, three commits behind |
+| `npm run build` | clean |
 
 Sixteen tests across four files need Postgres (`docker start kanovra-db`).
 No `DATABASE_URL` is a legitimate skip; configured-but-unreachable is a failure.
