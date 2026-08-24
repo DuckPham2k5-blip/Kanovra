@@ -19,9 +19,6 @@ proven, what has not, and what is open.
 - Check port 3000 before assuming the dev server is up or down
 - **Not built since `b5443b3`.** Lint, typecheck and 275 tests are green; the
   build has not run since `fa08f46`.
-- **A fifteenth migration is waiting for the VPS**, additive:
-  `20260824101500_add_task_dependencies`. It goes after the fourteen already
-  listed and has no data-loss step.
 - **All four checks were green on `fa08f46`**, the build included. It was run with
   the port check in the same command, which is the only way this project runs it.
 
@@ -35,7 +32,7 @@ proven, what has not, and what is open.
 Sixteen tests across four files need Postgres (`docker start kanovra-db`).
 No `DATABASE_URL` is a legitimate skip; configured-but-unreachable is a failure.
 
-**Five migrations were added**, and they must run on the VPS at deploy **in this
+**Six migrations are waiting for the VPS**, and they must run at deploy **in this
 order**:
 
 - `20260818041355_add_mind_map_comment_reads` — additive
@@ -47,6 +44,9 @@ order**:
   `prisma migrate deploy`; `migrate dev` refuses non-interactively once it has a
   data-loss warning. The `DELETE` must stay *inside* it — pre-cleaning by hand
   works here and fails on a VPS where nobody has.
+- `20260824101500_add_task_dependencies` — additive, one new table. Hand-written
+  for the same reason: `migrate dev` regenerates the client, and the generator
+  cannot take the engine DLL from a running dev server.
 
 ---
 
@@ -228,10 +228,10 @@ told, and replied *"tạm gác lại điều đấy"* — parked, not refused.
    commits have landed since the last green build.
 2. Owner presses the six menu rows that were not the canary, and pans the map —
    the press path was touched and only the drag has been exercised since.
-3. Five migrations are waiting for the VPS. The last one is **destructive** — see
-   section 1 for the order and the rule. **No migration was added this session**:
-   the map version is a fingerprint of the document precisely so that no column
-   had to be added for it.
+3. Six migrations are waiting for the VPS. One of them is **destructive** — see
+   section 1 for the order and the rule. The map version guard deliberately added
+   none of them: it is a fingerprint of the document precisely so that no column
+   had to exist for it.
 
 **Remaining feature gaps** (from `CLAUDE.md`): saved and shareable filter views,
 recurring tasks, actual time tracking, project templates, keyboard shortcuts
