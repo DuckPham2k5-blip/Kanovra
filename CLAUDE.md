@@ -109,7 +109,13 @@ That rule exists as a predicate and as a `notIn` list, defined one from the othe
 with a test walking every status, because the two written separately drift into a
 badge that disagrees with the panel it opens. Undo carries the edges **both
 ways**: the direction that matters is the one nobody is looking at, where the
-deleted task was the blocker and the row vanishes from a neighbour's card.
+deleted task was the blocker and the row vanishes from a neighbour's card. The
+card's badge is hidden once the task is done or cancelled — it was shown there
+first, on the reasoning that finishing something still blocked is an anomaly
+worth surfacing, and "Waiting on 1" beside a finished task is simply a false
+sentence. A card is a summary and has to read true at a glance; the anomaly is
+still said at the moment of completing, and the panel lists every link whatever
+state the task is in.
 
 **Notifications say only *that* something changed.** The browser refetches
 through the normal data path. A pushed copy of the data can drift from the real

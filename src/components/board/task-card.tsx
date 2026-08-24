@@ -9,6 +9,7 @@ import { DueBadge, LabelChip, PriorityBadge } from "@/components/shared/badges";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
+import { blockerResolved } from "@/lib/task-dependencies";
 import { cn, percent } from "@/lib/utils";
 import type { TaskCardDTO } from "@/types";
 
@@ -47,10 +48,19 @@ export function TaskCardContent({
           card is read top to bottom — putting it with the small counts is where
           somebody picking up work would not see it.
 
-          Shown on a finished card too. A task completed while still waiting on
-          something is unusual and worth seeing; hiding it there would hide
-          exactly the case somebody would want to ask about. */}
-      {task.openBlockers > 0 ? (
+          Not on a card that is finished or cancelled. It was shown there at
+          first, on the reasoning that completing something still blocked is an
+          anomaly worth surfacing — but "Waiting on 1" beside a task that is done
+          is a false sentence, and a card is a summary that has to read true at a
+          glance. The anomaly is still visible where it belongs: the warning at
+          the moment of completing, and the panel, which lists every link whatever
+          state the task is in.
+
+          The same predicate as a blocker's, because it is the same question —
+          has this task reached a state where what it waits on stops mattering.
+          Written out again here as `status === "DONE"` it would miss CANCELLED,
+          and then drift. */}
+      {task.openBlockers > 0 && !blockerResolved(task.status) ? (
         <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
           <CircleSlash className="size-3" />
           Waiting on {task.openBlockers}
