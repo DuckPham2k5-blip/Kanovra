@@ -14,7 +14,6 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { blockerResolved } from "@/lib/task-dependencies";
 import { cn } from "@/lib/utils";
 import {
@@ -109,7 +108,25 @@ export function DependencySection({
     router.refresh();
   }
 
-  const open = blockedBy.filter((link) => !blockerResolved(link.status)).length;
+  /*
+   * Finished links are not drawn at all.
+   *
+   * They were, struck through, on the reasoning that a link is still a true
+   * statement about how the work was sequenced and a list that shrinks as things
+   * finish reads as somebody having deleted them. The owner asked for them gone,
+   * and using it settles the argument: what the panel is *for* is knowing what
+   * stands in the way now, and a done row answers a question nobody is asking
+   * while taking the same space as one that matters.
+   *
+   * The rows are hidden, not the links — nothing is deleted. Reopen a blocker and
+   * it is back in the list, which is the behaviour the alternative could not
+   * offer at all.
+   *
+   * Both directions, not only the one that was asked about. Two lists side by
+   * side, one filtered and one not, is the same trap the labels just fell into.
+   */
+  const openBlockedBy = blockedBy.filter((link) => !blockerResolved(link.status));
+  const openBlocks = blocks.filter((link) => !blockerResolved(link.status));
 
   return (
     <section className="space-y-3">
@@ -122,65 +139,76 @@ export function DependencySection({
             that is wrong, and the sub-line under each is there so it never has
             to be explained again. */}
         <div>
+          {/* The count is of what is drawn. A heading saying 2 above one row is
+              the kind of small disagreement that makes people distrust the
+              whole panel, and the separate "still open" chip existed only
+              because the two numbers used to differ. */}
           <h3 className="text-sm font-semibold">
-            Blocked by ({blockedBy.length})
-            {open > 0 ? (
-              <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
-                <CircleSlash className="size-3" />
-                {open} still open
-              </span>
-            ) : null}
+            Blocked by ({openBlockedBy.length})
           </h3>
           <p className="text-xs text-muted-foreground">These have to finish first.</p>
         </div>
 
         {canEdit ? (
-          <Popover open={picking} onOpenChange={setPicking}>
-            <PopoverTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <Plus className="size-4" /> Add
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-0" align="end">
-              {/* `shouldFilter={false}`: the server has already filtered, and it
-                  filtered on things this list cannot see — what would make a
-                  loop, and what is linked already. Letting Command filter again
-                  on the label would hide rows the server deliberately kept. */}
-              <Command shouldFilter={false}>
-                <CommandInput
-                  placeholder="Search this project…"
-                  value={query}
-                  onValueChange={setQuery}
-                />
-                <CommandList>
-                  <CommandEmpty>
-                    Nothing to add. Tasks already linked, and anything that would make a
-                    loop, are left out.
-                  </CommandEmpty>
-                  <CommandGroup>
-                    {candidates.map((candidate) => (
-                      <CommandItem
-                        key={candidate.id}
-                        value={candidate.id}
-                        disabled={busy}
-                        onSelect={() => void add(candidate.id)}
-                      >
-                        <span className="mr-2 shrink-0 font-mono text-[10px] text-muted-foreground">
-                          {projectKey}-{candidate.number}
-                        </span>
-                        <span className="truncate">{candidate.title}</span>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+          <Button variant="ghost" size="sm" onClick={() => setPicking((was) => !was)}>
+            <Plus className="size-4" /> {picking ? "Cancel" : "Add"}
+          </Button>
         ) : null}
       </div>
 
+      {/*
+       * In the flow of the sheet, not in a popover.
+       *
+       * It was a popover, and the wheel did nothing inside it. A Radix dialog —
+       * which this sheet is — locks scrolling everywhere outside its own content,
+       * and a popover is portalled to `document.body`, so the list counted as
+       * outside and its wheel events were swallowed. Turning the portal off fixes
+       * the wheel and breaks the position instead: the sheet is a scrolling
+       * column, and an absolutely-positioned layer inside one gets clipped by it.
+       *
+       * A block in normal flow has neither problem, scrolls with the panel it
+       * lives in, and drops the nested-layer question altogether.
+       */}
+      {picking ? (
+        <div className="rounded-md border">
+          {/* `shouldFilter={false}`: the server has already filtered, and on
+              things this list cannot see — what would close a loop, and what is
+              linked already. Letting Command filter again on the label would
+              hide rows the server deliberately kept. */}
+          <Command shouldFilter={false}>
+            <CommandInput
+              autoFocus
+              placeholder="Search this project…"
+              value={query}
+              onValueChange={setQuery}
+            />
+            <CommandList className="max-h-56">
+              <CommandEmpty>
+                Nothing to add. Tasks already linked, and anything that would make a loop,
+                are left out.
+              </CommandEmpty>
+              <CommandGroup>
+                {candidates.map((candidate) => (
+                  <CommandItem
+                    key={candidate.id}
+                    value={candidate.id}
+                    disabled={busy}
+                    onSelect={() => void add(candidate.id)}
+                  >
+                    <span className="mr-2 shrink-0 font-mono text-[10px] text-muted-foreground">
+                      {projectKey}-{candidate.number}
+                    </span>
+                    <span className="truncate">{candidate.title}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </div>
+      ) : null}
+
       <ul className="space-y-1">
-        {blockedBy.map((link) => (
+        {openBlockedBy.map((link) => (
           <DependencyRow
             key={link.id}
             link={link}
@@ -190,21 +218,21 @@ export function DependencySection({
             busy={busy}
           />
         ))}
-        {blockedBy.length === 0 ? (
+        {openBlockedBy.length === 0 ? (
           <li className="text-sm text-muted-foreground">Nothing is blocking this.</li>
         ) : null}
       </ul>
 
-      {blocks.length > 0 ? (
+      {openBlocks.length > 0 ? (
         <div className="space-y-1 pt-1">
           <h4 className="text-xs font-medium">
-            Blocking ({blocks.length})
+            Blocking ({openBlocks.length})
             <span className="ml-2 font-normal text-muted-foreground">
               These are waiting for this one. Edit them on their own card.
             </span>
           </h4>
           <ul className="space-y-1">
-            {blocks.map((link) => (
+            {openBlocks.map((link) => (
               <DependencyRow
                 key={link.id}
                 link={link}
@@ -221,12 +249,11 @@ export function DependencySection({
 }
 
 /**
- * One end of a link.
+ * One end of a link, always an unfinished one.
  *
- * A resolved blocker is struck through rather than removed from the list: it is
- * still a true statement about how the work was sequenced, and dropping it would
- * make the list shrink as things finish, which reads as somebody having deleted
- * them.
+ * It used to draw a resolved link struck through. Those are filtered out before
+ * they reach here now, so the branch that greyed them went with them rather than
+ * being left as an unreachable state somebody would later have to reason about.
  */
 function DependencyRow({
   link,
@@ -241,13 +268,9 @@ function DependencyRow({
   onRemove?: () => void;
   busy: boolean;
 }) {
-  const resolved = blockerResolved(link.status);
-
   return (
     <li className="flex items-center gap-2.5 rounded-md border px-3 py-2">
-      <CircleSlash
-        className={cn("size-3.5 shrink-0", resolved ? "text-muted-foreground" : "text-amber-500")}
-      />
+      <CircleSlash className="size-3.5 shrink-0 text-amber-500" />
       <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
         {projectKey}-{link.number}
       </span>
@@ -255,11 +278,7 @@ function DependencyRow({
         type="button"
         disabled={!onOpen}
         onClick={() => onOpen?.(link.id)}
-        className={cn(
-          "min-w-0 flex-1 truncate text-left text-sm",
-          resolved && "text-muted-foreground line-through",
-          onOpen && "hover:underline",
-        )}
+        className={cn("min-w-0 flex-1 truncate text-left text-sm", onOpen && "hover:underline")}
       >
         {link.title}
       </button>
