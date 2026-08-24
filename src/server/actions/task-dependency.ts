@@ -9,6 +9,7 @@ import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { hasEdge, wouldCycle, type DependencyEdge } from "@/lib/task-dependencies";
 import { fail, NOT_FOUND, ok, parse, withErrorHandling, type ActionResult } from "@/server/action-result";
+import type { DependencyLinkDTO } from "@/types";
 
 /**
  * Recording that one task is waiting on another.
@@ -103,6 +104,74 @@ export async function addTaskDependency(input: unknown): Promise<ActionResult> {
 
     revalidateTask(ctx.workspace.slug, ctx.task.projectId);
     return ok(undefined);
+  });
+}
+
+/**
+ * Tasks this one could be made to wait on.
+ *
+ * The loop check runs *here* as well as on the write. Offering a choice that is
+ * then refused teaches people the feature is unreliable; the refusal on the
+ * write stays because this list is a suggestion made a moment earlier and the
+ * graph can move underneath it.
+ *
+ * Already-linked tasks are left out for the same reason — picking one would do
+ * nothing and look broken.
+ */
+export async function findDependencyCandidates(
+  input: unknown,
+): Promise<ActionResult<DependencyLinkDTO[]>> {
+  return withErrorHandling(async () => {
+    const user = await requireUser();
+    const { taskId, query } = parse(
+      z.object({ taskId: z.string().min(1), query: z.string().max(120).default("") }),
+      input,
+    );
+
+    const ctx = await getTaskContext(user.id, taskId);
+    if (!ctx) return fail(NOT_FOUND);
+    if (!can(ctx.role, "task:view")) throw new ForbiddenError();
+
+    const rows = await prisma.taskDependency.findMany({
+      where: { blockedTask: { projectId: ctx.task.projectId } },
+      select: { blockedTaskId: true, blockingTaskId: true },
+    });
+    const edges: DependencyEdge[] = rows.map((row) => ({
+      blockedId: row.blockedTaskId,
+      blockingId: row.blockingTaskId,
+    }));
+
+    const trimmed = query.trim();
+    const found = await prisma.task.findMany({
+      where: {
+        projectId: ctx.task.projectId,
+        id: { not: taskId },
+        ...(trimmed
+          ? {
+              OR: [
+                { title: { contains: trimmed, mode: "insensitive" as const } },
+                // A bare number is how people refer to a task out loud, and it is
+                // what the card shows next to the title.
+                ...(Number.isFinite(Number(trimmed)) ? [{ number: Number(trimmed) }] : []),
+              ],
+            }
+          : {}),
+      },
+      orderBy: { updatedAt: "desc" },
+      // Enough to choose from without turning a picker into a second task list.
+      take: 40,
+      select: { id: true, number: true, title: true, status: true },
+    });
+
+    return ok(
+      found
+        .filter(
+          (candidate) =>
+            !hasEdge(edges, taskId, candidate.id) &&
+            !wouldCycle(edges, taskId, candidate.id),
+        )
+        .slice(0, 12),
+    );
   });
 }
 

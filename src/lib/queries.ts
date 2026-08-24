@@ -34,6 +34,10 @@ export async function getBoardData(projectId: string) {
         labels: { include: { label: true } },
         _count: { select: { subtasks: true, comments: true, attachments: true } },
         checklistItems: { select: { done: true } },
+        // The blocker's *status*, not a count: the card shows how many are still
+        // in the way, and "in the way" is a question about the other task's
+        // state that a `_count` cannot answer.
+        blockedBy: { select: { blockingTask: { select: { status: true } } } },
       },
     }),
   ]);
@@ -64,6 +68,21 @@ export async function getTaskDetail(taskId: string) {
         include: { author: { select: { id: true, name: true, imageUrl: true } } },
       },
       attachments: { orderBy: { createdAt: "desc" } },
+      // Both directions, with enough of the other task to draw a row somebody can
+      // recognise and click. Oldest first, so the order does not shuffle when a
+      // blocker is finished.
+      blockedBy: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          blockingTask: { select: { id: true, number: true, title: true, status: true } },
+        },
+      },
+      blocks: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          blockedTask: { select: { id: true, number: true, title: true, status: true } },
+        },
+      },
     },
   });
 }
@@ -185,6 +204,7 @@ export async function getMyTasks(workspaceId: string, userId: string) {
       labels: { include: { label: true } },
       checklistItems: { select: { done: true } },
       _count: { select: { subtasks: true, comments: true } },
+      blockedBy: { select: { blockingTask: { select: { status: true } } } },
     },
   });
 }
@@ -205,6 +225,7 @@ export async function getProjectSubtasks(projectId: string) {
       labels: { include: { label: true } },
       _count: { select: { subtasks: true, comments: true, attachments: true } },
       checklistItems: { select: { done: true } },
+      blockedBy: { select: { blockingTask: { select: { status: true } } } },
     },
   });
 }

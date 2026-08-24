@@ -9,6 +9,7 @@ import { ORDER_STEP, PRIORITY_META } from "@/lib/constants";
 import { logActivity, notify, notifyMany, taskLink, taskWatchers } from "@/lib/events";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { RESOLVED_BLOCKER_STATUSES } from "@/lib/task-dependencies";
 import { restoreTasks, snapshotSchema, snapshotTasks } from "@/lib/task-snapshot";
 import { orderBetween } from "@/lib/utils";
 import {
@@ -434,7 +435,18 @@ export async function moveTask(input: unknown): Promise<ActionResult> {
 }
 
 /** One-click complete/reopen used by the list and my-tasks views. */
-export async function toggleTaskDone(taskId: string): Promise<ActionResult<{ done: boolean }>> {
+/**
+ * The checkbox on a card and on a list row.
+ *
+ * Reports `stillWaiting` alongside `done`: completing something that is still
+ * waiting on unfinished work is allowed and worth saying out loud. Refusing it
+ * was the other option and is worse on a shared board — the way people get past
+ * a refusal is to delete the dependency, which destroys the record of why the
+ * order mattered. Telling them costs nothing and leaves the link in place.
+ */
+export async function toggleTaskDone(
+  taskId: string,
+): Promise<ActionResult<{ done: boolean; stillWaiting: number }>> {
   return withErrorHandling(async () => {
     const user = await requireUser();
     const ctx = await getTaskContext(user.id, taskId);
@@ -468,8 +480,19 @@ export async function toggleTaskDone(taskId: string): Promise<ActionResult<{ don
       message: `${user.name} ${done ? "completed" : "reopened"} ${ctx.project.key}-${ctx.task.number}`,
     });
 
+    // Counted after the write, and only when finishing: reopening a task says
+    // nothing about what it waits on.
+    const stillWaiting = done
+      ? await prisma.taskDependency.count({
+          where: {
+            blockedTaskId: taskId,
+            blockingTask: { status: { notIn: RESOLVED_BLOCKER_STATUSES } },
+          },
+        })
+      : 0;
+
     revalidateProject(ctx.workspace.slug, ctx.task.projectId);
-    return ok({ done });
+    return ok({ done, stillWaiting });
   });
 }
 

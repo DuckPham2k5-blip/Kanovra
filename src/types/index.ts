@@ -62,6 +62,15 @@ export type TaskCardDTO = {
   subtaskCount: number;
   commentCount: number;
   attachmentCount: number;
+  /**
+   * How many things this task is still waiting on.
+   *
+   * A number rather than the list, because the card shows a count and fetching
+   * the titles for every card on a board to render one badge is a lot of rows
+   * for a word nobody reads until they open the task. The list is on
+   * `TaskDetailDTO`, where it is what somebody came to look at.
+   */
+  openBlockers: number;
 };
 
 export type TaskDetailDTO = TaskCardDTO & {
@@ -86,6 +95,24 @@ export type TaskDetailDTO = TaskCardDTO & {
     author: UserDTO;
   }[];
   attachments: { id: string; name: string; url: string; size: number }[];
+  /** What this task is waiting on. */
+  blockedBy: DependencyLinkDTO[];
+  /** What is waiting on this task. */
+  blocks: DependencyLinkDTO[];
+};
+
+/**
+ * The other end of a dependency, as a row somebody can read and click.
+ *
+ * `status` travels with it because the panel greys out a blocker that is out of
+ * the way, and deciding that in the browser from a status is the same rule the
+ * server used to count the badge — one rule, `blockerResolved`, in both places.
+ */
+export type DependencyLinkDTO = {
+  id: string;
+  number: number;
+  title: string;
+  status: TaskStatus;
 };
 
 export type ProjectSummaryDTO = {

@@ -9,6 +9,7 @@ import { requireWorkspace } from "@/lib/auth";
 import { toTaskDetailDTO } from "@/lib/dto";
 import { prisma } from "@/lib/prisma";
 import { getMyTasks, getTaskDetail, getWorkspaceMembers } from "@/lib/queries";
+import { blockerResolved } from "@/lib/task-dependencies";
 import type { LabelDTO, MemberDTO } from "@/types";
 
 export const metadata: Metadata = { title: "My tasks" };
@@ -66,6 +67,8 @@ export default async function MyTasksPage({
     subtaskCount: task._count.subtasks,
     commentCount: task._count.comments,
     attachmentCount: 0,
+    openBlockers: task.blockedBy.filter((edge) => !blockerResolved(edge.blockingTask.status))
+      .length,
     project: task.project,
   }));
 

@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { getBoardData, getTaskDetail } from "@/lib/queries";
+import { blockerResolved } from "@/lib/task-dependencies";
 import type { TaskCardDTO, TaskDetailDTO } from "@/types";
 
 /**
@@ -46,6 +47,8 @@ export function toTaskCardDTO(task: BoardTask): TaskCardDTO {
     subtaskCount: task._count.subtasks,
     commentCount: task._count.comments,
     attachmentCount: task._count.attachments,
+    openBlockers: task.blockedBy.filter((edge) => !blockerResolved(edge.blockingTask.status))
+      .length,
   };
 }
 
@@ -82,6 +85,20 @@ export function toTaskDetailDTO(task: DetailTask): TaskDetailDTO {
     subtaskCount: task.subtasks.length,
     commentCount: task.comments.length,
     attachmentCount: task.attachments.length,
+    openBlockers: task.blockedBy.filter((edge) => !blockerResolved(edge.blockingTask.status))
+      .length,
+    blockedBy: task.blockedBy.map((edge) => ({
+      id: edge.blockingTask.id,
+      number: edge.blockingTask.number,
+      title: edge.blockingTask.title,
+      status: edge.blockingTask.status,
+    })),
+    blocks: task.blocks.map((edge) => ({
+      id: edge.blockedTask.id,
+      number: edge.blockedTask.number,
+      title: edge.blockedTask.title,
+      status: edge.blockedTask.status,
+    })),
 
     projectId: task.projectId,
     projectKey: task.project.key,

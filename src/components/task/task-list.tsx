@@ -332,6 +332,15 @@ export function TaskList({
       toast.error(result.error);
       return;
     }
+    // Said, not refused. Finishing something that was still waiting is allowed —
+    // see `toggleTaskDone` — and this is the only place the person finds out.
+    if (result.data.stillWaiting > 0) {
+      toast.warning(
+        `Marked done, but it was still waiting on ${result.data.stillWaiting} unfinished ${
+          result.data.stillWaiting === 1 ? "task" : "tasks"
+        }.`,
+      );
+    }
     router.refresh();
   }
 

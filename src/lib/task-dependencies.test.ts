@@ -1,7 +1,10 @@
+import { TaskStatus } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
 import {
   blockedByThis,
+  blockerResolved,
+  RESOLVED_BLOCKER_STATUSES,
   blockersOf,
   chainOf,
   hasEdge,
@@ -112,5 +115,53 @@ describe("openBlockerCount", () => {
   it("does not count a blocker further back down the chain", () => {
     // B is done, so A is free to move — even though C, which B waited on, is not.
     expect(openBlockerCount(chain, "A", new Set(["B"]))).toBe(0);
+  });
+});
+
+describe("blockerResolved", () => {
+  it("treats a finished blocker as out of the way", () => {
+    expect(blockerResolved(TaskStatus.DONE)).toBe(true);
+  });
+
+  /*
+   * The one worth pinning. A cancelled task is never going to finish, so
+   * counting it leaves whatever waits on it marked blocked forever by something
+   * nobody intends to do — and makes people delete the link to get moving, which
+   * loses the record of why it was there.
+   */
+  it("treats a cancelled blocker as out of the way too", () => {
+    expect(blockerResolved(TaskStatus.CANCELLED)).toBe(true);
+  });
+
+  it("counts every other state as still in the way", () => {
+    for (const status of [
+      TaskStatus.BACKLOG,
+      TaskStatus.TODO,
+      TaskStatus.IN_PROGRESS,
+      TaskStatus.IN_REVIEW,
+    ]) {
+      expect(blockerResolved(status)).toBe(false);
+    }
+  });
+});
+
+/*
+ * The predicate is read by the browser; the list is read by a `notIn` in a
+ * query. Written out separately they drift, and the drift looks like a badge
+ * that disagrees with the panel it opens — so this walks every status the enum
+ * has and asserts the two answer alike, rather than checking the two entries
+ * anybody can already see.
+ */
+describe("the two shapes of the same rule", () => {
+  it("agree on every status the enum has", () => {
+    for (const status of Object.values(TaskStatus)) {
+      expect(blockerResolved(status)).toBe(RESOLVED_BLOCKER_STATUSES.includes(status));
+    }
+  });
+
+  it("covers every status, so a new one cannot be forgotten silently", () => {
+    // Not an assertion about the count: it fails loudly when somebody adds a
+    // status, which is the moment to decide whether it blocks or not.
+    expect(Object.values(TaskStatus)).toHaveLength(6);
   });
 });

@@ -14,6 +14,8 @@
  * anybody having to remember a convention.
  */
 
+import { TaskStatus } from "@prisma/client";
+
 export type DependencyEdge = {
   /** The task that has to wait. */
   blockedId: string;
@@ -91,6 +93,34 @@ export function hasEdge(
     (edge) => edge.blockedId === blockedId && edge.blockingId === blockingId,
   );
 }
+
+/**
+ * Has this blocker stopped standing in the way?
+ *
+ * Done is obvious. Cancelled is the one worth writing down: a cancelled task is
+ * never going to finish, so counting it as a blocker leaves whatever waits on it
+ * marked blocked forever, by a task nobody intends to do. The alternative —
+ * making people hunt down and delete the link — punishes them for a decision
+ * already recorded on the other card.
+ *
+ * One function rather than a comparison written out at each site, because "which
+ * statuses count as out of the way" is a rule, and a rule copied into three
+ * places is a rule that will disagree with itself.
+ */
+export function blockerResolved(status: TaskStatus): boolean {
+  return RESOLVED_BLOCKER_STATUSES.includes(status);
+}
+
+/**
+ * The same rule, in the shape a database filter needs.
+ *
+ * Defined once and the predicate reads from it, rather than the two being
+ * written out separately — a `notIn` list in a query and an `||` in a component
+ * are exactly the pair that drifts, and the drift shows up as a badge that
+ * disagrees with the panel it opens. A test walks every status and asserts the
+ * two answer alike.
+ */
+export const RESOLVED_BLOCKER_STATUSES: TaskStatus[] = [TaskStatus.DONE, TaskStatus.CANCELLED];
 
 /**
  * How many of a task's blockers are still unfinished.

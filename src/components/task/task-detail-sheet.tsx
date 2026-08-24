@@ -14,6 +14,7 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 import { AttachmentSection } from "@/components/task/attachment-section";
 import { ChecklistSection } from "@/components/task/checklist-section";
 import { CommentSection } from "@/components/task/comment-section";
+import { DependencySection } from "@/components/task/dependency-section";
 import { TaskDialog } from "@/components/task/task-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -218,8 +219,18 @@ export function TaskDetailSheet({
                 disabled={!canEdit}
                 onCheckedChange={async () => {
                   const result = await toggleTaskDone(task.id);
-                  if (!result.success) toast.error(result.error);
-                  else router.refresh();
+                  if (!result.success) {
+                    toast.error(result.error);
+                    return;
+                  }
+                  if (result.data.stillWaiting > 0) {
+                    toast.warning(
+                      `Marked done, but it was still waiting on ${result.data.stillWaiting} unfinished ${
+                        result.data.stillWaiting === 1 ? "task" : "tasks"
+                      }.`,
+                    );
+                  }
+                  router.refresh();
                 }}
                 aria-label="Mark complete"
               />
@@ -422,6 +433,18 @@ export function TaskDetailSheet({
                 placeholder="Add a detailed description…"
               />
             </section>
+
+            <Separator />
+
+            {/* Before the subtasks: "what stops this starting" is read before
+                "what is this made of". */}
+            <DependencySection
+              taskId={task.id}
+              projectKey={task.projectKey}
+              blockedBy={task.blockedBy}
+              blocks={task.blocks}
+              canEdit={canEdit}
+            />
 
             <Separator />
 

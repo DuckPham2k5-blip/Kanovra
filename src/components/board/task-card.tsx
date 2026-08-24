@@ -2,7 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CheckSquare, GitBranch, MessageSquare, Paperclip } from "lucide-react";
+import { CheckSquare, CircleSlash, GitBranch, MessageSquare, Paperclip } from "lucide-react";
 import * as React from "react";
 
 import { DueBadge, LabelChip, PriorityBadge } from "@/components/shared/badges";
@@ -41,6 +41,21 @@ export function TaskCardContent({
       ) : null}
 
       <p className={cn("text-sm font-medium leading-snug", done && "line-through")}>{task.title}</p>
+
+      {/* Above the meta row, not in it.
+          "This cannot start yet" outranks three comments and a paperclip, and a
+          card is read top to bottom — putting it with the small counts is where
+          somebody picking up work would not see it.
+
+          Shown on a finished card too. A task completed while still waiting on
+          something is unusual and worth seeing; hiding it there would hide
+          exactly the case somebody would want to ask about. */}
+      {task.openBlockers > 0 ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+          <CircleSlash className="size-3" />
+          Waiting on {task.openBlockers}
+        </span>
+      ) : null}
 
       {task.checklistTotal > 0 ? (
         <div className="space-y-1">
