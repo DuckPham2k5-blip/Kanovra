@@ -4,7 +4,7 @@ import { TaskDetailSheet } from "@/components/task/task-detail-sheet";
 import { TaskList } from "@/components/task/task-list";
 import { toTaskCardDTO } from "@/lib/dto";
 import { loadProjectView } from "@/lib/project-view";
-import { getBoardData, getProjectSubtasks } from "@/lib/queries";
+import { getBoardData, getProjectSubtasks, getSavedViews } from "@/lib/queries";
 
 export const metadata: Metadata = { title: "Task list" };
 
@@ -18,7 +18,7 @@ export default async function ProjectListPage({
   const { slug, projectId } = await params;
   const { task: openTaskId } = await searchParams;
 
-  const { project, members, labels, openTask, user, can } = await loadProjectView(
+  const { project, workspace, members, labels, openTask, user, can } = await loadProjectView(
     slug,
     projectId,
     openTaskId,
@@ -27,9 +27,10 @@ export default async function ProjectListPage({
   // Parents from the board query, their children alongside: the list folds them
   // together, and a Kanban column never shows a subtask so the board query does
   // not carry them.
-  const [{ tasks }, subtasks] = await Promise.all([
+  const [{ tasks }, subtasks, savedViews] = await Promise.all([
     getBoardData(project.id),
     getProjectSubtasks(project.id),
+    getSavedViews(workspace.id, project.id, user.id),
   ]);
 
   return (
@@ -41,6 +42,10 @@ export default async function ProjectListPage({
         projectId={project.id}
         projectKey={project.key}
         canEdit={can("task:update")}
+        workspaceId={workspace.id}
+        savedViews={savedViews}
+        currentUserId={user.id}
+        canManageViews={can("project:update")}
         emptyHint="No tasks in this project yet."
       />
 

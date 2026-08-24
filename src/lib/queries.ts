@@ -87,6 +87,29 @@ export async function getTaskDetail(taskId: string) {
   });
 }
 
+/**
+ * The saved views on one list.
+ *
+ * `projectId` null asks for the workspace-wide list, which is "My tasks" — the
+ * two never mix, because a project's filters mean nothing on a page showing
+ * every project.
+ *
+ * Shared ones and your own, and nothing else. A private view is private: it is
+ * somebody's working shortlist, not content, and there is no page that shows
+ * other people's.
+ */
+export async function getSavedViews(
+  workspaceId: string,
+  projectId: string | null,
+  userId: string,
+) {
+  return prisma.savedView.findMany({
+    where: { workspaceId, projectId, OR: [{ shared: true }, { createdById: userId }] },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, query: true, shared: true, createdById: true },
+  });
+}
+
 /** Members of a workspace, shaped for assignee pickers and avatar stacks. */
 export async function getWorkspaceMembers(workspaceId: string) {
   const members = await prisma.workspaceMember.findMany({

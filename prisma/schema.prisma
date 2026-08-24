@@ -131,6 +131,7 @@ model User {
   deletedTasks       DeletedTask[]
   actedNotifications Notification[]       @relation("NotificationActor")
   invitationsSent    Invitation[]         @relation("InvitationInviter")
+  savedViews         SavedView[]
 
   @@index([email])
   @@map("users")
@@ -161,6 +162,7 @@ model Workspace {
   invitations   Invitation[]
   mindMaps      MindMap[]
   deletedTasks  DeletedTask[]
+  savedViews    SavedView[]
 
   @@index([ownerId])
   @@index([slug])
@@ -251,6 +253,7 @@ model Project {
   tasks      Task[]
   activities Activity[]
   mindMaps   MindMap[]
+  savedViews SavedView[]
 
   @@unique([workspaceId, key])
   @@index([workspaceId])
@@ -402,6 +405,45 @@ model TaskDependency {
   @@unique([blockedTaskId, blockingTaskId])
   @@index([blockingTaskId])
   @@map("task_dependencies")
+}
+
+/// A named set of filters somebody can come back to.
+///
+/// The filters are kept as the **query string they already are** rather than
+/// unpacked into columns. A column each means a migration every time a filter is
+/// added, and a view saved before that migration would silently lose the part
+/// nobody had a column for; a string keeps working, and the list clamps any key
+/// it does not recognise on the way back in. Nothing queries *across* views —
+/// "which views mention this label" is not a question anybody asks — so the
+/// shape a column layout would buy is unused.
+///
+/// Only the keys the list actually reads are stored, filtered on save. Without
+/// that, `?task=<id>` rides along into somebody's saved view and reopens a
+/// stranger's task panel every time they use it.
+///
+/// `projectId` null means the view belongs to "My tasks", which spans the
+/// workspace. The same person can have views of both kinds and they never mix,
+/// because a project filter means nothing on a page that shows every project.
+model SavedView {
+  id          String   @id @default(cuid())
+  workspaceId String
+  projectId   String?
+  createdById String
+  name        String
+  /// e.g. `status=TODO&assignee=<id>&sort=due`
+  query       String
+  /// Visible to the whole workspace, or only to whoever made it.
+  shared      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, projectId])
+  @@index([createdById])
+  @@map("saved_views")
 }
 
 model ChecklistItem {

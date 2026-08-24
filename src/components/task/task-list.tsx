@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { DueBadge, LabelChip, PriorityBadge, StatusBadge } from "@/components/shared/badges";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { BulkBar } from "@/components/task/bulk-bar";
+import { SavedViews, type SavedViewDTO } from "@/components/task/saved-views";
 import { TaskDialog } from "@/components/task/task-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,6 +80,10 @@ export function TaskList({
   canEdit,
   showProject,
   emptyHint,
+  workspaceId,
+  savedViews,
+  currentUserId,
+  canManageViews,
 }: {
   tasks: ListTask[];
   members: MemberDTO[];
@@ -88,6 +93,12 @@ export function TaskList({
   canEdit: boolean;
   showProject?: boolean;
   emptyHint?: string;
+  /** Saved views need a workspace to belong to; absent, the control is hidden. */
+  workspaceId?: string;
+  savedViews?: SavedViewDTO[];
+  currentUserId?: string;
+  /** Whether this person may delete a view somebody else shared. */
+  canManageViews?: boolean;
 }) {
   const router = useRouter();
 
@@ -475,6 +486,16 @@ export function TaskList({
             className="pl-8"
           />
         </div>
+
+        {workspaceId && currentUserId ? (
+          <SavedViews
+            workspaceId={workspaceId}
+            projectId={projectId ?? null}
+            views={savedViews ?? []}
+            currentUserId={currentUserId}
+            canManage={!!canManageViews}
+          />
+        ) : null}
 
         <Button
           variant={showFilters || activeFilters > 0 ? "secondary" : "outline"}

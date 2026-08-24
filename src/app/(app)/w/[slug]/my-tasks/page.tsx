@@ -8,7 +8,7 @@ import { TaskList, type ListTask } from "@/components/task/task-list";
 import { requireWorkspace } from "@/lib/auth";
 import { toTaskDetailDTO } from "@/lib/dto";
 import { prisma } from "@/lib/prisma";
-import { getMyTasks, getTaskDetail, getWorkspaceMembers } from "@/lib/queries";
+import { getMyTasks, getSavedViews, getTaskDetail, getWorkspaceMembers } from "@/lib/queries";
 import { blockerResolved } from "@/lib/task-dependencies";
 import type { LabelDTO, MemberDTO } from "@/types";
 
@@ -25,10 +25,12 @@ export default async function MyTasksPage({
   const { task: openTaskId } = await searchParams;
   const { user, workspace, can } = await requireWorkspace(slug);
 
-  const [tasks, rawMembers, rawLabels] = await Promise.all([
+  const [tasks, rawMembers, rawLabels, savedViews] = await Promise.all([
     getMyTasks(workspace.id, user.id),
     getWorkspaceMembers(workspace.id),
     prisma.label.findMany({ where: { workspaceId: workspace.id }, orderBy: { name: "asc" } }),
+    // Null project: "My tasks" spans the workspace, so its views do too.
+    getSavedViews(workspace.id, null, user.id),
   ]);
 
   const members: MemberDTO[] = rawMembers.map((m) => ({
@@ -109,6 +111,10 @@ export default async function MyTasksPage({
         labels={labels}
         canEdit={can("task:update")}
         showProject
+        workspaceId={workspace.id}
+        savedViews={savedViews}
+        currentUserId={user.id}
+        canManageViews={can("project:update")}
         emptyHint="Nothing is assigned to you yet."
       />
 
