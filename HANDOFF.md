@@ -17,7 +17,7 @@ proven, what has not, and what is open.
 - Branch `main`, working tree clean
 - This session starts at `4728cc9` — `git log --oneline 4728cc9..HEAD` lists it
 - Check port 3000 before assuming the dev server is up or down
-- **All four checks are green on `bca68bf`**, the build included. It was run with
+- **All four checks are green on `a63929d`**, the build included. It was run with
   the port check in the same command, which is the only way this project runs it.
 
 | Check | Result |
@@ -170,6 +170,11 @@ Added this session:
 - **The conflict banner itself**, wording included: it appeared on the owner's
   screen, and its first wording accused a teammate in a workspace with one
   member, which is how that got fixed.
+- **The dependency panel**, with real links in both directions. Two rounds of
+  wording came out of that look: "Waiting on" / "Waiting on this" differed by one
+  trailing word while meaning opposite things and had to be explained twice, so
+  they are "Blocked by" / "Blocking" with a line each; and a finished link is now
+  hidden rather than struck through.
 - **A document this build cannot read surviving being opened.** The owner opened
   the legacy circle map `cmspfqp5o0001urg46v4g2ne0` ("Businesses", workspace
   `acme-product`) and saw the amber banner, and the row still held
@@ -199,10 +204,10 @@ owner's own session — is not connected. Anything behind sign-in needs the owne
    `DropdownMenuItem` on the same reasoning and have not been pressed since.
 6. **Both buttons on the conflict banner.** The banner has been seen and "Keep
    mine" has been pressed; "Load the saved one" has not.
-7. **Every part of task dependencies.** The rules are covered by 17 unit tests and
-   the undo path by two against a real database, but the badge on a card, the
-   picker inside the sheet — a Radix popover inside a Radix dialog, which this
-   codebase has not done before — and the warning toast have never been drawn.
+7. **Most of task dependencies.** Seen by the owner: the panel drawing both
+   directions with real rows, and the labels. Still unpressed: the **Add**
+   picker, the card chip, the warning toast on completing a blocked task, and
+   the loop refusal.
 
 Older, and unchanged by this session:
 
