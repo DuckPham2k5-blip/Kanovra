@@ -7,7 +7,12 @@ import { ForbiddenError, getTaskContext, requireUser } from "@/lib/auth";
 import { logActivity } from "@/lib/events";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { hasEdge, wouldCycle, type DependencyEdge } from "@/lib/task-dependencies";
+import {
+  hasEdge,
+  RESOLVED_BLOCKER_STATUSES,
+  wouldCycle,
+  type DependencyEdge,
+} from "@/lib/task-dependencies";
 import { fail, NOT_FOUND, ok, parse, withErrorHandling, type ActionResult } from "@/server/action-result";
 import type { DependencyLinkDTO } from "@/types";
 
@@ -146,6 +151,20 @@ export async function findDependencyCandidates(
       where: {
         projectId: ctx.task.projectId,
         id: { not: taskId },
+        /*
+         * Not a task that has already finished.
+         *
+         * The link would be legal and completely inert: a done blocker is out of
+         * the way by definition, so the row is hidden the moment it is written.
+         * Offering it made adding one look exactly like the click failing — which
+         * is how it was found, after somebody added eight in a row and saw
+         * nothing appear any of the eight times.
+         *
+         * The cost is that a finished task cannot be recorded as having blocked
+         * something, after the fact. That is a note about the past; this panel is
+         * about what stands in the way now.
+         */
+        status: { notIn: RESOLVED_BLOCKER_STATUSES },
         ...(trimmed
           ? {
               OR: [

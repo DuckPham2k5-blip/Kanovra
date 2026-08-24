@@ -127,6 +127,8 @@ export function DependencySection({
    */
   const openBlockedBy = blockedBy.filter((link) => !blockerResolved(link.status));
   const openBlocks = blocks.filter((link) => !blockerResolved(link.status));
+  const doneBlockedBy = blockedBy.filter((link) => blockerResolved(link.status));
+  const [showDone, setShowDone] = React.useState(false);
 
   return (
     <section className="space-y-3">
@@ -221,7 +223,39 @@ export function DependencySection({
         {openBlockedBy.length === 0 ? (
           <li className="text-sm text-muted-foreground">Nothing is blocking this.</li>
         ) : null}
+
+        {/* Hidden, but not unreachable.
+            A link nobody can see is a link nobody can delete, and it comes back
+            on its own the day somebody reopens the task at the other end. One
+            muted line is enough to say the links exist and to get at them. */}
+        {showDone
+          ? doneBlockedBy.map((link) => (
+              <DependencyRow
+                key={link.id}
+                link={link}
+                projectKey={projectKey}
+                onOpen={onOpenTask}
+                onRemove={canEdit ? () => void remove(link.id) : undefined}
+                busy={busy}
+                finished
+              />
+            ))
+          : null}
       </ul>
+
+      {doneBlockedBy.length > 0 ? (
+        <button
+          type="button"
+          onClick={() => setShowDone((was) => !was)}
+          className="text-xs text-muted-foreground hover:underline"
+        >
+          {showDone
+            ? "Hide finished"
+            : `${doneBlockedBy.length} finished ${
+                doneBlockedBy.length === 1 ? "link" : "links"
+              } hidden`}
+        </button>
+      ) : null}
 
       {openBlocks.length > 0 ? (
         <div className="space-y-1 pt-1">
@@ -249,11 +283,11 @@ export function DependencySection({
 }
 
 /**
- * One end of a link, always an unfinished one.
+ * One end of a link.
  *
- * It used to draw a resolved link struck through. Those are filtered out before
- * they reach here now, so the branch that greyed them went with them rather than
- * being left as an unreachable state somebody would later have to reason about.
+ * `finished` is passed rather than worked out from the status, because the two
+ * lists have already decided which of them a row belongs to and a row that
+ * recomputed it could disagree with the heading it sits under.
  */
 function DependencyRow({
   link,
@@ -261,16 +295,20 @@ function DependencyRow({
   onOpen,
   onRemove,
   busy,
+  finished,
 }: {
   link: DependencyLinkDTO;
   projectKey: string;
   onOpen?: (id: string) => void;
   onRemove?: () => void;
   busy: boolean;
+  finished?: boolean;
 }) {
   return (
     <li className="flex items-center gap-2.5 rounded-md border px-3 py-2">
-      <CircleSlash className="size-3.5 shrink-0 text-amber-500" />
+      <CircleSlash
+        className={cn("size-3.5 shrink-0", finished ? "text-muted-foreground" : "text-amber-500")}
+      />
       <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
         {projectKey}-{link.number}
       </span>
@@ -278,7 +316,11 @@ function DependencyRow({
         type="button"
         disabled={!onOpen}
         onClick={() => onOpen?.(link.id)}
-        className={cn("min-w-0 flex-1 truncate text-left text-sm", onOpen && "hover:underline")}
+        className={cn(
+          "min-w-0 flex-1 truncate text-left text-sm",
+          finished && "text-muted-foreground line-through",
+          onOpen && "hover:underline",
+        )}
       >
         {link.title}
       </button>
