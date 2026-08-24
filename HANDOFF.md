@@ -163,6 +163,13 @@ Added this session:
 - **The conflict banner itself**, wording included: it appeared on the owner's
   screen, and its first wording accused a teammate in a workspace with one
   member, which is how that got fixed.
+- **A document this build cannot read surviving being opened.** The owner opened
+  the legacy circle map `cmspfqp5o0001urg46v4g2ne0` ("Businesses", workspace
+  `acme-product`) and saw the amber banner, and the row still held
+  `{"centre": "Businesses", "context": [...]}` afterwards — untouched for 71
+  hours. Both halves matter: the banner proves the page rendered, so autosave had
+  its 1.2 seconds and declined to take them. Before the fix, merely opening that
+  page replaced the document.
 
 ---
 
@@ -183,12 +190,7 @@ owner's own session — is not connected. Anything behind sign-in needs the owne
 5. **The menu rows after the workaround was unwound.** The owner confirmed the
    canary row ("Add a comment") firing; the other six went back to
    `DropdownMenuItem` on the same reasoning and have not been pressed since.
-6. **The "unreadable document" banner**, and the one row that shows it — the
-   legacy circle map `cmspfqp5o0001urg46v4g2ne0`, "Businesses". The guard is
-   proven against all 104 real rows by running the parser over them; what is
-   unproven is that opening that map in a browser now leaves the row alone. The
-   check is one query, and it is in the plan file.
-7. **Both buttons on the conflict banner.** The banner has been seen and "Keep
+6. **Both buttons on the conflict banner.** The banner has been seen and "Keep
    mine" has been pressed; "Load the saved one" has not.
 
 Older, and unchanged by this session:
