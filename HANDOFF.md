@@ -15,21 +15,20 @@ proven, what has not, and what is open.
 
 - Working directory: `C:\Users\PC\OneDrive\TaskForge`
 - Branch `main`, working tree clean
-- This session starts at `d755608` — `git log --oneline d755608..HEAD` lists it
-  (66 commits at the time of writing)
+- This session starts at `4728cc9` — `git log --oneline 4728cc9..HEAD` lists it
 - Check port 3000 before assuming the dev server is up or down
-- **Not built since `795b084`.** The owner's dev server was up; lint, typecheck
-  and the suite are green, and `npm run build` is the one check outstanding. Run
-  it with the port check in the same command, once they confirm dev is stopped.
+- **Not built since `14b0901`.** The build was run and green at `4921977`; three
+  commits landed after it while the owner's dev server was up. Run it with the
+  port check in the same command, once they confirm dev is stopped.
 
 | Check | Result |
 |---|---|
 | `npm run lint` | clean |
 | `npm run typecheck` | clean |
-| `npm test` | **240 / 240** (142 at session start) |
-| `npm run build` | green on the last code commit |
+| `npm test` | **256 / 256** (240 at session start) |
+| `npm run build` | green at `4921977`, three commits behind |
 
-Fifteen tests across three files need Postgres (`docker start kanovra-db`).
+Sixteen tests across four files need Postgres (`docker start kanovra-db`).
 No `DATABASE_URL` is a legitimate skip; configured-but-unreachable is a failure.
 
 **Five migrations were added**, and they must run on the VPS at deploy **in this
@@ -63,6 +62,21 @@ GitHub's unblock URL rather than rewriting history.
 ## 3. What was built
 
 The reasoning for each is in `CLAUDE.md`.
+
+**Built 2026-08-24, after the handoff above**
+- **A document this build cannot read is no longer replaced by opening it.**
+  `parseCanvas` reports `unreadable`, and the canvas declines to start dirty on
+  it, so autosave stops destroying a map 1.2s after somebody merely looks at it.
+  The outer arrays are sliced rather than `.max()`-capped. Proven against all 104
+  real rows: one flagged, 53 empty maps still saveable.
+- **A save carries the version it was based on**, as a canonical fingerprint of
+  the document rather than the row's `updatedAt` — rename, colour and background
+  write that row without touching the drawing. On a conflict the canvas holds,
+  says so, and offers both ways out. No migration.
+- One bug in that, found and fixed the same day: a `Json` column rounds a
+  17-significant-digit double, so fingerprinting the document the action *meant*
+  to write made **every drag** conflict with a version that never existed. The
+  version comes from `RETURNING` now. See the trap in `CLAUDE.md` and section 7.
 
 **Maps**
 - The Maps page lists existing maps behind filter chips that open and close. It
@@ -140,6 +154,17 @@ Everything here was confirmed on their own screen.
   wheel.
 - The `…` menu on a map node, after the control-scale fix.
 
+Added this session:
+
+- **The map version guard, in both directions.** It refused a save when the
+  document had genuinely moved — caught in the diagnostic log at 02:35:12, with
+  the two documents dumped side by side — and it accepts an ordinary drag now
+  that the version is taken from the row as stored. The owner dragged nodes
+  repeatedly with no conflict, and the row's `updatedAt` moved with each.
+- **The conflict banner itself**, wording included: it appeared on the owner's
+  screen, and its first wording accused a teammate in a workspace with one
+  member, which is how that got fixed.
+
 ---
 
 ## 5. What has never been seen working
@@ -159,6 +184,13 @@ owner's own session — is not connected. Anything behind sign-in needs the owne
 5. **The menu rows after the workaround was unwound.** The owner confirmed the
    canary row ("Add a comment") firing; the other six went back to
    `DropdownMenuItem` on the same reasoning and have not been pressed since.
+6. **The "unreadable document" banner**, and the one row that shows it — the
+   legacy circle map `cmspfqp5o0001urg46v4g2ne0`, "Businesses". The guard is
+   proven against all 104 real rows by running the parser over them; what is
+   unproven is that opening that map in a browser now leaves the row alone. The
+   check is one query, and it is in the plan file.
+7. **Both buttons on the conflict banner.** The banner has been seen and "Keep
+   mine" has been pressed; "Load the saved one" has not.
 
 Older, and unchanged by this session:
 
@@ -178,12 +210,14 @@ told, and replied *"tạm gác lại điều đấy"* — parked, not refused.
 
 **Next, in order:**
 
-1. Owner starts dev, presses the six menu rows that were not the canary, and
-   drags a node and pans the map — the last change touched the press path, so
-   that is where a side effect would be.
-2. Owner stops dev; run the port check and `npm run build` in one command.
+1. Owner stops dev; run the port check and `npm run build` in one command. Three
+   commits have landed since the last green build.
+2. Owner presses the six menu rows that were not the canary, and pans the map —
+   the press path was touched and only the drag has been exercised since.
 3. Five migrations are waiting for the VPS. The last one is **destructive** — see
-   section 1 for the order and the rule.
+   section 1 for the order and the rule. **No migration was added this session**:
+   the map version is a fingerprint of the document precisely so that no column
+   had to be added for it.
 
 **Remaining feature gaps** (from `CLAUDE.md`): task dependencies (blocked by /
 blocks), saved and shareable filter views, recurring tasks, actual time tracking,
@@ -272,6 +306,32 @@ not a library's own trigger.
   and use `git commit -F`. The same applies to writing source files through
   heredocs — hit again this session when an escape was mangled.
 - Never run the dev server through a tool. The owner runs it in their terminal.
+
+### A fixture too tidy to contain the bug (2026-08-24)
+
+The map version guard shipped with a round-trip test written specifically to
+prove the thing that then broke — and it passed the whole time, because its
+coordinates were `240` and `60`. The failure needs a **17-significant-digit
+double**, which only a drag produces. Three separate "proofs" were offered to the
+owner on the strength of that test before the bug was found.
+
+A fixture for a document format has to come from a real row, or it tests the
+shape of the author's imagination. Running the parser over all 104 real rows was
+done on the same day, for the other fix, and it was the check that worked.
+
+### Instrumenting beat reading, again
+
+The conflict happened on the owner's screen, in a browser with no session
+available here, in a case nobody could reproduce on demand. Three rounds of
+reading code produced three wrong theories — two live component instances, Next's
+router cache, overlapping saves — and the actual cause was in none of them.
+
+What found it: a temporary block in the server action appending one JSON line per
+save to a file, then reading the file. It showed the token the server promised
+and the token it computed for its own row differing by one character, and dumping
+both documents put the missing digit on screen. **When something cannot be
+watched happening, make it leave a record, then read the record.** The
+instrumentation was removed in the same session it was added.
 
 ---
 
