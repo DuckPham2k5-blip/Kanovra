@@ -38,7 +38,20 @@ import type { LabelDTO, MemberDTO, TaskCardDTO } from "@/types";
 
 const ALL = "__all__";
 
-type SortKey = "manual" | "due" | "priority" | "title" | "status";
+/**
+ * A search param clamped to the values that mean something here.
+ *
+ * Anything else — a stale link, a typo, a label since deleted — comes back as
+ * "all". The alternative is passing the value through to a `Select`, which then
+ * renders empty: a filter that is doing something the person cannot see, on a
+ * screen whose whole job is to say what is being shown.
+ */
+function oneOf(value: string | null, allowed: readonly string[]): string {
+  return value && allowed.includes(value) ? value : ALL;
+}
+
+const SORT_KEYS = ["manual", "due", "priority", "title", "status"] as const;
+type SortKey = (typeof SORT_KEYS)[number];
 
 export type ListTask = TaskCardDTO & {
   project?: { id: string; name: string; key: string; color: string; icon: string } | null;
@@ -121,13 +134,76 @@ export function TaskList({
   const rowsRef = React.useRef<{ task: ListTask; child: boolean; kids: ListTask[] }[]>([]);
   const searchParams = useSearchParams();
 
-  const [query, setQuery] = React.useState("");
-  const [status, setStatus] = React.useState<string>(ALL);
-  const [priority, setPriority] = React.useState<string>(ALL);
-  const [assignee, setAssignee] = React.useState<string>(ALL);
-  const [labelId, setLabelId] = React.useState<string>(ALL);
-  const [sort, setSort] = React.useState<SortKey>("manual");
-  const [showFilters, setShowFilters] = React.useState(false);
+  /*
+   * The filters live in the URL, not in component state.
+   *
+   * Held in state they were private and temporary: a narrowed list could not be
+   * sent to anybody, a reload lost it, and the detail panel — which already puts
+   * `?task=` in the URL — was the only part of this screen anyone could link to.
+   * The panel's own close handler has said "keeping any filters the user had
+   * applied" since long before there were any to keep.
+   *
+   * `replace`, not `push`. Every keystroke and every dropdown would otherwise be
+   * a history entry, and Back would walk out of a search one letter at a time
+   * instead of leaving the page.
+   *
+   * A value the URL cannot account for falls back to "all" rather than being
+   * passed through: a link with `?status=nonsense` should cost that one filter,
+   * not leave a select rendering blank with no way to tell what it is doing.
+   */
+  const setFilters = React.useCallback(
+    (changes: Record<string, string | null>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(changes)) {
+        if (value === null) params.delete(key);
+        else params.set(key, value);
+      }
+      const qs = params.toString();
+      router.replace(qs ? `?${qs}` : window.location.pathname, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
+  const status = oneOf(searchParams.get("status"), TASK_STATUS_ORDER);
+  const priority = oneOf(searchParams.get("priority"), PRIORITY_ORDER);
+  const assignee = oneOf(searchParams.get("assignee"), [
+    "unassigned",
+    ...members.map((member) => member.id),
+  ]);
+  const labelId = oneOf(searchParams.get("label"), labels.map((label) => label.id));
+  const sort = (oneOf(searchParams.get("sort"), SORT_KEYS) === ALL
+    ? "manual"
+    : searchParams.get("sort")) as SortKey;
+
+  /*
+   * The one that is not read straight off the URL.
+   *
+   * A search box has to answer the keystroke, and writing to the URL on each one
+   * would re-render the route thirty times a sentence. So the box keeps its own
+   * value and the URL catches up once the typing stops — and the effect below
+   * puts the box back in step when the URL moves on its own, which is what a
+   * pasted link and the Back button both do.
+   */
+  const urlQuery = searchParams.get("q") ?? "";
+  const [query, setQuery] = React.useState(urlQuery);
+  React.useEffect(() => setQuery(urlQuery), [urlQuery]);
+
+  React.useEffect(() => {
+    if (query === urlQuery) return;
+    const timer = setTimeout(() => setFilters({ q: query.trim() ? query : null }), 300);
+    return () => clearTimeout(timer);
+  }, [query, urlQuery, setFilters]);
+
+  /*
+   * Open already when the link arrived carrying filters.
+   *
+   * Somebody following a shared link would otherwise meet a short list with the
+   * reason folded away behind a button — the list is narrowed, and nothing they
+   * did narrowed it. The count on the button says how many, but not which.
+   */
+  const [showFilters, setShowFilters] = React.useState(
+    () => status !== ALL || priority !== ALL || assignee !== ALL || labelId !== ALL,
+  );
   const [createOpen, setCreateOpen] = React.useState(false);
 
   /** Whether anything is narrowing the list right now. */
@@ -312,11 +388,11 @@ export function TaskList({
     (labelId !== ALL ? 1 : 0);
 
   function resetFilters() {
-    setStatus(ALL);
-    setPriority(ALL);
-    setAssignee(ALL);
-    setLabelId(ALL);
+    // The box is cleared here as well as in the URL: it holds its own value
+    // while typing, so dropping the param alone would leave the old text on
+    // screen filtering nothing.
     setQuery("");
+    setFilters({ status: null, priority: null, assignee: null, label: null, q: null });
   }
 
   /** The detail panel is rendered by the page that owns this list. */
@@ -412,7 +488,7 @@ export function TaskList({
           ) : null}
         </Button>
 
-        <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+        <Select value={sort} onValueChange={(v) => setFilters({ sort: v === "manual" ? null : v })}>
           <SelectTrigger className="h-9 w-auto gap-2">
             <ArrowUpDown className="size-4" />
             <SelectValue />
@@ -448,7 +524,7 @@ export function TaskList({
 
       {showFilters ? (
         <div className="grid gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Select value={status} onValueChange={setStatus}>
+          <Select value={status} onValueChange={(v) => setFilters({ status: v === ALL ? null : v })}>
             <SelectTrigger>
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -462,7 +538,7 @@ export function TaskList({
             </SelectContent>
           </Select>
 
-          <Select value={priority} onValueChange={setPriority}>
+          <Select value={priority} onValueChange={(v) => setFilters({ priority: v === ALL ? null : v })}>
             <SelectTrigger>
               <SelectValue placeholder="Priority" />
             </SelectTrigger>
@@ -476,7 +552,7 @@ export function TaskList({
             </SelectContent>
           </Select>
 
-          <Select value={assignee} onValueChange={setAssignee}>
+          <Select value={assignee} onValueChange={(v) => setFilters({ assignee: v === ALL ? null : v })}>
             <SelectTrigger>
               <SelectValue placeholder="Assignee" />
             </SelectTrigger>
@@ -492,7 +568,7 @@ export function TaskList({
           </Select>
 
           <div className="flex gap-2">
-            <Select value={labelId} onValueChange={setLabelId}>
+            <Select value={labelId} onValueChange={(v) => setFilters({ label: v === ALL ? null : v })}>
               <SelectTrigger>
                 <SelectValue placeholder="Labels" />
               </SelectTrigger>
