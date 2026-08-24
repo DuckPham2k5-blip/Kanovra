@@ -142,6 +142,27 @@ access — hence `task:view` to create one. Renaming and sharing belong to the
 author whatever their role; deleting also to an admin, because tidying a shared
 list is housekeeping and rewriting somebody's filters under their name is not.
 
+**A recurring task makes its successor when it is completed.** Generating
+occurrences ahead needs a timer, and PM2 runs two workers — a `setInterval` in
+the app fires twice and creates everything twice, the same shape as the emitter
+this project already replaced. On-completion needs no scheduler, cannot
+double-fire, and keeps one occurrence open. The cost is named rather than hidden:
+a task nobody finishes never returns, and a skipped week does not pile up seven
+copies. It is a **new row**, not a rolled-forward due date, or completing it would
+erase the record that it was ever done. The rule **moves** to the new occurrence,
+which is what makes a second tick after a reopen harmless — the finished row has
+no rule left to fire — and is why the card's repeat mark never appears on a
+completed one. The next date counts from the previous **due date**, not the tick,
+so a Monday report stays on Mondays when finished on Wednesday, and it steps until
+it lands in the future: three weeks late gives one occurrence, not three. Month
+arithmetic is clamped to the end of the target month — 31 January plus a month is
+28 February, because `setUTCMonth` says 3 March and a monthly task would land on
+the 3rd for ever after. Both completion paths call it, since the checkbox and a
+status change are separate code and a rule firing from only one would repeat
+depending on which control was used. The spawner lives in `lib/` rather than the
+action file because a `"use server"` module may export nothing but server
+actions, and an exported task-creator there is callable from any browser.
+
 **Notifications say only *that* something changed.** The browser refetches
 through the normal data path. A pushed copy of the data can drift from the real
 thing, and when it does the bug is invisible until someone reloads.
@@ -620,8 +641,8 @@ zoom are one transform, not a scrollable box, which is what a fixed sheet
 could not do. Node size is chosen when a node is made, in either direction
 without limit, rather than derived from depth.
 
-**Known feature gaps** versus comparable products, in no particular order: recurring
-tasks, actual time tracking (`estimate` exists, actuals do not), project
+**Known feature gaps** versus comparable products, in no particular order:
+actual time tracking (`estimate` exists, actuals do not), project
 templates, keyboard shortcuts beyond ⌘K, CSV export, public read-only share
 links. *(Multi-select and bulk actions, undo on the map canvas, and undo for a
 task delete are all done — see the decisions above.)*

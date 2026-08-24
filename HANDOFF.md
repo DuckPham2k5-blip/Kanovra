@@ -24,13 +24,13 @@ proven, what has not, and what is open.
 |---|---|
 | `npm run lint` | clean |
 | `npm run typecheck` | clean |
-| `npm test` | **285 / 285** (240 at session start) |
+| `npm test` | **301 / 301** (240 at session start) |
 | `npm run build` | clean |
 
-Sixteen tests across four files need Postgres (`docker start kanovra-db`).
+Seventeen tests across five files need Postgres (`docker start kanovra-db`).
 No `DATABASE_URL` is a legitimate skip; configured-but-unreachable is a failure.
 
-**Seven migrations are waiting for the VPS**, and they must run at deploy **in this
+**Eight migrations are waiting for the VPS**, and they must run at deploy **in this
 order**:
 
 - `20260818041355_add_mind_map_comment_reads` — additive
@@ -46,6 +46,7 @@ order**:
   for the same reason: `migrate dev` regenerates the client, and the generator
   cannot take the engine DLL from a running dev server.
 - `20260824223000_add_saved_views` — additive, one new table.
+- `20260824225500_add_task_recurrence` — additive, one nullable column, no backfill.
 
 ---
 
@@ -76,6 +77,9 @@ The reasoning for each is in `CLAUDE.md`.
   the document rather than the row's `updatedAt` — rename, colour and background
   write that row without touching the drawing. On a conflict the canvas holds,
   says so, and offers both ways out. No migration.
+- **Recurring tasks.** Finishing one makes the next; the rule moves with it. No
+  scheduler, because PM2's two workers would run one twice. Nothing seen in a
+  browser.
 - **Filters in the URL, and saved views.** A narrowed list can be linked to,
   reloaded and shared; a set of filters can be named, kept private or shared with
   the workspace. Nothing of it has been seen in a browser.
@@ -240,7 +244,7 @@ told, and replied *"tạm gác lại điều đấy"* — parked, not refused.
    none of them: it is a fingerprint of the document precisely so that no column
    had to exist for it.
 
-**Remaining feature gaps** (from `CLAUDE.md`): recurring tasks, actual time tracking, project templates, keyboard shortcuts
+**Remaining feature gaps** (from `CLAUDE.md`): actual time tracking, project templates, keyboard shortcuts
 beyond ⌘K, CSV export, public read-only share links. *(Task dependencies are
 done — see below.)*
 
