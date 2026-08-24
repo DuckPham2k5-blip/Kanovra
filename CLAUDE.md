@@ -122,6 +122,26 @@ opposite things — and the owner read an empty "Waiting on" on the blocking tas
 and asked twice why the link was not there. A label that has to be explained is
 a label that is wrong.
 
+**A list's filters live in the URL, and a saved view is that query string.**
+They were component state, which made a narrowed list private and temporary — no
+link, no reload, no Back — while the detail panel had put `?task=` in the address
+bar all along. `replace` rather than `push`, or Back walks out of a search one
+letter at a time; the search box keeps its own value and debounces in, because
+writing the URL per keystroke re-renders the route thirty times a sentence. A
+default is absent from the URL rather than spelled out, and a value the URL
+cannot account for falls back to "all" instead of reaching a `Select` that then
+renders blank. A **saved view stores the query string**, not a column per filter:
+columns mean a migration per new filter and a view that silently loses whatever
+had no column yet. `viewQuery` copies keys by name from a fixed list — which is
+what keeps `?task=` out of a view the workspace shares, where it would reopen a
+stranger's panel on every use — and emits them in a fixed order, so the same
+filters are the same string however they were arrived at. **A view is not a
+permission boundary**: it narrows a list somebody could already see, the rows are
+still fetched under the usual checks, and sharing hands over a query string, not
+access — hence `task:view` to create one. Renaming and sharing belong to the
+author whatever their role; deleting also to an admin, because tidying a shared
+list is housekeeping and rewriting somebody's filters under their name is not.
+
 **Notifications say only *that* something changed.** The browser refetches
 through the normal data path. A pushed copy of the data can drift from the real
 thing, and when it does the bug is invisible until someone reloads.
@@ -600,8 +620,7 @@ zoom are one transform, not a scrollable box, which is what a fixed sheet
 could not do. Node size is chosen when a node is made, in either direction
 without limit, rather than derived from depth.
 
-**Known feature gaps** versus comparable products, in no particular order: saved
-and shareable filter views, recurring
+**Known feature gaps** versus comparable products, in no particular order: recurring
 tasks, actual time tracking (`estimate` exists, actuals do not), project
 templates, keyboard shortcuts beyond ⌘K, CSV export, public read-only share
 links. *(Multi-select and bulk actions, undo on the map canvas, and undo for a
