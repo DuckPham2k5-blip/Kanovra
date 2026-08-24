@@ -17,15 +17,20 @@ proven, what has not, and what is open.
 - Branch `main`, working tree clean
 - This session starts at `4728cc9` — `git log --oneline 4728cc9..HEAD` lists it
 - Check port 3000 before assuming the dev server is up or down
-- **All four checks are green on `fa08f46`**, the build included. It was run with
+- **Not built since `b5443b3`.** Lint, typecheck and 275 tests are green; the
+  build has not run since `fa08f46`.
+- **A fifteenth migration is waiting for the VPS**, additive:
+  `20260824101500_add_task_dependencies`. It goes after the fourteen already
+  listed and has no data-loss step.
+- **All four checks were green on `fa08f46`**, the build included. It was run with
   the port check in the same command, which is the only way this project runs it.
 
 | Check | Result |
 |---|---|
 | `npm run lint` | clean |
 | `npm run typecheck` | clean |
-| `npm test` | **256 / 256** (240 at session start) |
-| `npm run build` | clean |
+| `npm test` | **275 / 275** (240 at session start) |
+| `npm run build` | green at `fa08f46`, behind by the dependency work |
 
 Sixteen tests across four files need Postgres (`docker start kanovra-db`).
 No `DATABASE_URL` is a legitimate skip; configured-but-unreachable is a failure.
@@ -72,6 +77,10 @@ The reasoning for each is in `CLAUDE.md`.
   the document rather than the row's `updatedAt` — rename, colour and background
   write that row without touching the drawing. On a conflict the canvas holds,
   says so, and offers both ways out. No migration.
+- **Task dependencies.** One task waits on another; a loop is refused; the card
+  says "Waiting on N" and the panel holds both directions. Completing a blocked
+  task is allowed and reported rather than refused. Undo carries the edges both
+  ways. Reasoning in `CLAUDE.md`; **nothing of it seen in a browser**.
 - One bug in that, found and fixed the same day: a `Json` column rounds a
   17-significant-digit double, so fingerprinting the document the action *meant*
   to write made **every drag** conflict with a version that never existed. The
@@ -192,6 +201,10 @@ owner's own session — is not connected. Anything behind sign-in needs the owne
    `DropdownMenuItem` on the same reasoning and have not been pressed since.
 6. **Both buttons on the conflict banner.** The banner has been seen and "Keep
    mine" has been pressed; "Load the saved one" has not.
+7. **Every part of task dependencies.** The rules are covered by 17 unit tests and
+   the undo path by two against a real database, but the badge on a card, the
+   picker inside the sheet — a Radix popover inside a Radix dialog, which this
+   codebase has not done before — and the warning toast have never been drawn.
 
 Older, and unchanged by this session:
 
@@ -220,10 +233,10 @@ told, and replied *"tạm gác lại điều đấy"* — parked, not refused.
    the map version is a fingerprint of the document precisely so that no column
    had to be added for it.
 
-**Remaining feature gaps** (from `CLAUDE.md`): task dependencies (blocked by /
-blocks), saved and shareable filter views, recurring tasks, actual time tracking,
-project templates, keyboard shortcuts beyond ⌘K, CSV export, public read-only
-share links.
+**Remaining feature gaps** (from `CLAUDE.md`): saved and shareable filter views,
+recurring tasks, actual time tracking, project templates, keyboard shortcuts
+beyond ⌘K, CSV export, public read-only share links. *(Task dependencies are
+done — see below.)*
 
 **Only the owner can do these:** set `ANTHROPIC_API_KEY`; rename the app in the
 Clerk dashboard; apply `deploy/nginx.conf`; `git push`.

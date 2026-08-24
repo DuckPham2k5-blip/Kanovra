@@ -89,6 +89,28 @@ timer stops retrying against a shared rate limit, and the unmount flush stops
 while the close-the-tab warning stays — a conflict is when unsaved work is least
 safe. Omitting the version means no check, and that is what "keep mine" sends.
 
+**A dependency edge reads one way, and the field names are the direction.**
+`blockedTaskId` is waiting; `blockingTaskId` is what it waits on. Not "from" and
+"to": a dependency written backwards type-checks, saves and draws, and says the
+opposite of what somebody meant, so the tests name the relation in English before
+asserting it. A loop is refused where the last link is drawn — that is the only
+place the refusal can name what it is refusing — but the walk still carries its
+own `seen` set, because rows can arrive from an older build, a restore or
+somebody's SQL, and a walk that assumes no loops hangs the request that finds
+one. The check shares a transaction with the insert, which narrows the two-press
+race rather than closing it; serialising every dependency write on a shared board
+would cost more than the race does. Permission is asked of the **blocked** task
+only, or nobody could record that their own work waits on somebody else's.
+Completing a blocked task is **allowed and reported**, never refused: the way
+people get past a refusal is to delete the dependency, which destroys the record
+of why the order mattered. **Cancelled counts as out of the way**, like done — a
+cancelled blocker never finishes, so counting it blocks its dependents forever.
+That rule exists as a predicate and as a `notIn` list, defined one from the other
+with a test walking every status, because the two written separately drift into a
+badge that disagrees with the panel it opens. Undo carries the edges **both
+ways**: the direction that matters is the one nobody is looking at, where the
+deleted task was the blocker and the row vanishes from a neighbour's card.
+
 **Notifications say only *that* something changed.** The browser refetches
 through the normal data path. A pushed copy of the data can drift from the real
 thing, and when it does the bug is invisible until someone reloads.
@@ -567,8 +589,8 @@ zoom are one transform, not a scrollable box, which is what a fixed sheet
 could not do. Node size is chosen when a node is made, in either direction
 without limit, rather than derived from depth.
 
-**Known feature gaps** versus comparable products, in no particular order: task
-dependencies (blocked by / blocks), saved and shareable filter views, recurring
+**Known feature gaps** versus comparable products, in no particular order: saved
+and shareable filter views, recurring
 tasks, actual time tracking (`estimate` exists, actuals do not), project
 templates, keyboard shortcuts beyond ⌘K, CSV export, public read-only share
 links. *(Multi-select and bulk actions, undo on the map canvas, and undo for a
