@@ -17,14 +17,14 @@ proven, what has not, and what is open.
 - Branch `main`, working tree clean
 - This session starts at `4728cc9` — `git log --oneline 4728cc9..HEAD` lists it
 - Check port 3000 before assuming the dev server is up or down
-- **All four checks are green on `a63929d`**, the build included. It was run with
+- **All four checks are green on `99734e0`**, the build included. It was run with
   the port check in the same command, which is the only way this project runs it.
 
 | Check | Result |
 |---|---|
 | `npm run lint` | clean |
 | `npm run typecheck` | clean |
-| `npm test` | **275 / 275** (240 at session start) |
+| `npm test` | **285 / 285** (240 at session start) |
 | `npm run build` | clean |
 
 Sixteen tests across four files need Postgres (`docker start kanovra-db`).
