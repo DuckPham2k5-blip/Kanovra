@@ -295,6 +295,26 @@ stack.
   same reason as the per-node rule: one over-long list should cost its tail, not
   the document. Proven by running the real parser over all 104 real rows — one
   flagged, 53 empty ones still saveable — not by a fixture.
+- **A `Json` column does not round-trip a 17-significant-digit double.** Prisma
+  rounds to 16 on the way in: `1142.6673120666271` is stored as
+  `1142.667312066627`, and `0.1 + 0.2` goes in as `0.30000000000000004` and comes
+  back as `0.3`. Postgres is not at fault — it keeps the text it is given.
+  Harmless for a coordinate, and fatal to anything that compares a document to
+  itself across the column: the map version fingerprinted what the action *meant*
+  to write, so **dragging a node** made the next save conflict with a version that
+  never existed. Only a drag reaches it — typing, menus and a new node all write
+  short numbers. The write uses `select` and fingerprints what RETURNING gives
+  back, which is the conversion the next read will use.
+
+  Two lessons beyond the arithmetic. **The hand-written fixture was the problem**:
+  a round-trip test existed, was written before this was found, and passed the
+  whole time, because its coordinates were `240` and `60` — too tidy to contain
+  anything a real drag produces. Fixtures for a document format should be taken
+  from real rows. And **the bug was found by instrumenting the action to append a
+  line per save to a file**, then reading it: a conflict on somebody else's screen
+  cannot be watched, and three rounds of reading code found nothing. The log
+  showed the token the server promised and the token it later computed for its own
+  row differing by one character; dumping both documents showed the missing digit.
 - **Prisma's `notIn: []` matches everything**, the exact opposite of `in: []`.
   The comment cleanup on map save depends on it; getting it backwards either
   orphans every comment forever or deletes them all on the next save, and neither
