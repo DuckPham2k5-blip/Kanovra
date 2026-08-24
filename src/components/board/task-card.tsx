@@ -50,7 +50,7 @@ export function TaskCardContent({
 
           Not on a card that is finished or cancelled. It was shown there at
           first, on the reasoning that completing something still blocked is an
-          anomaly worth surfacing — but "Waiting on 1" beside a task that is done
+          anomaly worth surfacing — but "Blocked by 1" beside a task that is done
           is a false sentence, and a card is a summary that has to read true at a
           glance. The anomaly is still visible where it belongs: the warning at
           the moment of completing, and the panel, which lists every link whatever
@@ -63,7 +63,7 @@ export function TaskCardContent({
       {task.openBlockers > 0 && !blockerResolved(task.status) ? (
         <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
           <CircleSlash className="size-3" />
-          Waiting on {task.openBlockers}
+          Blocked by {task.openBlockers}
         </span>
       ) : null}
 

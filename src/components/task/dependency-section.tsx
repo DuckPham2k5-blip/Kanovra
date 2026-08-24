@@ -25,17 +25,17 @@ import {
 import type { DependencyLinkDTO } from "@/types";
 
 /**
- * What a task is waiting on, and what is waiting on it.
+ * What blocks this task, and what it blocks.
  *
  * Two lists rather than one, and never merged: they are opposite facts and a
  * single list of "related tasks" would leave people working out the direction
  * from the wording every time they read it.
  *
- * Only the *waiting on* side can be edited here. The other side is a view of
- * somebody else's card — the row that says "B is waiting on this" belongs to B,
+ * Only the *blocked by* side can be edited here. The other side is a view of
+ * somebody else's card — the row saying "B is waiting for this" belongs to B,
  * and B's own panel is where it is added and removed. Offering both here would
- * put the same fact in two places with two ways to change it, and the second
- * would eventually disagree with the first.
+ * put one fact in two places with two ways to change it, and the second would
+ * eventually disagree with the first.
  */
 export function DependencySection({
   taskId,
@@ -113,16 +113,26 @@ export function DependencySection({
 
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">
-          Waiting on ({blockedBy.length})
-          {open > 0 ? (
-            <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
-              <CircleSlash className="size-3" />
-              {open} still open
-            </span>
-          ) : null}
-        </h3>
+      <div className="flex items-start justify-between">
+        {/* "Blocked by" and "Blocking", not "Waiting on" and "Waiting on this".
+            The first pair was two headings differing by one trailing word while
+            meaning opposite things, and the first person to read it looked at a
+            task's empty "Waiting on" and asked why the link they had just made
+            was not there — twice. A label that has to be explained is a label
+            that is wrong, and the sub-line under each is there so it never has
+            to be explained again. */}
+        <div>
+          <h3 className="text-sm font-semibold">
+            Blocked by ({blockedBy.length})
+            {open > 0 ? (
+              <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                <CircleSlash className="size-3" />
+                {open} still open
+              </span>
+            ) : null}
+          </h3>
+          <p className="text-xs text-muted-foreground">These have to finish first.</p>
+        </div>
 
         {canEdit ? (
           <Popover open={picking} onOpenChange={setPicking}>
@@ -181,14 +191,17 @@ export function DependencySection({
           />
         ))}
         {blockedBy.length === 0 ? (
-          <li className="text-sm text-muted-foreground">Not waiting on anything.</li>
+          <li className="text-sm text-muted-foreground">Nothing is blocking this.</li>
         ) : null}
       </ul>
 
       {blocks.length > 0 ? (
         <div className="space-y-1 pt-1">
-          <h4 className="text-xs font-medium text-muted-foreground">
-            Waiting on this ({blocks.length})
+          <h4 className="text-xs font-medium">
+            Blocking ({blocks.length})
+            <span className="ml-2 font-normal text-muted-foreground">
+              These are waiting for this one. Edit them on their own card.
+            </span>
           </h4>
           <ul className="space-y-1">
             {blocks.map((link) => (
@@ -257,7 +270,7 @@ function DependencyRow({
           className="size-7 shrink-0"
           disabled={busy}
           onClick={onRemove}
-          aria-label={`Stop waiting on ${link.title}`}
+          aria-label={`No longer blocked by ${link.title}`}
         >
           <X className="size-3.5" />
         </Button>

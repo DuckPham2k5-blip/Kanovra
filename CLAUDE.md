@@ -115,7 +115,12 @@ first, on the reasoning that finishing something still blocked is an anomaly
 worth surfacing, and "Waiting on 1" beside a finished task is simply a false
 sentence. A card is a summary and has to read true at a glance; the anomaly is
 still said at the moment of completing, and the panel lists every link whatever
-state the task is in.
+state the task is in. The panel says **"Blocked by"** and **"Blocking"**, each
+with a line under it saying which way round it is. It first said "Waiting on" and
+"Waiting on this" — two headings differing by one trailing word while meaning
+opposite things — and the owner read an empty "Waiting on" on the blocking task
+and asked twice why the link was not there. A label that has to be explained is
+a label that is wrong.
 
 **Notifications say only *that* something changed.** The browser refetches
 through the normal data path. A pushed copy of the data can drift from the real
