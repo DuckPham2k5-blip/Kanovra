@@ -40,6 +40,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { PRIORITY_META, PRIORITY_ORDER, TASK_STATUS_META, TASK_STATUS_ORDER } from "@/lib/constants";
 import { fromNow } from "@/lib/date";
+import { describeRecurrence, parseRecurrence } from "@/lib/recurrence";
 import { cn } from "@/lib/utils";
 import {
   deleteTask,
@@ -51,6 +52,18 @@ import {
 import type { LabelDTO, MemberDTO, TaskDetailDTO } from "@/types";
 
 const UNASSIGNED = "__none__";
+const NO_REPEAT = "__never__";
+
+/**
+ * The repeats on offer.
+ *
+ * A fixed handful rather than a frequency and a number side by side. The rule
+ * format takes any interval and always will; what a picker is for is the answer
+ * somebody already has in mind, and "every 17 days" is not one of them. Anything
+ * stored outside this list still parses, still repeats and still shows its own
+ * description — the list narrows what can be *chosen*, not what can exist.
+ */
+const REPEAT_CHOICES = ["DAILY:1", "WEEKLY:1", "WEEKLY:2", "MONTHLY:1", "YEARLY:1"];
 
 /**
  * Task detail panel. Opened by putting `?task=<id>` in the URL, so it is
@@ -223,6 +236,7 @@ export function TaskDetailSheet({
                     toast.error(result.error);
                     return;
                   }
+                  if (result.data.repeated) toast.success("Next one created.");
                   if (result.data.stillWaiting > 0) {
                     toast.warning(
                       `Marked done, but it was still waiting on ${result.data.stillWaiting} unfinished ${
@@ -336,6 +350,38 @@ export function TaskDetailSheet({
                   />
                   <DueBadge date={task.dueDate} done={done} />
                 </div>
+              </PropertyRow>
+
+              {/* Under the due date, because that is what it repeats from —
+                  the next occurrence is counted from this date, not from the
+                  moment somebody ticks the box. */}
+              <PropertyRow label="Repeats">
+                <Select
+                  value={task.recurrence ?? NO_REPEAT}
+                  disabled={!canEdit}
+                  onValueChange={(value) =>
+                    void patch("recurrence", {
+                      recurrence: value === NO_REPEAT ? null : value,
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_REPEAT}>Does not repeat</SelectItem>
+                    {REPEAT_CHOICES.map((choice) => (
+                      <SelectItem key={choice} value={choice}>
+                        {describeRecurrence(parseRecurrence(choice)!)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {task.recurrence ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Finishing this makes the next one.
+                  </p>
+                ) : null}
               </PropertyRow>
 
               <PropertyRow label="Get started">

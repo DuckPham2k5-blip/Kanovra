@@ -9,6 +9,7 @@ import { ORDER_STEP, PRIORITY_META } from "@/lib/constants";
 import { logActivity, notify, notifyMany, taskLink, taskWatchers } from "@/lib/events";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { spawnNextOccurrence } from "@/lib/task-recurrence";
 import { RESOLVED_BLOCKER_STATUSES } from "@/lib/task-dependencies";
 import { restoreTasks, snapshotSchema, snapshotTasks } from "@/lib/task-snapshot";
 import { orderBetween } from "@/lib/utils";
@@ -213,6 +214,7 @@ async function applyTaskUpdate(user: Actor, ctx: TaskContext, data: TaskUpdateIn
         ...(data.startDate !== undefined ? { startDate: data.startDate ?? null } : {}),
         ...(data.dueDate !== undefined ? { dueDate: data.dueDate ?? null } : {}),
         ...(data.estimate !== undefined ? { estimate: data.estimate ?? null } : {}),
+        ...(data.recurrence !== undefined ? { recurrence: data.recurrence ?? null } : {}),
         ...(statusChanged ? { completedAt: nowDone ? new Date() : null } : {}),
       },
     });
@@ -226,6 +228,12 @@ async function applyTaskUpdate(user: Actor, ctx: TaskContext, data: TaskUpdateIn
       }
     }
   });
+
+  // Same rule, the other way in. A task moved to Done by the status dropdown or
+  // by a bulk edit repeats exactly as one ticked on the board does.
+  if (statusChanged && nowDone) {
+    await spawnNextOccurrence(before, new Date());
+  }
 
   const ref = `${ctx.project.key}-${before.number}`;
   const link = taskLink(ctx.workspace.slug, before.projectId, before.id);
@@ -446,7 +454,7 @@ export async function moveTask(input: unknown): Promise<ActionResult> {
  */
 export async function toggleTaskDone(
   taskId: string,
-): Promise<ActionResult<{ done: boolean; stillWaiting: number }>> {
+): Promise<ActionResult<{ done: boolean; stillWaiting: number; repeated: boolean }>> {
   return withErrorHandling(async () => {
     const user = await requireUser();
     const ctx = await getTaskContext(user.id, taskId);
@@ -462,14 +470,17 @@ export async function toggleTaskDone(
       select: { id: true },
     });
 
+    const completedAt = new Date();
     await prisma.task.update({
       where: { id: taskId },
       data: {
         status: nextStatus,
-        completedAt: done ? new Date() : null,
+        completedAt: done ? completedAt : null,
         ...(column ? { columnId: column.id } : {}),
       },
     });
+
+    const repeated = done ? await spawnNextOccurrence(ctx.task, completedAt) : null;
 
     await logActivity({
       workspaceId: ctx.workspace.id,
@@ -492,7 +503,7 @@ export async function toggleTaskDone(
       : 0;
 
     revalidateProject(ctx.workspace.slug, ctx.task.projectId);
-    return ok({ done, stillWaiting });
+    return ok({ done, stillWaiting, repeated: !!repeated });
   });
 }
 

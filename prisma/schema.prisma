@@ -318,6 +318,17 @@ model Task {
   completedAt DateTime?
   /// Estimate in hours.
   estimate    Float?
+  /// How often this task comes back, as `WEEKLY:2` — see `lib/recurrence.ts`.
+  ///
+  /// The rule sits on whichever occurrence is currently open and **moves** to
+  /// the next one when this is completed. That is what stops a second tick —
+  /// reopen a task, complete it again — from spawning a duplicate: the finished
+  /// row no longer carries a rule, so there is nothing left to fire.
+  ///
+  /// Text rather than a pair of columns: one value to read and write, legible in
+  /// a database client, and nothing but `parseRecurrence` ever reads it, so the
+  /// format never reaches a query.
+  recurrence  String?
   assigneeId  String?
   createdById String
   /// Non-null when this task is a subtask of another task.

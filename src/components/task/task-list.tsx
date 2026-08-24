@@ -419,6 +419,10 @@ export function TaskList({
       toast.error(result.error);
       return;
     }
+    // A repeating task has just made its successor, and the row for it appears
+    // on the next refresh with no other sign that anything happened.
+    if (result.data.repeated) toast.success("Next one created.");
+
     // Said, not refused. Finishing something that was still waiting is allowed —
     // see `toggleTaskDone` — and this is the only place the person finds out.
     if (result.data.stillWaiting > 0) {

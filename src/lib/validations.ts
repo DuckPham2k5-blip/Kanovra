@@ -1,6 +1,8 @@
 import { Priority, ProjectStatus, Role, TaskStatus } from "@prisma/client";
 import { z } from "zod";
 
+import { parseRecurrence } from "@/lib/recurrence";
+
 /**
  * Every server action validates its input with one of these schemas, so the
  * client and the server agree on the shape without duplicating rules.
@@ -110,6 +112,19 @@ export const taskUpdateSchema = z.object({
   dueDate: optionalDate,
   estimate: z.coerce.number().min(0).max(999).nullish(),
   labelIds: z.array(z.string().min(1)).optional(),
+  /**
+   * How often the task comes back, as `WEEKLY:2`, or null to stop repeating.
+   *
+   * Checked against the parser rather than accepted as text: the value is read
+   * back on every completion, and a rule nothing can read is a task that silently
+   * stops repeating — which looks like the feature failing rather than like a bad
+   * value being refused at the moment somebody set it.
+   */
+  recurrence: z
+    .string()
+    .max(32)
+    .refine((value) => parseRecurrence(value) !== null, "That is not a repeat rule")
+    .nullish(),
 });
 
 /**

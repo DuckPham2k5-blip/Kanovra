@@ -49,6 +49,7 @@ export function toTaskCardDTO(task: BoardTask): TaskCardDTO {
     attachmentCount: task._count.attachments,
     openBlockers: task.blockedBy.filter((edge) => !blockerResolved(edge.blockingTask.status))
       .length,
+    recurrence: task.recurrence,
   };
 }
 
@@ -87,6 +88,7 @@ export function toTaskDetailDTO(task: DetailTask): TaskDetailDTO {
     attachmentCount: task.attachments.length,
     openBlockers: task.blockedBy.filter((edge) => !blockerResolved(edge.blockingTask.status))
       .length,
+    recurrence: task.recurrence,
     blockedBy: task.blockedBy.map((edge) => ({
       id: edge.blockingTask.id,
       number: edge.blockingTask.number,

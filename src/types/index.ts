@@ -71,6 +71,8 @@ export type TaskCardDTO = {
    * `TaskDetailDTO`, where it is what somebody came to look at.
    */
   openBlockers: number;
+  /** `WEEKLY:2`, or null. Read through `parseRecurrence`, never by hand. */
+  recurrence: string | null;
 };
 
 export type TaskDetailDTO = TaskCardDTO & {

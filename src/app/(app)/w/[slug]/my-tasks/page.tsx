@@ -71,6 +71,7 @@ export default async function MyTasksPage({
     attachmentCount: 0,
     openBlockers: task.blockedBy.filter((edge) => !blockerResolved(edge.blockingTask.status))
       .length,
+    recurrence: task.recurrence,
     project: task.project,
   }));
 

@@ -2,13 +2,21 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CheckSquare, CircleSlash, GitBranch, MessageSquare, Paperclip } from "lucide-react";
+import {
+  CheckSquare,
+  CircleSlash,
+  GitBranch,
+  MessageSquare,
+  Paperclip,
+  Repeat,
+} from "lucide-react";
 import * as React from "react";
 
 import { DueBadge, LabelChip, PriorityBadge } from "@/components/shared/badges";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
+import { describeRecurrence, parseRecurrence } from "@/lib/recurrence";
 import { blockerResolved } from "@/lib/task-dependencies";
 import { cn, percent } from "@/lib/utils";
 import type { TaskCardDTO } from "@/types";
@@ -24,9 +32,17 @@ export function TaskCardContent({
   className?: string;
 }) {
   const done = task.status === "DONE";
+  // Only on the occurrence that carries the rule, which is the open one: the
+  // rule moves on completion, so a finished card is a finished piece of work and
+  // says nothing about repeating.
+  const repeat = parseRecurrence(task.recurrence);
   const checklistProgress = percent(task.checklistDone, task.checklistTotal);
   const hasMeta =
-    task.subtaskCount > 0 || task.commentCount > 0 || task.attachmentCount > 0 || task.dueDate;
+    task.subtaskCount > 0 ||
+    task.commentCount > 0 ||
+    task.attachmentCount > 0 ||
+    !!task.dueDate ||
+    !!task.recurrence;
 
   return (
     <div className={cn("tf-card tf-card-hover space-y-2.5 p-3", done && "opacity-75", className)}>
@@ -97,6 +113,11 @@ export function TaskCardContent({
             <span className="inline-flex items-center gap-1">
               <GitBranch className="size-3" />
               {task.subtaskCount}
+            </span>
+          ) : null}
+          {repeat ? (
+            <span className="inline-flex items-center gap-1" title={describeRecurrence(repeat)}>
+              <Repeat className="size-3" />
             </span>
           ) : null}
           {task.commentCount > 0 ? (
