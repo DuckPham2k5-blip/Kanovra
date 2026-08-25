@@ -88,11 +88,11 @@ describe.skipIf(!CONFIGURED)("spawnNextOccurrence", () => {
   it("carries the work over and leaves the record behind", async () => {
     const task = await seedWeekly(100, new Date("2026-03-02T00:00:00.000Z"));
 
-    const nextId = await spawnNextOccurrence(task, new Date("2026-03-04T00:00:00.000Z"));
-    expect(nextId).not.toBeNull();
+    const spawned = await spawnNextOccurrence(task, new Date("2026-03-04T00:00:00.000Z"));
+    expect(spawned).not.toBeNull();
 
     const next = await prisma.task.findUniqueOrThrow({
-      where: { id: nextId as string },
+      where: { id: spawned!.id },
       include: { labels: true, checklistItems: true, comments: true },
     });
 
@@ -129,8 +129,8 @@ describe.skipIf(!CONFIGURED)("spawnNextOccurrence", () => {
   it("moves the rule, so a second completion spawns nothing", async () => {
     const task = await seedWeekly(200, new Date("2026-03-02T00:00:00.000Z"));
 
-    const firstId = await spawnNextOccurrence(task, new Date("2026-03-04T00:00:00.000Z"));
-    expect(firstId).not.toBeNull();
+    const first = await spawnNextOccurrence(task, new Date("2026-03-04T00:00:00.000Z"));
+    expect(first).not.toBeNull();
 
     const cleared = await prisma.task.findUniqueOrThrow({ where: { id: task.id } });
     expect(cleared.recurrence).toBeNull();
@@ -138,7 +138,7 @@ describe.skipIf(!CONFIGURED)("spawnNextOccurrence", () => {
     const again = await spawnNextOccurrence(cleared, new Date("2026-03-05T00:00:00.000Z"));
     expect(again).toBeNull();
 
-    const next = await prisma.task.findUniqueOrThrow({ where: { id: firstId as string } });
+    const next = await prisma.task.findUniqueOrThrow({ where: { id: first!.id } });
     expect(next.recurrence).toBe("WEEKLY:1");
 
     await prisma.task.deleteMany({ where: { projectId } });
@@ -158,8 +158,11 @@ describe.skipIf(!CONFIGURED)("spawnNextOccurrence", () => {
   it("counts from the completion when there was no due date", async () => {
     const task = await seedWeekly(400, null);
 
-    const nextId = await spawnNextOccurrence(task, new Date("2026-03-04T00:00:00.000Z"));
-    const next = await prisma.task.findUniqueOrThrow({ where: { id: nextId as string } });
+    const spawned = await spawnNextOccurrence(task, new Date("2026-03-04T00:00:00.000Z"));
+    const next = await prisma.task.findUniqueOrThrow({ where: { id: spawned!.id } });
+
+    // The date handed back is the date that was written.
+    expect(spawned!.dueDate.toISOString()).toBe(next.dueDate?.toISOString());
 
     expect(next.dueDate?.toISOString().slice(0, 10)).toBe("2026-03-11");
 

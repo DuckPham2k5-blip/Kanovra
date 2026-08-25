@@ -39,7 +39,7 @@ import {
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { PRIORITY_META, PRIORITY_ORDER, TASK_STATUS_META, TASK_STATUS_ORDER } from "@/lib/constants";
-import { fromNow } from "@/lib/date";
+import { formatDate, fromNow } from "@/lib/date";
 import { describeRecurrence, parseRecurrence } from "@/lib/recurrence";
 import { cn } from "@/lib/utils";
 import {
@@ -236,7 +236,11 @@ export function TaskDetailSheet({
                     toast.error(result.error);
                     return;
                   }
-                  if (result.data.repeated) toast.success("Next one created.");
+                  if (result.data.repeatedDue) {
+                    toast.success(
+                      `Next one created — due ${formatDate(result.data.repeatedDue)}`,
+                    );
+                  }
                   if (result.data.stillWaiting > 0) {
                     toast.warning(
                       `Marked done, but it was still waiting on ${result.data.stillWaiting} unfinished ${

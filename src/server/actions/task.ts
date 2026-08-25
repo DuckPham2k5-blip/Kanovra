@@ -454,7 +454,7 @@ export async function moveTask(input: unknown): Promise<ActionResult> {
  */
 export async function toggleTaskDone(
   taskId: string,
-): Promise<ActionResult<{ done: boolean; stillWaiting: number; repeated: boolean }>> {
+): Promise<ActionResult<{ done: boolean; stillWaiting: number; repeatedDue: string | null }>> {
   return withErrorHandling(async () => {
     const user = await requireUser();
     const ctx = await getTaskContext(user.id, taskId);
@@ -503,7 +503,7 @@ export async function toggleTaskDone(
       : 0;
 
     revalidateProject(ctx.workspace.slug, ctx.task.projectId);
-    return ok({ done, stillWaiting, repeated: !!repeated });
+    return ok({ done, stillWaiting, repeatedDue: repeated?.dueDate.toISOString() ?? null });
   });
 }
 

@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PRIORITY_META, PRIORITY_ORDER, TASK_STATUS_META, TASK_STATUS_ORDER } from "@/lib/constants";
+import { formatDate } from "@/lib/date";
 import { deaccent, cn } from "@/lib/utils";
 import { deleteTask, restoreDeletedTasks, toggleTaskDone } from "@/server/actions/task";
 import type { LabelDTO, MemberDTO, TaskCardDTO } from "@/types";
@@ -421,7 +422,9 @@ export function TaskList({
     }
     // A repeating task has just made its successor, and the row for it appears
     // on the next refresh with no other sign that anything happened.
-    if (result.data.repeated) toast.success("Next one created.");
+    if (result.data.repeatedDue) {
+      toast.success(`Next one created — due ${formatDate(result.data.repeatedDue)}`);
+    }
 
     // Said, not refused. Finishing something that was still waiting is allowed —
     // see `toggleTaskDone` — and this is the only place the person finds out.

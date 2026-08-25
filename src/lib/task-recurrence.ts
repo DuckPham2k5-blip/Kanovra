@@ -23,7 +23,12 @@ import { nextDueDate, parseRecurrence } from "@/lib/recurrence";
  * just ended — its comments, its attachments and its dependencies, all of which
  * are a record of one time it was done.
  *
- * Answers with the new task's id, or null when there was no rule.
+ * Answers with the new task's id and due date, or null when there was no rule.
+ *
+ * The date travels back so the toast can name it. "Next one created" alone was
+ * true and useless: every occurrence carries the same title, so the new row is
+ * indistinguishable from the one just finished, and four ticks in a row read as
+ * one task being ticked four times.
  */
 export async function spawnNextOccurrence(
   task: {
@@ -42,7 +47,7 @@ export async function spawnNextOccurrence(
     order: number;
   },
   completedAt: Date,
-): Promise<string | null> {
+): Promise<{ id: string; dueDate: Date } | null> {
   const rule = parseRecurrence(task.recurrence);
   if (!rule) return null;
 
@@ -117,7 +122,7 @@ export async function spawnNextOccurrence(
     return next.id;
   });
 
-  return created;
+  return { id: created, dueDate };
 }
 
 
