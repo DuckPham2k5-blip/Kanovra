@@ -198,11 +198,41 @@ export function TaskList({
    */
   const urlQuery = searchParams.get("q") ?? "";
   const [query, setQuery] = React.useState(urlQuery);
-  React.useEffect(() => setQuery(urlQuery), [urlQuery]);
+
+  /*
+   * What this box last put into the URL.
+   *
+   * Without it the sync below cannot tell the URL changing *because of somebody
+   * else* — a pasted link, Back, a saved view — from the URL catching up with
+   * what this box wrote 300ms ago. It adopted both, so every keystroke typed
+   * during that gap was overwritten by the older value and silently lost.
+   *
+   * It showed up first on Vietnamese input, and not by chance: a diacritic is a
+   * second keypress on a letter already typed, so the gap is crossed on almost
+   * every word.
+   */
+  const pushed = React.useRef(urlQuery);
 
   React.useEffect(() => {
-    if (query === urlQuery) return;
-    const timer = setTimeout(() => setFilters({ q: query.trim() ? query : null }), 300);
+    if (urlQuery === pushed.current) return; // our own echo, already on screen
+    pushed.current = urlQuery;
+    setQuery(urlQuery);
+  }, [urlQuery]);
+
+  /*
+   * `composing` is the other half. An input method builds a character over
+   * several keypresses — `o` then `j` becomes `ọ` — and writing to the URL in
+   * the middle of that both stores half a letter and re-renders the route under
+   * a composition that has not finished.
+   */
+  const composing = React.useRef(false);
+
+  React.useEffect(() => {
+    if (query === urlQuery || composing.current) return;
+    const timer = setTimeout(() => {
+      pushed.current = query.trim() ? query : "";
+      setFilters({ q: query.trim() ? query : null });
+    }, 300);
     return () => clearTimeout(timer);
   }, [query, urlQuery, setFilters]);
 
@@ -489,6 +519,17 @@ export function TaskList({
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            // The composition events are why a Vietnamese word survives being
+            // typed. `onCompositionEnd` fires *after* React's change for the
+            // finished character, so the value is read off the element rather
+            // than trusted to have arrived in state already.
+            onCompositionStart={() => {
+              composing.current = true;
+            }}
+            onCompositionEnd={(e) => {
+              composing.current = false;
+              setQuery(e.currentTarget.value);
+            }}
             placeholder="Search tasks…"
             className="pl-8"
           />
