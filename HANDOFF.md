@@ -178,6 +178,24 @@ Added this session:
 - **The conflict banner itself**, wording included: it appeared on the owner's
   screen, and its first wording accused a teammate in a workspace with one
   member, which is how that got fixed.
+- **Everything on the 2026-08-25 test list, all five parts.** Recurring tasks
+  (the rule moves, the date counts from the previous due date); filters in the
+  URL; saved views including the `?task=` guard, proven by reading the stored
+  query; task dependencies (hidden finished links, the card chip, the warning
+  toast, the loop refusal offering exactly the eight legal candidates); and the
+  map — **all three rows of a node's `…` menu and all seven of a wheel's**, plus
+  Split, Add a branch, Remove with Ctrl+Z, and pan.
+
+  The map menus matter most. They had been confirmed by one canary row only, and
+  this codebase has had four separate dead-menu incidents on that canvas. There
+  are now two node colours in the database — `#ca8a04` and `#22d3ee` — which is
+  the same evidence that exposed the last one.
+
+  Two bugs came out of the owner using it, neither reachable by any test: the
+  repeat toast did not name the new due date, so four ticks read as one task
+  ticked four times; and the search box lost characters while the URL caught up,
+  which surfaced on Vietnamese input because a diacritic is a second keypress on
+  a letter already typed.
 - **The dependency panel**, with real links in both directions. Two rounds of
   wording came out of that look: "Waiting on" / "Waiting on this" differed by one
   trailing word while meaning opposite things and had to be explained twice, so
@@ -207,15 +225,11 @@ owner's own session — is not connected. Anything behind sign-in needs the owne
    written by somebody else, and the workspace has one member.
 4. **The map's drifting lights actually moving**, whether each background moves
    in its *own* way, and whether a **linked picture** paints as a background.
-5. **The menu rows after the workaround was unwound.** The owner confirmed the
-   canary row ("Add a comment") firing; the other six went back to
-   `DropdownMenuItem` on the same reasoning and have not been pressed since.
-6. **Both buttons on the conflict banner.** The banner has been seen and "Keep
+5. **Both buttons on the conflict banner.** The banner has been seen and "Keep
    mine" has been pressed; "Load the saved one" has not.
-7. **Most of task dependencies.** Seen by the owner: the panel drawing both
-   directions with real rows, and the labels. Still unpressed: the **Add**
-   picker, the card chip, the warning toast on completing a blocked task, and
-   the loop refusal.
+6. **Sharing a saved view.** Saving, applying and deleting are proven; the
+   `shared` switch has never been turned on, so that branch and the globe icon
+   beside a shared view are undrawn.
 
 Older, and unchanged by this session:
 
