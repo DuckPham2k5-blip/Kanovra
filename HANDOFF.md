@@ -78,15 +78,15 @@ The reasoning for each is in `CLAUDE.md`.
   write that row without touching the drawing. On a conflict the canvas holds,
   says so, and offers both ways out. No migration.
 - **Recurring tasks.** Finishing one makes the next; the rule moves with it. No
-  scheduler, because PM2's two workers would run one twice. Nothing seen in a
-  browser.
+  scheduler, because PM2's two workers would run one twice. Driven by the owner
+  through four cycles.
 - **Filters in the URL, and saved views.** A narrowed list can be linked to,
   reloaded and shared; a set of filters can be named, kept private or shared with
-  the workspace. Nothing of it has been seen in a browser.
+  the workspace. Driven by the owner, sharing aside.
 - **Task dependencies.** One task waits on another; a loop is refused; the card
   says "Waiting on N" and the panel holds both directions. Completing a blocked
   task is allowed and reported rather than refused. Undo carries the edges both
-  ways. Reasoning in `CLAUDE.md`; **nothing of it seen in a browser**.
+  ways. Reasoning in `CLAUDE.md`; driven by the owner end to end.
 - One bug in that, found and fixed the same day: a `Json` column rounds a
   17-significant-digit double, so fingerprinting the document the action *meant*
   to write made **every drag** conflict with a version that never existed. The
