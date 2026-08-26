@@ -1173,7 +1173,11 @@ production build to get there — see the pass below. They move, and **each
 background moves in its own way**: proven by the two furthest apart rather than by
 clicking through all 27, since Sunburst is the only `orbit` — a closed loop at
 constant size and brightness — and Honeycomb is `pulse`, which barely travels and
-swings opacity from 0.35 to 0.95. That leaves the linked picture.
+swings opacity from 0.35 to 0.95. **A linked picture paints**, tested with an
+address that redirects once — which is the half of `remote-image.ts` worth
+testing, since it declines `redirect: "follow"` and walks the hops by hand so a
+public host cannot bounce the server inward. Nothing on this line is outstanding
+any more.
 
 ---
 
@@ -1233,10 +1237,11 @@ to `ssh vps 'bash -s' < deploy/inspect.sh`, where bash meets `$'\r'` on line one
 not assumed; it is why the local runner passes `-e` values it has stripped itself.
 
 **What the owner then saw.** The production build ran on their own machine against
-the real database, they **signed in**, the map's **drifting lights move**, and
-**each background carries its own motion** — two of the six long-unverified items
-fell in one sitting, and both needed a production build to see. `/api/health`
-answered `database: up` for 29 minutes with a clean log and a green healthcheck.
+the real database, they **signed in**, the map's **drifting lights move**, **each
+background carries its own motion**, and **a linked picture paints** — three of
+the six long-unverified items fell in one sitting, and all three needed a
+production build to see. `/api/health` answered `database: up` for 29 minutes with
+a clean log and a green healthcheck.
 
 The second was settled by choosing the right pair rather than by clicking through
 27 backgrounds: Sunburst is the only `orbit` and Honeycomb is a `pulse`, so one
@@ -1246,9 +1251,8 @@ swings from 0.35 to 0.95 opacity. Two clicks, and no ambiguity in the answer.
 **Still unverified:** the `migrate` compose service run through compose itself (it
 points at the real dev database and could recreate the running Postgres container,
 so the command was proven on the builder image against a scratch database
-instead); a linked picture painting; circle map segment outlines; the conflict
-banner's second button; and sharing a saved view. And everything about an actual
-VPS — there still is not one.
+instead); circle map segment outlines; the conflict banner's second button; and
+sharing a saved view. And everything about an actual VPS — there still is not one.
 
 ---
 
