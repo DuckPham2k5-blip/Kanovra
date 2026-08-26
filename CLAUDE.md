@@ -1169,8 +1169,11 @@ backgrounds, and the flow map's absence. **Not verified:** the drifting lights
 actually moving, and whether a linked picture paints.
 
 **The drifting lights were confirmed on 2026-08-26**, by the owner, and it took a
-production build to get there — see the pass below. They move. That leaves the
-linked picture, and whether each background moves in its *own* way.
+production build to get there — see the pass below. They move, and **each
+background moves in its own way**: proven by the two furthest apart rather than by
+clicking through all 27, since Sunburst is the only `orbit` — a closed loop at
+constant size and brightness — and Honeycomb is `pulse`, which barely travels and
+swings opacity from 0.35 to 0.95. That leaves the linked picture.
 
 ---
 
@@ -1230,17 +1233,22 @@ to `ssh vps 'bash -s' < deploy/inspect.sh`, where bash meets `$'\r'` on line one
 not assumed; it is why the local runner passes `-e` values it has stripped itself.
 
 **What the owner then saw.** The production build ran on their own machine against
-the real database, they **signed in**, and the map's **drifting lights move** —
-the first of the six long-unverified items to fall, and it needed a production
-build to see. `/api/health` answered `database: up` for 29 minutes with a clean
-log and a green healthcheck.
+the real database, they **signed in**, the map's **drifting lights move**, and
+**each background carries its own motion** — two of the six long-unverified items
+fell in one sitting, and both needed a production build to see. `/api/health`
+answered `database: up` for 29 minutes with a clean log and a green healthcheck.
+
+The second was settled by choosing the right pair rather than by clicking through
+27 backgrounds: Sunburst is the only `orbit` and Honeycomb is a `pulse`, so one
+travels a closed loop at constant brightness while the other barely moves and
+swings from 0.35 to 0.95 opacity. Two clicks, and no ambiguity in the answer.
 
 **Still unverified:** the `migrate` compose service run through compose itself (it
 points at the real dev database and could recreate the running Postgres container,
 so the command was proven on the builder image against a scratch database
-instead); a linked picture painting; whether each background moves in its own way;
-circle map segment outlines; the conflict banner's second button; and sharing a
-saved view. And everything about an actual VPS — there still is not one.
+instead); a linked picture painting; circle map segment outlines; the conflict
+banner's second button; and sharing a saved view. And everything about an actual
+VPS — there still is not one.
 
 ---
 
