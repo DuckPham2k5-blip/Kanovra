@@ -1,0 +1,13 @@
+# Git for Windows đặt core.autocrlf=true ở cấp system, nên mọi file văn bản
+# trong bản làm việc trên máy này là CRLF trong khi blob trong repo là LF.
+#
+# Với hầu hết file thì không sao. Với script chạy trên Linux thì có: bash gặp
+# CR ở cuối dòng sẽ báo `$'\r': command not found` và chết ngay dòng đầu. Ép
+# eol=lf để bản làm việc cũng là LF — thứ bị hại không phải bản checkout trên
+# VPS (Linux vốn đã lấy LF), mà là khi copy hoặc pipe file từ máy Windows này
+# sang server, ví dụ `ssh vps 'bash -s' < deploy/inspect.sh`.
+*.sh text eol=lf
+
+# Nginx tự nó đọc được CRLF — đã thử — nhưng file này cũng hay được copy thẳng
+# sang máy Linux, và không có lý do gì để nó khác với script bên cạnh.
+deploy/nginx.conf text eol=lf
