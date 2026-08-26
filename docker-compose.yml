@@ -51,6 +51,29 @@ services:
     ports:
       - "3000:3000"
 
+  # Migration, chạy một lần rồi thôi:
+  #   docker compose --profile migrate run --rm migrate
+  #
+  # Nó dựng từ stage `builder` chứ không phải image runner, vì runner cố tình
+  # không mang theo Prisma CLI — xem chú thích trong Dockerfile. Stage builder
+  # dùng chung mọi layer với service `app` nên không phải build lại từ đầu.
+  migrate:
+    profiles: ["migrate"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+      args:
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://taskforge:taskforge@postgres:5432/taskforge?schema=public
+      DIRECT_URL: postgresql://taskforge:taskforge@postgres:5432/taskforge?schema=public
+    command: ["npx", "prisma", "migrate", "deploy"]
+
 volumes:
   # Kept as taskforge-pgdata on purpose — renaming it would point Postgres at
   # a fresh empty volume and orphan the existing database.

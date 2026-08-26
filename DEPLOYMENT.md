@@ -274,8 +274,15 @@ cp .env.example .env
 nano .env
 
 docker compose --profile app up -d --build
-docker compose exec app npx prisma migrate deploy
+docker compose --profile migrate run --rm migrate
 ```
+
+Migration **không** chạy được bằng `docker compose exec app npx prisma migrate
+deploy`, dù trước đây tài liệu này ghi như vậy. Image runner cố tình không mang
+Prisma CLI: nó không có `node_modules/.bin` nên npx trả `sh: prisma: not found`,
+và gọi thẳng CLI thì chết ở `Cannot find module 'effect'`. Service `migrate`
+dựng từ stage `builder`, nơi `node_modules` còn nguyên vẹn, và dùng chung layer
+với service `app` nên không tốn thêm lần build nào.
 
 Ứng dụng chạy ở `http://localhost:3000`. Vẫn nên đặt Nginx phía trước để lo TLS — dùng cùng file `deploy/nginx.conf`.
 
