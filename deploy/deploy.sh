@@ -26,27 +26,45 @@ PREVIOUS_SHA="$(git rev-parse HEAD)"
 log "Bản hiện tại: $PREVIOUS_SHA"
 
 # --- 1. Fetch -----------------------------------------------------------------
+# Hỏi trước khi kéo. `git fetch` vào một repo rỗng báo lỗi khó hiểu, mà repo
+# rỗng là đúng tình trạng của origin lúc script này được viết ra — mã nguồn
+# chưa từng được đẩy lên đâu cả.
+if ! git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+  die "origin không có nhánh '$BRANCH'.
+    Có thể là repo còn rỗng (chưa push lần nào), hoặc origin trỏ sai chỗ,
+    hoặc máy này không có quyền đọc nó. Kiểm tra bằng:
+      git -C $APP_DIR remote -v
+      git -C $APP_DIR ls-remote --heads origin"
+fi
+
 log "Kéo mã mới từ origin/$BRANCH"
 git fetch --prune origin "$BRANCH"
 git reset --hard "origin/$BRANCH"
 
 # --- 2. Dependencies ----------------------------------------------------------
+# Một lần cài duy nhất, đủ cả devDependencies vì `next build` cần chúng.
+#
+# Trước đây chỗ này có thêm một lần `npm ci --omit=dev --ignore-scripts` đứng
+# trước, rồi `npx prisma generate`, rồi mới tới `npm ci` đầy đủ ở bước build.
+# Toàn bộ phần đó là công toi: `npm ci` XOÁ SẠCH node_modules trước khi cài (đã
+# kiểm bằng cách để lại một file đánh dấu trong node_modules rồi chạy `npm ci`
+# và thấy nó biến mất), nên cả cây phụ thuộc vừa cài lẫn prisma client vừa sinh
+# ra đều bị lần cài sau xoá đi. Trên một VPS nhỏ đó là nguyên một lần tải và
+# biên dịch phụ thuộc bị vứt.
+#
+# postinstall trong package.json chạy `prisma generate`, nên client có sẵn ngay
+# sau bước này — bước migration bên dưới không cần thêm gì.
 log "Cài dependencies"
-npm ci --omit=dev --ignore-scripts
-# The postinstall hook was skipped above; run the client generation explicitly
-# so it uses the schema we just pulled.
-npx prisma generate
+npm ci
 
 # --- 3. Migrations ------------------------------------------------------------
 log "Áp dụng migration"
 npx prisma migrate deploy
 
 # --- 4. Build -----------------------------------------------------------------
-# devDependencies are needed to compile, so install the full tree, build, then
-# prune back down.
 log "Build ứng dụng"
-npm ci
 npm run build
+# Cắt devDependencies đi sau khi đã biên dịch xong.
 npm prune --omit=dev
 
 # The standalone bundle does not include static assets or public/.
