@@ -154,6 +154,17 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 ```
 
+`nginx -t` lúc này **sẽ báo lỗi** `no "ssl_certificate" is defined for the
+"listen ... ssl" directive`, và đúng như vậy: hai dòng chứng chỉ vẫn đang bị chú
+thích, certbot ở bước dưới mới điền. Chạy lại `nginx -t` sau khi có chứng chỉ.
+
+Config dùng `listen 443 ssl http2` chứ không dùng `http2 on;`. Chỉ thị `http2 on;`
+chỉ có từ nginx 1.25.1, mà Ubuntu 22.04 phát hành nginx 1.18 và 24.04 phát hành
+1.24 — trên cả hai, `nginx -t` **hỏng hẳn** với `unknown directive` và config
+không bao giờ được nạp. Dạng đang dùng đã chạy thử trên 1.18, 1.24 và 1.31: qua
+cả ba, bản mới nhất chỉ cảnh báo deprecated, và HTTP/2 vẫn được thương lượng thật
+trên 1.24. Xem phiên bản trên máy mình bằng `nginx -v`.
+
 Cấp chứng chỉ Let's Encrypt:
 
 ```bash
@@ -192,6 +203,53 @@ cd /var/www/kanovra
 ```
 
 Script sẽ: kéo mã mới → cài dependencies → chạy migration → build → reload PM2 không gián đoạn → kiểm tra health, và **tự rollback** về commit trước nếu health check thất bại.
+
+### 1.11. Migration có xoá dữ liệu — đọc trước mỗi lần deploy
+
+`deploy.sh` chạy `prisma migrate deploy`, thứ áp dụng mọi migration còn thiếu theo
+đúng thứ tự thư mục, không hỏi gì. Hầu hết chỉ thêm bảng hoặc thêm cột. Nhưng
+`20260821143000_remove_flow_map` **xoá dữ liệu**: nó `DELETE` mọi bản ghi
+`mind_maps` kiểu `FLOW`, rồi dựng lại enum `MindMapType` không còn `FLOW`.
+
+Câu `DELETE` phải nằm **bên trong** migration đó. Postgres không bỏ được một nhãn
+enum tại chỗ, nên Prisma dựng type mới và ép kiểu cột sang — phép ép đó thất bại
+chừng nào còn một hàng giữ giá trị cũ. Dọn tay trước thì chạy được ở máy dev và
+hỏng trên VPS, nơi không ai dọn cả.
+
+Cái giá của nó, đo bằng một lần diễn tập trên Postgres thật (không phải suy luận):
+gieo một map cho mỗi kiểu, hai map `FLOW`, hai comment trên một map `FLOW` và một
+comment trên map `TREE`; sau khi áp tám migration còn thiếu, hai map `FLOW` biến
+mất, **hai comment của chúng biến mất theo** qua `ON DELETE CASCADE`, còn năm kiểu
+kia và comment trên map `TREE` nguyên vẹn. Enum còn đúng năm nhãn.
+
+Nên trước khi deploy, đếm xem mình sắp mất gì:
+
+```bash
+sudo -u postgres psql kanovra -c 'SELECT type, count(*) FROM mind_maps GROUP BY type ORDER BY 1;'
+sudo -u postgres psql kanovra -c "SELECT count(*) FROM mind_map_comments c JOIN mind_maps m ON m.id = c.\"mapId\" WHERE m.type = 'FLOW';"
+```
+
+và sao lưu **ngay trước** khi chạy, chứ không dựa vào bản cron đêm qua:
+
+```bash
+sudo -u postgres pg_dump kanovra | gzip > /var/backups/kanovra/pre-deploy-$(date +%F-%H%M).sql.gz
+```
+
+Lý do phải sao lưu: phần rollback của `deploy.sh` chỉ đưa **mã nguồn** về commit
+cũ. Nó không, và không thể, đảo ngược một migration. Nếu health check hỏng sau
+khi migration đã chạy, mã quay về bản cũ còn các hàng `FLOW` thì đã mất hẳn.
+
+Hai đường đi đều đã được diễn tập, và cả hai đều kết thúc ở đúng schema mà mã
+nguồn kỳ vọng — `prisma migrate diff --from-schema-datamodel prisma/schema.prisma
+--to-url <db> --exit-code` báo `No difference detected`, thoát 0:
+
+| Trạng thái database | Kết quả |
+| --- | --- |
+| Đang ở tám migration cũ, có sẵn dữ liệu `FLOW` | tám migration còn lại áp sạch |
+| Rỗng hoàn toàn (VPS chưa từng deploy) | cả mười sáu migration áp sạch |
+
+Đừng dùng `prisma migrate dev` trên VPS. Khi có cảnh báo mất dữ liệu, nó đòi xác
+nhận và sẽ từ chối chạy trong phiên không tương tác — `migrate deploy` thì không.
 
 ---
 
@@ -313,6 +371,8 @@ gunzip -c /var/backups/kanovra/kanovra-2026-08-07.sql.gz | sudo -u postgres psql
 | Tên/ảnh user không cập nhật | Webhook Clerk sai URL hoặc sai `CLERK_WEBHOOK_SECRET` |
 | CSS lệch sau khi deploy | Quên copy `.next/static` vào `.next/standalone/.next/static` |
 | `PrismaClientInitializationError` | Chưa chạy `npx prisma generate` sau khi đổi schema |
+| `nginx -t`: `unknown directive "http2"` | nginx cũ hơn 1.25.1 gặp `http2 on;`. Config trong repo đã dùng dạng `listen ... ssl http2` chạy được từ 1.18 — kiểm tra xem file trên máy có bị sửa lại không |
+| `429` khi thao tác nhanh trên bảng | Đúng thiết kế: Nginx chặn ghi ở mức 10r/s (burst 30) mỗi IP, ứng dụng chặn thêm mỗi người dùng. GET không bị chặn |
 
 ### Checklist trước khi go-live
 
@@ -320,6 +380,9 @@ gunzip -c /var/backups/kanovra/kanovra-2026-08-07.sql.gz | sudo -u postgres psql
 - [ ] `NEXT_PUBLIC_APP_URL` trỏ đúng domain HTTPS
 - [ ] Webhook Clerk đã được cấu hình và đã nhận sự kiện thử
 - [ ] Chứng chỉ TLS hợp lệ, HTTP tự chuyển sang HTTPS
+- [ ] `nginx -t` sạch **sau khi** certbot đã điền chứng chỉ
+- [ ] Đã đếm số map `FLOW` và sao lưu database ngay trước lần deploy có migration
+      xoá dữ liệu (mục 1.11)
 - [ ] `ufw` đang bật, PostgreSQL không lộ ra Internet
 - [ ] Cron sao lưu database đã chạy ít nhất một lần
 - [ ] `pm2 save` và `pm2 startup` đã chạy, thử `reboot` một lần
