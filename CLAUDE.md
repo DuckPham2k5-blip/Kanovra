@@ -1168,6 +1168,80 @@ owner, in the browser — the node palette button, the appearance panel, the
 backgrounds, and the flow map's absence. **Not verified:** the drifting lights
 actually moving, and whether a linked picture paints.
 
+**The drifting lights were confirmed on 2026-08-26**, by the owner, and it took a
+production build to get there — see the pass below. They move. That leaves the
+linked picture, and whether each background moves in its *own* way.
+
+---
+
+## Built after the tenth pass (2026-08-26) — the deploy road
+
+No feature work. Eight commits, all of them about the gap between what exists and
+what could actually be shipped, and every one of them found a bug that had been
+sitting there for weeks because **nobody had ever run the thing**.
+
+**The Docker path had never built, and never could have.**
+`COPY --from=builder /app/public ./public` is unconditional and `public/` does not
+exist in this project — not on disk, not in git. BuildKit does not skip a
+`COPY --from` whose source is missing; it stops the build with `"/app/public": not
+found`, verified on a throwaway two-stage Dockerfile before the fix. The fix is
+`RUN mkdir -p /app/public` in the builder rather than a `public/.gitkeep` in the
+repo: the fault is a COPY demanding something Next treats as optional.
+
+**And it had never migrated.** The Dockerfile said the three prisma copies were
+there so `npx prisma migrate deploy` could run in the container. It cannot: the
+image has no `node_modules/.bin`, so npx answers `sh: prisma: not found`, and
+calling the CLI directly dies on `Cannot find module 'effect'` — a dependency of
+`@prisma/config` outside the three copied directories. Making the CLI work means
+copying most of `node_modules`, and that list changes with every Prisma upgrade.
+Migrations run from the **builder** stage instead, where `node_modules` is whole:
+the `migrate` service in `docker-compose.yml`. `node_modules/prisma` came out of
+the runner altogether — 66.9 MB that could not run. The image went 610 → 514 MB
+and was re-run to prove the runtime never depended on it.
+
+**`npm ci` wipes `node_modules` before installing**, so `deploy.sh` installing
+once with `--omit=dev` and again in full threw the first install away entirely —
+a whole dependency download binned, on a VPS that pays for it. Proved by leaving a
+marker file in `node_modules` and watching it vanish. One install now.
+
+**`git fetch` into an empty origin is an unreadable error**, and an empty origin is
+exactly what this project has. `deploy.sh` asks `git ls-remote --heads` first and
+stops with a sentence. Both branches rehearsed against a real bare repo.
+
+**Three read-only scripts, none of which print a secret.** `deploy/inspect.sh`
+inventories a VPS in one round trip — rehearsed on a fake VPS built for it, and it
+was the rehearsal that found `$SUDO -u postgres` collapsing to a command named
+`-u`, and a `… | grep | sed || fallback` whose fallback can never run because a
+pipeline's status is its last command's. `deploy/check-env.sh` reads a `.env` and
+answers with reasons taken from source lines, not guesses; run against this
+machine's own `.env` it found `CLERK_WEBHOOK_SECRET` still holding the
+`whsec_xxxx…` placeholder, so the Clerk webhook has never once run here — hidden
+all along because `auth.ts` upserts the user on first request.
+`deploy/run-prod-local.sh` runs the production image against the dev database in
+one short command.
+
+**`core.autocrlf=true` is set system-wide by Git for Windows**, so every working
+copy here is CRLF while the blobs are LF. Harmless for a Linux checkout and fatal
+to `ssh vps 'bash -s' < deploy/inspect.sh`, where bash meets `$'\r'` on line one.
+`.gitattributes` pins `*.sh` and `nginx.conf` to LF.
+
+**`docker run --env-file` does not strip quotes.** `QUOTED="hello"` arrives as
+`"hello"`, quotes included, and this project's `.env` quotes every line. Tested,
+not assumed; it is why the local runner passes `-e` values it has stripped itself.
+
+**What the owner then saw.** The production build ran on their own machine against
+the real database, they **signed in**, and the map's **drifting lights move** —
+the first of the six long-unverified items to fall, and it needed a production
+build to see. `/api/health` answered `database: up` for 29 minutes with a clean
+log and a green healthcheck.
+
+**Still unverified:** the `migrate` compose service run through compose itself (it
+points at the real dev database and could recreate the running Postgres container,
+so the command was proven on the builder image against a scratch database
+instead); a linked picture painting; whether each background moves in its own way;
+circle map segment outlines; the conflict banner's second button; and sharing a
+saved view. And everything about an actual VPS — there still is not one.
+
 ---
 
 ## Working style the owner expects
