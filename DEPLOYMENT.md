@@ -112,6 +112,20 @@ Khoá quyền đọc file này:
 chmod 600 .env
 ```
 
+Rồi soát lại trước khi đi tiếp:
+
+```bash
+bash deploy/check-env.sh .env
+```
+
+Script chỉ đọc, không bao giờ in giá trị — chỉ in tên biến, độ dài, và những thứ
+suy ra được từ tiền tố (khoá Clerk là bản `test` hay bản `live`). Nó bắt đúng
+những lỗi mà bảng "khắc phục sự cố" cuối tài liệu này liệt kê, nhưng bắt *trước*
+khi deploy thay vì sau: `DIRECT_URL` thiếu hoặc trùng một URL đi qua pooler,
+`http://` trên domain thật, hai khoá Clerk khác loại nhau, `CLERK_WEBHOOK_SECRET`
+còn là giá trị mẫu, `UPLOAD_DIR` là đường dẫn tương đối. Thoát 1 nếu thiếu thứ
+bắt buộc, nên dùng được trong pipeline.
+
 ### 1.6. Deploy lần đầu
 
 ```bash
@@ -361,6 +375,23 @@ Khôi phục:
 gunzip -c /var/backups/kanovra/kanovra-2026-08-07.sql.gz | sudo -u postgres psql kanovra
 ```
 
+### Kiểm kê máy chủ
+
+Trước khi đoán bất cứ điều gì về VPS, hỏi nó. Chạy từ **máy của bạn**, không cần
+đưa file lên trước:
+
+```bash
+ssh root@<ip-vps> 'bash -s' < deploy/inspect.sh > vps-report.txt 2>&1
+```
+
+Chỉ đọc: không cài, không sửa, không restart, và `nginx -t` chỉ nạp thử config
+chứ không áp dụng. Nó trả về phiên bản nginx, config Kanovra đã cài chưa và dùng
+dạng `http2` nào, cổng đang nghe, commit hiện tại của mã nguồn, PM2 của cả user
+hiện tại lẫn user `deploy`, `/api/health`, **`_prisma_migrations` đang dừng ở
+migration nào**, số map `FLOW` sắp bị migration xoá, chứng chỉ TLS và bản sao
+lưu. Phần `.env` chỉ in tên biến và độ dài, không bao giờ in giá trị — bản báo
+cáo không chứa bí mật nào.
+
 ### Khắc phục sự cố
 
 | Triệu chứng | Nguyên nhân thường gặp |
@@ -376,6 +407,7 @@ gunzip -c /var/backups/kanovra/kanovra-2026-08-07.sql.gz | sudo -u postgres psql
 
 ### Checklist trước khi go-live
 
+- [ ] `bash deploy/check-env.sh /var/www/kanovra/.env` sạch lỗi
 - [ ] Dùng **production** keys của Clerk (`pk_live_`, `sk_live_`)
 - [ ] `NEXT_PUBLIC_APP_URL` trỏ đúng domain HTTPS
 - [ ] Webhook Clerk đã được cấu hình và đã nhận sự kiện thử
