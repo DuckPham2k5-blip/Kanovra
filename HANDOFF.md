@@ -247,20 +247,44 @@ snapshot lives on the server for 24 hours, but the only route in is the toast, s
 a reload loses it. That was deliberate for "undo what I just did". The owner was
 told, and replied *"tạm gác lại điều đấy"* — parked, not refused.
 
-**Next, in order:**
+**Nothing is half-finished.** The tree is clean, every check is green on the
+commit named in section 1, and each feature below was built, tested and driven by
+the owner before the next one started. A new session can begin anywhere.
 
-1. Owner stops dev; run the port check and `npm run build` in one command. Three
-   commits have landed since the last green build.
-2. Owner presses the six menu rows that were not the canary, and pans the map —
-   the press path was touched and only the drag has been exercised since.
-3. Six migrations are waiting for the VPS. One of them is **destructive** — see
-   section 1 for the order and the rule. The map version guard deliberately added
-   none of them: it is a fingerprint of the document precisely so that no column
-   had to exist for it.
+**Next, in the order the owner and I agreed:**
 
-**Remaining feature gaps** (from `CLAUDE.md`): actual time tracking, project templates, keyboard shortcuts
-beyond ⌘K, CSV export, public read-only share links. *(Task dependencies are
-done — see below.)*
+1. **Deploy.** Eight migrations are waiting for the VPS — section 1 has the order
+   and the one destructive rule. `deploy/nginx.conf` is still unapplied, and
+   without it SSE connections are cut every 60 seconds and the write rate limit
+   is not enforced at the edge. This is the largest gap between what exists and
+   what is running anywhere: thirty-two commits, none of them deployed.
+2. **GitHub**, which the owner has kept paused all along. Section 2. Do not touch
+   the remote unless they lift it.
+3. **The next feature**, if they want one. The list is below, smallest first.
+
+**Remaining feature gaps** (from `CLAUDE.md`), roughly by size:
+
+- **CSV export** — the smallest, and easier than it was: the filters now live in
+  the URL, so "export what I am looking at" is already expressible.
+- **Keyboard shortcuts beyond ⌘K.**
+- **Project templates.**
+- **Actual time tracking** — `estimate` exists, actuals do not.
+- **Public read-only share links** — the largest, and the only one with a real
+  security surface: it means serving workspace content to somebody with no
+  session at all.
+
+**Technical debt that is not a feature**, and the honest one to name first:
+
+- **Two people on one map still overwrite each other.** The version guard built
+  this session makes the loss *audible* — a save based on a stale version is
+  refused and the person is offered both ways out — but it does not merge. The
+  real fix is per-node saving, and it is a different piece of work.
+- **Orphaned map comments are hidden, not swept.** Deliberate: the sweep was safe
+  when saving was a deliberate press and is not safe on a 1.2s timer. Currently
+  zero orphans, so nothing is accumulating yet.
+- **Undo for a task delete has no bin.** The snapshot lives 24 hours but the only
+  route in is the toast, so a reload loses it. The owner was told and replied
+  *"tạm gác lại điều đấy"* — parked, not refused.
 
 **Only the owner can do these:** set `ANTHROPIC_API_KEY`; rename the app in the
 Clerk dashboard; apply `deploy/nginx.conf`; `git push`.
@@ -344,6 +368,38 @@ not a library's own trigger.
   and use `git commit -F`. The same applies to writing source files through
   heredocs — hit again this session when an escape was mangled.
 - Never run the dev server through a tool. The owner runs it in their terminal.
+
+### Two bugs no test could have caught (2026-08-25)
+
+Both were found by the owner using the thing, minutes after every check was
+green, and neither is the kind of mistake a test suite is shaped to notice.
+
+**An effect that syncs from a source it also writes to has to know who wrote.**
+The search box pushed its value into the URL after 300ms and a second effect
+copied the URL back into the box. It could not tell the URL moving *because
+somebody pasted a link* from the URL echoing what the box itself had just
+written, so it adopted both — and everything typed during that gap was
+overwritten by the older value. It surfaced on Vietnamese input and not by
+chance: a diacritic is a second keypress on a letter already typed, so almost
+every word crosses the gap. The fix is one ref remembering what was pushed.
+
+**A message that is true can still be useless.** Completing a recurring task
+said "Next one created." Every occurrence carries the title of the one before
+it, so the new row is indistinguishable from the one just finished — and four
+completions in a row read as one task being ticked four times, reported as "why
+does the number keep going up". It names the new due date now, which is the only
+thing that tells them apart.
+
+### A baseline is not a baseline until you know when it was taken (2026-08-25)
+
+Asked to verify the first recurring task, I read the table, saw the numbers I
+expected *before* the test, and reported that nothing had happened. The owner had
+run it eight hours earlier: what I called "the state before" was already the
+state after. The `activities` table said so in one line and I had not looked.
+
+The rule already in this section — ask what a fact *is* before concluding from
+it — extends to *when* it is. A snapshot with no timestamp beside it proves
+nothing about order.
 
 ### A fixture too tidy to contain the bug (2026-08-24)
 
