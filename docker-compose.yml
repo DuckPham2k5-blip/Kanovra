@@ -7,8 +7,27 @@ services:
       POSTGRES_USER: taskforge
       POSTGRES_PASSWORD: taskforge
       POSTGRES_DB: taskforge
+    # 127.0.0.1 chứ không phải 0.0.0.0.
+    #
+    # Dạng "5432:5432" mở cổng ra MỌI giao diện mạng, nên bất kỳ máy nào cùng
+    # WiFi cũng nối được vào database dev bằng taskforge/taskforge và đọc hay xoá
+    # tuỳ ý. Không ai cần điều đó: chỉ npm run dev trên chính máy này, và các
+    # container khác — vốn đi qua mạng nội bộ của Docker chứ không qua cổng đã
+    # publish, nên chúng không bị ảnh hưởng.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
+    # Ghi lại ai nối vào và nối lúc nào.
+    #
+    # Mặc định log_connections tắt, và hậu quả là một migration lạ được áp vào
+    # database này lúc 11:27 ngày 2026-09-03 mà không để lại một dòng nào để lần
+    # ra người chạy nó. Bật ở đây thay vì ALTER SYSTEM để nó nằm trong file, đọc
+    # được, và sống sót qua mọi lần dựng lại container.
+    command:
+      - "postgres"
+      - "-c"
+      - "log_connections=on"
+      - "-c"
+      - "log_disconnections=on"
     volumes:
       - taskforge-pgdata:/var/lib/postgresql/data
     healthcheck:
