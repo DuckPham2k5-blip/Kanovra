@@ -189,6 +189,25 @@ depending on which control was used. The spawner lives in `lib/` rather than the
 action file because a `"use server"` module may export nothing but server
 actions, and an exported task-creator there is callable from any browser.
 
+**Every route sits behind a loading boundary, and page speed is a standing
+requirement.** There was no `loading.tsx` anywhere, which is not a cosmetic gap:
+without one a route has no Suspense boundary, so Next holds the *old* page on
+screen until the new one is completely rendered. The sidebar link highlights and
+then nothing happens. One file at `w/[slug]/loading.tsx` covers all nine
+workspace routes — nine bespoke skeletons would each be a second copy of a page's
+layout and would drift the first time that page changed, and a skeleton that no
+longer resembles what it precedes is worse than a plain one, because the content
+visibly jumps when it lands.
+
+**Measure before optimising, and know which number you are holding.** A page
+felt slow, and the terminal said why: `GET /w/…/projects 200 in 12719ms` on the
+first visit, then `328ms`, then `279ms` — `next dev` compiling 4,650 modules on
+demand, not the application. Dev also disables `<Link>` prefetching, which
+production does automatically, so navigation in dev is slower than anything a
+user will ever see. Anyone asked to make the app faster should read the compile
+lines first: a first-hit figure and a steady-state figure are different
+measurements, and improving the wrong one is work nobody will feel.
+
 **Notifications say only *that* something changed.** The browser refetches
 through the normal data path. A pushed copy of the data can drift from the real
 thing, and when it does the bug is invisible until someone reloads.
@@ -1325,3 +1344,11 @@ bugs in this project were found only because a check was run instead of
 reasoned about, and several wrong diagnoses were shipped when it was not.
 
 Say plainly what was not verified and why.
+
+**Speed is a standing requirement, not a task that was done once.** The owner
+asked for the whole application to load faster and for that to hold through
+every later change. So: a new route gets a loading boundary or is covered by
+one; a new client component is weighed for what it adds to the bundle — the
+lucide import once put 503 kB into the shell for 22 icons; and anything that
+feels slow gets *measured* before it gets optimised, because the last time it
+was measured the answer was the dev compiler rather than the app.
