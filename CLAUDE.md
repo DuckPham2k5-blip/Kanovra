@@ -168,6 +168,31 @@ turned to mojibake. An absent value is an empty cell and never the em dash the
 screen draws — on screen `—` means "nothing here", in a column it is a value that
 sorts, defeats a filter on blanks and breaks a sum.
 
+**A project template copies the board and the labels, and nothing else.** A
+project also carries a colour, an icon, a banner and dates, and none of those
+belong in a preset: they are what makes one project distinguishable from eleven
+others in a sidebar. **Labels are upserted by name, never created**, because
+`Label` is keyed `@@unique([workspaceId, name])` — creating them outright works
+once and then fails on the second project built from the same template, at the
+end of a create that has already written the project. `update: {}` on that upsert
+is deliberate: an existing label keeps the name and colour the workspace gave it.
+**Every template must have a `DONE` column**, asserted by a test rather than left
+as a convention, because completing a task moves its card to the column whose
+status matches and a board without one sends the card nowhere — a failure that
+surfaces days later, on somebody else's board, as a card that vanished. Starter
+tasks take their numbers in **one** atomic increment rather than one per task, so
+a five-task template cannot interleave with somebody creating a task by hand and
+leave two rows claiming `WEB-3`; they find their column by **status**, so
+reordering a template's columns cannot silently move them. The picker appears
+only when creating — offering it on an edit would imply a preset can restructure
+a board people are already working on.
+
+Verified against the real database rather than by the absence of an error: two
+projects built from Bug tracker gave six columns each with the right statuses and
+WIP limits, and the three labels exist **once**, all three stamped with the second
+of the *first* project's creation. The second project created none and adopted
+them, which is the upsert doing its job.
+
 **A recurring task makes its successor when it is completed.** Generating
 occurrences ahead needs a timer, and PM2 runs two workers — a `setInterval` in
 the app fires twice and creates everything twice, the same shape as the emitter
