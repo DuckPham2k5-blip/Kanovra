@@ -262,6 +262,34 @@ different program and this one is only exercised in development. **`npm run
 build` is untouched** — it still compiles with webpack, so nothing about the
 production bundle moved, and no deploy inherits this decision.
 
+**Time spent is two timestamps, and there is no `minutes` column.** `estimate` is
+what somebody guessed before starting and stays untouched, because a task running
+to three times its estimate is exactly the record worth keeping. A duration is
+`endedAt - startedAt`, computed where it is read: a stored copy beside the
+interval it describes is two sources of truth that drift the first time a row is
+edited or a clock is corrected, silently, because nothing recomputes it. **A
+running timer is a row with `endedAt` null** — nothing ticks on the server, so
+there is nothing for PM2's two workers to fire twice. Starting **stops** whatever
+else that person had running, in one transaction, rather than refusing: somebody
+who left a timer on yesterday's task wants it closed, and an entry left running
+for days poisons a total far worse than an early stop does. Permission is
+narrower than the role matrix — writing needs `task:update`, but you may stop or
+delete **only your own** entries, because a timesheet is a statement about one
+person's day and an admin quietly rewriting somebody's hours is a different
+feature with different consequences. Starting is deliberately **not** logged to
+the activity feed: `logActivity` is what publishes to every open browser, and
+broadcasting it would both flood the feed and tell a team what hours each of them
+keeps. A negative interval is clamped to zero, because a backwards row does not
+merely misreport itself — it subtracts from everybody else's time in the same sum.
+
+Verified by reading the rows after the owner drove it: a 30-second timer on one
+task ends at `09:50:55` and the timer on the next starts at `09:50:55`, the same
+second, which is the transaction stopping one and starting the other from a
+single clock — two separate writes would have differed. A manual entry of 90
+minutes stored exactly `01:30:00`, ending at the moment it was logged. The task
+with a 1-hour estimate and `01:30:30` logged is the over-run case; the task with
+no estimate draws no bar at all.
+
 **Notifications say only *that* something changed.** The browser refetches
 through the normal data path. A pushed copy of the data can drift from the real
 thing, and when it does the bug is invisible until someone reloads.
@@ -740,11 +768,12 @@ zoom are one transform, not a scrollable box, which is what a fixed sheet
 could not do. Node size is chosen when a node is made, in either direction
 without limit, rather than derived from depth.
 
-**Known feature gaps** versus comparable products, in no particular order:
-actual time tracking (`estimate` exists, actuals do not), project
-templates, keyboard shortcuts beyond ⌘K, public read-only share
-links. *(Multi-select and bulk actions, undo on the map canvas, undo for a
-task delete and CSV export are all done — see the decisions above.)*
+**Known feature gaps** versus comparable products: public read-only share links,
+and that is the whole list. It is also the one with a real security surface — it
+means serving workspace content to somebody with no session at all. *(Multi-select
+and bulk actions, undo on the map canvas, undo for a task delete, CSV export,
+keyboard shortcuts, project templates and time tracking are all done — see the
+decisions above.)*
 
 ---
 
