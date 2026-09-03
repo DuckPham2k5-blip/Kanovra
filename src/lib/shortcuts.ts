@@ -58,7 +58,10 @@ export type Shortcut = {
  * a feature only its author has.
  */
 export const SHORTCUTS: Shortcut[] = [
-  { id: "palette", keys: ["⌘", "K"], label: "Search everything", group: "General" },
+  // `Ctrl`, not `⌘`. The handler answers both, but the top bar's own chip has
+  // always printed `Ctrl K`, and a help sheet that disagrees with the control
+  // beside it is worse than one that names only the commoner key.
+  { id: "palette", keys: ["Ctrl", "K"], label: "Search everything", group: "General" },
   { id: "help", keys: ["?"], label: "Keyboard shortcuts", group: "General" },
 
   { id: "go-overview", keys: ["G", "O"], label: "Overview", group: "Go to", path: "" },
@@ -95,9 +98,9 @@ const SEQUENCES = new Map<string, ShortcutId>(
  */
 export const FOREIGN_SHORTCUTS: { keys: string[]; label: string; group: string }[] = [
   { keys: ["Ctrl", "Z"], label: "Undo", group: "Mind map" },
-  { keys: ["Ctrl", "⇧", "Z"], label: "Redo", group: "Mind map" },
+  { keys: ["Ctrl", "Shift", "Z"], label: "Redo", group: "Mind map" },
   { keys: ["Ctrl", "click"], label: "Add a row to the selection", group: "Task list" },
-  { keys: ["⇧", "click"], label: "Select a range of rows", group: "Task list" },
+  { keys: ["Shift", "click"], label: "Select a range of rows", group: "Task list" },
   { keys: ["Esc"], label: "Close the panel or dialog", group: "General" },
 ];
 
