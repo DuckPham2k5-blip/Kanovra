@@ -31,10 +31,36 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { PROJECT_STATUS_META } from "@/lib/constants";
 import { projectCreateSchema } from "@/lib/validations";
+import {
+  BLANK_TEMPLATE_ID,
+  PROJECT_TEMPLATES,
+  templateById,
+  type ProjectTemplate,
+} from "@/lib/project-templates";
 import { createProject, updateProject } from "@/server/actions/project";
 
 const formSchema = projectCreateSchema.omit({ workspaceId: true });
 type FormValues = z.infer<typeof formSchema>;
+
+/**
+ * The line under the picker: what this preset will actually create.
+ *
+ * Counts rather than a list, because the list is the board itself and somebody
+ * about to press Create wants to know the size of what they are agreeing to —
+ * "5 columns, 4 labels, 3 tasks" is checkable a minute later, and a prose
+ * description alone is not. Zero counts are dropped, or the blank template
+ * reads "0 labels · 0 tasks", which is noise dressed as information.
+ */
+function templateSummary(template: ProjectTemplate): string {
+  const parts = [
+    `${template.columns.length} columns`,
+    template.labels.length ? `${template.labels.length} labels` : null,
+    template.tasks.length
+      ? `${template.tasks.length} ${template.tasks.length === 1 ? "task" : "tasks"}`
+      : null,
+  ].filter(Boolean);
+  return `${template.description} · ${parts.join(" · ")}`;
+}
 
 export type ProjectDialogDefaults = {
   id: string;
@@ -76,6 +102,7 @@ export function ProjectDialog({
       status: ProjectStatus.ACTIVE,
       startDate: null,
       dueDate: null,
+      templateId: BLANK_TEMPLATE_ID,
     },
   });
 
@@ -91,12 +118,14 @@ export function ProjectDialog({
       status: project?.status ?? ProjectStatus.ACTIVE,
       startDate: project?.startDate ? new Date(project.startDate) : null,
       dueDate: project?.dueDate ? new Date(project.dueDate) : null,
+      templateId: BLANK_TEMPLATE_ID,
     });
   }, [open, project, form]);
 
   const color = form.watch("color");
   const icon = form.watch("icon");
   const status = form.watch("status");
+  const templateId = form.watch("templateId");
 
   async function onSubmit(values: FormValues) {
     setPending(true);
@@ -169,6 +198,33 @@ export function ProjectDialog({
             <Label htmlFor="p-desc">Description</Label>
             <Textarea id="p-desc" rows={3} placeholder="What problem does this project solve?" {...form.register("description")} />
           </div>
+
+          {/* Creation only. A template fills a board that does not exist yet;
+              offering it on an edit would imply it can restructure a board
+              people are already working on, which it deliberately cannot. */}
+          {!isEdit ? (
+            <div className="space-y-2">
+              <Label>Start from</Label>
+              <Select
+                value={templateId ?? BLANK_TEMPLATE_ID}
+                onValueChange={(v) => form.setValue("templateId", v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROJECT_TEMPLATES.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {templateSummary(templateById(templateId))}
+              </p>
+            </div>
+          ) : null}
 
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">

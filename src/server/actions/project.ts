@@ -17,10 +17,97 @@ import {
 } from "@/lib/project-banners";
 import { verifyRemoteImage } from "@/lib/remote-image";
 import { deleteAttachment, saveAttachment } from "@/lib/storage";
-import { DEFAULT_COLUMNS, ORDER_STEP } from "@/lib/constants";
+import { ORDER_STEP } from "@/lib/constants";
+import {
+  columnIndexForStatus,
+  templateById,
+  type ProjectTemplate,
+} from "@/lib/project-templates";
 import { projectKeyFromName } from "@/lib/utils";
 import { projectCreateSchema, projectUpdateSchema } from "@/lib/validations";
 import { fail, NOT_FOUND, ok, parse, withErrorHandling, type ActionResult } from "@/server/action-result";
+
+/**
+ * Writes a template's labels and starter tasks into a project that already
+ * exists.
+ *
+ * Not exported: a `"use server"` module may export nothing but server actions,
+ * and an exported task-creator here would be callable from any browser — the
+ * same reason the recurrence spawner lives in `lib/`.
+ */
+async function applyTemplateContent(
+  template: ProjectTemplate,
+  projectId: string,
+  workspaceId: string,
+  createdById: string,
+  columns: { id: string }[],
+) {
+  /*
+   * Labels belong to the workspace, keyed `@@unique([workspaceId, name])`, so
+   * the second project built from a template meets labels the first one made.
+   * `update: {}` is deliberate: an existing label keeps the name and colour the
+   * workspace gave it, because somebody's own choice outranks a preset's.
+   */
+  const labelIds = new Map<string, string>();
+  for (const label of template.labels) {
+    const row = await prisma.label.upsert({
+      where: { workspaceId_name: { workspaceId, name: label.name } },
+      update: {},
+      create: { workspaceId, name: label.name, color: label.color },
+      select: { id: true, name: true },
+    });
+    labelIds.set(row.name, row.id);
+  }
+
+  if (template.tasks.length === 0) return;
+
+  /*
+   * One increment for the whole block, not one per task.
+   *
+   * `nextTaskNumber` in the task action increments per call, which is right when
+   * a person creates one task. Here the count is known, and taking the numbers
+   * in a single atomic step means a template of five tasks cannot interleave
+   * with somebody creating a task by hand at the same moment and end up with two
+   * rows claiming `WEB-3`.
+   */
+  const { taskCounter } = await prisma.project.update({
+    where: { id: projectId },
+    data: { taskCounter: { increment: template.tasks.length } },
+    select: { taskCounter: true },
+  });
+  const firstNumber = taskCounter - template.tasks.length + 1;
+
+  for (const [i, task] of template.tasks.entries()) {
+    // The columns were created from `template.columns` in order and are read
+    // back ordered by `order`, so the two lists line up index for index.
+    const column = columns[columnIndexForStatus(template, task.status)];
+    // Deduplicated: `TaskLabel` is keyed `@@id([taskId, labelId])`, so the same
+    // label named twice on one task would fail the whole create on a primary
+    // key violation. A test forbids it in the presets; this makes it impossible
+    // rather than merely forbidden.
+    const names = [...new Set(task.labels ?? [])];
+
+    await prisma.task.create({
+      data: {
+        projectId,
+        columnId: column?.id ?? null,
+        number: firstNumber + i,
+        title: task.title,
+        description: task.description ?? null,
+        status: task.status,
+        priority: task.priority,
+        order: (i + 1) * ORDER_STEP,
+        createdById,
+        labels: {
+          create: names
+            .map((name) => labelIds.get(name))
+            .filter((id): id is string => Boolean(id))
+            .map((labelId) => ({ labelId })),
+        },
+      },
+    });
+  }
+}
 
 /** Ensures the project key is unique inside the workspace (`WEB`, `WEB2`, …). */
 async function uniqueKey(workspaceId: string, base: string) {
@@ -52,6 +139,7 @@ export async function createProject(input: unknown): Promise<ActionResult<{ id: 
     });
 
     const key = await uniqueKey(data.workspaceId, data.key || projectKeyFromName(data.name));
+    const template = templateById(data.templateId);
 
     const project = await prisma.project.create({
       data: {
@@ -67,10 +155,13 @@ export async function createProject(input: unknown): Promise<ActionResult<{ id: 
         createdById: user.id,
         members: { create: { userId: user.id, role: Role.OWNER } },
         columns: {
-          create: DEFAULT_COLUMNS.map((c, i) => ({ ...c, order: (i + 1) * ORDER_STEP })),
+          create: template.columns.map((c, i) => ({ ...c, order: (i + 1) * ORDER_STEP })),
         },
       },
+      include: { columns: { orderBy: { order: "asc" } } },
     });
+
+    await applyTemplateContent(template, project.id, data.workspaceId, user.id, project.columns);
 
     await Promise.all([
       logActivity({

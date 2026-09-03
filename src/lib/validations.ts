@@ -57,6 +57,14 @@ export const projectCreateSchema = z.object({
   status: z.nativeEnum(ProjectStatus).default(ProjectStatus.ACTIVE),
   startDate: optionalDate,
   dueDate: optionalDate,
+  /**
+   * Which preset to pre-fill the board with.
+   *
+   * A plain string rather than an enum of the ids: an unknown value falls back
+   * to the blank template in `templateById`, and refusing the whole create over
+   * a stale id would throw away everything else somebody had typed.
+   */
+  templateId: z.string().trim().max(40).optional(),
 });
 
 export const projectUpdateSchema = projectCreateSchema
