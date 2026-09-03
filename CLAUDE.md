@@ -1168,8 +1168,8 @@ owner, in the browser — the node palette button, the appearance panel, the
 backgrounds, and the flow map's absence. **Not verified:** the drifting lights
 actually moving, and whether a linked picture paints.
 
-**The drifting lights were confirmed on 2026-08-26**, by the owner, and it took a
-production build to get there — see the pass below. They move, and **each
+**The drifting lights were confirmed on 2026-08-26**, by the owner driving a
+production build of the app — see the pass below. They move, and **each
 background moves in its own way**: proven by the two furthest apart rather than by
 clicking through all 27, since Sunburst is the only `orbit` — a closed loop at
 constant size and brightness — and Honeycomb is `pulse`, which barely travels and
@@ -1238,10 +1238,18 @@ not assumed; it is why the local runner passes `-e` values it has stripped itsel
 
 **What the owner then saw.** The production build ran on their own machine against
 the real database, they **signed in**, the map's **drifting lights move**, **each
-background carries its own motion**, and **a linked picture paints** — three of
-the six long-unverified items fell in one sitting, and all three needed a
-production build to see. `/api/health` answered `database: up` for 29 minutes with
-a clean log and a green healthcheck.
+background carries its own motion**, **a linked picture paints**, and a circle
+map's **segment outlines read as two shapes** where a branch meets its own child.
+Four of the six long-unverified items fell in one sitting — not because a
+production build was required to show any of them, but because it was the first
+time anything had been running with a real session in front of it.
+`/api/health` answered `database: up` for 29 minutes with a clean log and a green
+healthcheck, and the container then stayed up for eight days.
+
+The circle map was chosen by asking the database rather than by opening maps until
+one fit: of the eight circle maps, `thjk` has six of its nine nodes at depth two or
+more, so it certainly contains the case the outline exists for. A wheel of 49
+siblings was picked the same way as the second, denser shape.
 
 The second was settled by choosing the right pair rather than by clicking through
 27 backgrounds: Sunburst is the only `orbit` and Honeycomb is a `pulse`, so one
@@ -1251,8 +1259,8 @@ swings from 0.35 to 0.95 opacity. Two clicks, and no ambiguity in the answer.
 **Still unverified:** the `migrate` compose service run through compose itself (it
 points at the real dev database and could recreate the running Postgres container,
 so the command was proven on the builder image against a scratch database
-instead); circle map segment outlines; the conflict banner's second button; and
-sharing a saved view. And everything about an actual VPS — there still is not one.
+instead); the conflict banner's second button; and sharing a saved view. And
+everything about an actual VPS — there still is not one.
 
 ---
 
