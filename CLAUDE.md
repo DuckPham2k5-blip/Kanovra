@@ -208,6 +208,23 @@ user will ever see. Anyone asked to make the app faster should read the compile
 lines first: a first-hit figure and a steady-state figure are different
 measurements, and improving the wrong one is work nobody will feel.
 
+**`npm run dev` runs Turbopack, and the difference was measured rather than
+assumed.** Same machine, same project, same day, only the compiler changed:
+
+```
+                          webpack    Turbopack
+instrumentation            1805ms         45ms   40x
+middleware                 3300ms        178ms   18x
+ready                      9100ms       1730ms    5x
+/api/realtime/[slug]       3900ms       1061ms  3.7x
+/w/[slug]/projects         7800ms       1200ms  6.5x
+```
+
+`npm run dev:webpack` is kept as the way back, because a different compiler is a
+different program and this one is only exercised in development. **`npm run
+build` is untouched** — it still compiles with webpack, so nothing about the
+production bundle moved, and no deploy inherits this decision.
+
 **Notifications say only *that* something changed.** The browser refetches
 through the normal data path. A pushed copy of the data can drift from the real
 thing, and when it does the bug is invisible until someone reloads.
