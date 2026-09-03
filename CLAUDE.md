@@ -193,6 +193,15 @@ WIP limits, and the three labels exist **once**, all three stamped with the seco
 of the *first* project's creation. The second project created none and adopted
 them, which is the upsert doing its job.
 
+A Launch plan project then covered the half Bug tracker could not, since it has
+no starter tasks. Numbers came out `EF-1`, `EF-2` against a `taskCounter` of 2 —
+the block allocation — and each label landed on its own task. The sharpest line
+of that read is the columns: task **one** sits in column **two** (`Ready`) and
+task **two** in column **one** (`Planning`), swapped relative to position. Match
+by position instead of status and both tasks would still have landed in *a*
+column, so the bug would have looked like it worked; the swap is what proves it
+did not happen.
+
 **A recurring task makes its successor when it is completed.** Generating
 occurrences ahead needs a timer, and PM2 runs two workers — a `setInterval` in
 the app fires twice and creates everything twice, the same shape as the emitter
