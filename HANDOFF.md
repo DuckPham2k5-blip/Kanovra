@@ -13,7 +13,13 @@ proven, what has not, and what is open.
 
 ## 1. State
 
-- Working directory: `C:\Users\PC\OneDrive\TaskForge`
+- Working directory: `C:\dev\TaskForge` — moved out of `C:\Users\PC\OneDrive\`
+  on 2026-09-03. A git working tree inside OneDrive means the sync client and
+  git write to `.git` at the same time, and on that day code nobody here wrote
+  appeared in the tree while OneDrive was mid-sync. Nothing needed changing to
+  move it: no source file held the path, the database container uses a named
+  volume, and the folder kept its name so Docker Compose still resolves the same
+  project (`taskforge`) and the same `taskforge_default` network.
 - Branch `main`, working tree clean
 - The last session ran 2026-08-24 → 26 and starts at `4728cc9` —
   `git log --oneline 4728cc9..HEAD` lists its 34 commits
