@@ -101,6 +101,20 @@ export function toTaskDetailDTO(task: DetailTask): TaskDetailDTO {
       title: edge.blockedTask.title,
       status: edge.blockedTask.status,
     })),
+    timeEntries: task.timeEntries.map((entry) => ({
+      id: entry.id,
+      user: {
+        id: entry.user.id,
+        name: entry.user.name,
+        email: entry.user.email,
+        imageUrl: entry.user.imageUrl,
+      },
+      startedAt: entry.startedAt.toISOString(),
+      // Null crosses the wire as null: it is what marks the entry as still
+      // running, and the browser measures it against its own clock from there.
+      endedAt: entry.endedAt ? entry.endedAt.toISOString() : null,
+      note: entry.note,
+    })),
 
     projectId: task.projectId,
     projectKey: task.project.key,

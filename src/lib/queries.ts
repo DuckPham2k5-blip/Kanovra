@@ -83,6 +83,19 @@ export async function getTaskDetail(taskId: string) {
           blockedTask: { select: { id: true, number: true, title: true, status: true } },
         },
       },
+      /*
+       * Newest first, and a running entry is newest by definition — it started
+       * most recently of anything still open. Ordering by `startedAt` rather
+       * than `createdAt` because a manual entry is written now for work that
+       * ended now, and reading the list by when the work happened is the only
+       * order that makes sense to the person who did it.
+       */
+      timeEntries: {
+        orderBy: { startedAt: "desc" },
+        include: {
+          user: { select: { id: true, name: true, email: true, imageUrl: true } },
+        },
+      },
     },
   });
 }

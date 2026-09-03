@@ -101,6 +101,24 @@ export type TaskDetailDTO = TaskCardDTO & {
   blockedBy: DependencyLinkDTO[];
   /** What is waiting on this task. */
   blocks: DependencyLinkDTO[];
+  /** Time actually spent, newest first. */
+  timeEntries: TimeEntryDTO[];
+};
+
+/**
+ * One stretch of work, as the panel draws it.
+ *
+ * `endedAt` is null while the timer runs, and the length is worked out in the
+ * browser from the two timestamps — the same rule `time-tracking.ts` applies on
+ * either side, so a running entry can tick without asking the server what it
+ * already knows.
+ */
+export type TimeEntryDTO = {
+  id: string;
+  user: UserDTO;
+  startedAt: string;
+  endedAt: string | null;
+  note: string | null;
 };
 
 /**

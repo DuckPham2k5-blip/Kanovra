@@ -126,6 +126,7 @@ model User {
   activities         Activity[]           @relation("ActivityActor")
   notifications      Notification[]       @relation("NotificationRecipient")
   mindMaps           MindMap[]            @relation("MindMapAuthor")
+  timeEntries        TimeEntry[]
   mindMapComments    MindMapComment[]     @relation("MindMapCommentAuthor")
   mindMapReads       MindMapCommentRead[]
   deletedTasks       DeletedTask[]
@@ -351,6 +352,7 @@ model Task {
   blockedBy      TaskDependency[] @relation("TaskBlocked")
   /// What is waiting on this task.
   blocks         TaskDependency[] @relation("TaskBlocking")
+  timeEntries    TimeEntry[]
 
   @@unique([projectId, number])
   @@index([projectId, columnId, order])
@@ -374,6 +376,48 @@ model Label {
   @@unique([workspaceId, name])
   @@index([workspaceId])
   @@map("labels")
+}
+
+/// One stretch of work on a task, by one person.
+///
+/// `estimate` on `Task` is what somebody guessed before starting; this is what
+/// actually happened. They are deliberately separate columns rather than one
+/// being derived from the other — a task can run to three times its estimate,
+/// and overwriting the guess would destroy the only record that it was wrong.
+///
+/// **A running timer is a row with `endedAt` null**, and its length is measured
+/// against the clock whenever somebody looks. Nothing ticks on the server, so
+/// there is nothing for PM2's two workers to fire twice.
+///
+/// **There is no `minutes` column**, on purpose. A stored duration beside the
+/// interval it describes is two sources of truth, and they drift the first time
+/// a row is edited or a clock is corrected — silently, because nothing
+/// recomputes it. `endedAt - startedAt` can only be wrong if the timestamps are.
+///
+/// One running entry per person is enforced in the action, which stops whatever
+/// was running before starting the next. A partial unique index would enforce it
+/// in the database and was rejected: Prisma cannot express `WHERE "endedAt" IS
+/// NULL` in this schema, so the index would exist only in a migration and show
+/// up as permanent drift — and refusing is the worse behaviour anyway, since
+/// somebody who forgot to stop a timer wants the old one closed, not a rejection.
+model TimeEntry {
+  id        String    @id @default(cuid())
+  taskId    String
+  userId    String
+  startedAt DateTime
+  /// Null while the timer is still running.
+  endedAt   DateTime?
+  /// What was worked on, optional and short.
+  note      String?
+  createdAt DateTime  @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  /// Finding the one entry a person still has running.
+  @@index([userId, endedAt])
+  @@map("time_entries")
 }
 
 model TaskLabel {

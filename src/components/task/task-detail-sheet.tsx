@@ -16,6 +16,7 @@ import { ChecklistSection } from "@/components/task/checklist-section";
 import { CommentSection } from "@/components/task/comment-section";
 import { DependencySection } from "@/components/task/dependency-section";
 import { TaskDialog } from "@/components/task/task-dialog";
+import { TimeSection } from "@/components/task/time-section";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -493,6 +494,18 @@ export function TaskDetailSheet({
               projectKey={task.projectKey}
               blockedBy={task.blockedBy}
               blocks={task.blocks}
+              canEdit={canEdit}
+            />
+
+            <Separator />
+
+            {/* After the dependencies and before the subtasks: time spent is a
+                fact about this task, not about the ones around it. */}
+            <TimeSection
+              taskId={task.id}
+              entries={task.timeEntries}
+              estimate={task.estimate}
+              currentUserId={currentUserId}
               canEdit={canEdit}
             />
 
