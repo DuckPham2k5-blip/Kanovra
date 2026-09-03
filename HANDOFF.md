@@ -59,14 +59,25 @@ order**:
 
 ## 2. GitHub — paused, nothing pushed
 
-`origin` points at an **empty** repository. The owner paused all GitHub work and
-has not lifted it. Do not push, open a PR, or touch the remote unless asked.
+The pause was lifted on 2026-09-03 and the first push was attempted the same day.
 
-The push-protection block is a **verified false positive**: `.env.example` in
-commits `4ec2526` and `d6fb82f` holds the placeholder
-`sk_test_xxxxxxxxxxxxxxxxxxxxxxxx`, and Clerk shares Stripe's `sk_test_` prefix.
-No real key has ever been committed. The accepted recommendation stands: use
-GitHub's unblock URL rather than rewriting history.
+The push-protection block is a **verified false positive**. Clerk uses the same
+`sk_test_` prefix as Stripe, and the old `.env.example` followed it with
+twenty-four x's — a run long enough to match GitHub's Stripe pattern. The current
+file has not looked like that since `80e1819`, but the shape is still in the
+history, so a first push of `main` is refused.
+
+**This paragraph used to quote that placeholder in full, and that is why the
+block grew.** The scanner does not care that the string sits in prose explaining
+it is not a key: four *more* blocked locations appeared, one for each commit that
+edited this file — `d9b88fe`, `f2bc4e2`, `516837e`, `a279b9d`. A document
+describing a pattern in the pattern's own shape keeps re-triggering the thing it
+describes. It is described here rather than quoted for exactly that reason, and
+any future note about a secret shape should do the same.
+
+No real key has ever been committed and `.env` has never been in the history —
+`git log --all --full-history -- .env` is empty. The accepted recommendation
+stands: use GitHub's unblock URL rather than rewriting 160 commits.
 
 ---
 
