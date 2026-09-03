@@ -5,6 +5,7 @@ import {
   ArrowUpDown,
   ChevronRight,
   CornerDownRight,
+  Download,
   Filter,
   Plus,
   Search,
@@ -34,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { PRIORITY_META, PRIORITY_ORDER, TASK_STATUS_META, TASK_STATUS_ORDER } from "@/lib/constants";
 import { formatDate } from "@/lib/date";
+import { csvFilename, taskCsv, type ExportRow } from "@/lib/task-csv";
 import { deaccent, cn } from "@/lib/utils";
 import { deleteTask, restoreDeletedTasks, toggleTaskDone } from "@/server/actions/task";
 import type { LabelDTO, MemberDTO, TaskCardDTO } from "@/types";
@@ -306,7 +308,16 @@ export function TaskList({
    * the search, and hiding the child because of it would lose work off the screen
    * with nothing to say where it went.
    */
-  const rows = React.useMemo(() => {
+  /**
+   * The same rows, gathered but not yet flattened: every top-level task with its
+   * matched subtasks hanging off it.
+   *
+   * Split out from `rows` because the screen and the CSV want the *same*
+   * grouping and different flattenings — a shut fold hides a subtask on screen
+   * and must not hide it in a file. Grouping them twice, once for each, is
+   * exactly how the two would stop agreeing about which task is whose child.
+   */
+  const grouped = React.useMemo(() => {
     const shown = new Set(filtered.map((task) => task.id));
     const children = new Map<string, ListTask[]>();
 
@@ -317,10 +328,14 @@ export function TaskList({
       else children.set(task.parentId, [task]);
     }
 
+    return filtered
+      .filter((task) => !(task.parentId && shown.has(task.parentId)))
+      .map((task) => ({ task, kids: children.get(task.id) ?? [] }));
+  }, [filtered]);
+
+  const rows = React.useMemo(() => {
     const out: { task: ListTask; child: boolean; kids: ListTask[] }[] = [];
-    for (const task of filtered) {
-      if (task.parentId && shown.has(task.parentId)) continue;
-      const kids = children.get(task.id) ?? [];
+    for (const { task, kids } of grouped) {
       out.push({ task, child: false, kids });
       /*
        * Folds spring open while a filter is running.
@@ -336,9 +351,27 @@ export function TaskList({
       }
     }
     return out;
-  }, [filtered, open, filtering]);
+  }, [grouped, open, filtering]);
 
   rowsRef.current = rows;
+
+  /**
+   * The same grouping, flattened for a file instead of for a screen.
+   *
+   * Every matched subtask is here whether or not its parent's fold is open. A
+   * fold is a convenience for a screen of fixed height; a file has no height,
+   * and a row missing from an exported file is the kind of wrong nobody notices.
+   * The parent's title rides along so a subtask can never be read as a task
+   * standing beside it.
+   */
+  const exportRows = React.useMemo<ExportRow[]>(() => {
+    const out: ExportRow[] = [];
+    for (const { task, kids } of grouped) {
+      out.push({ task, parentTitle: null });
+      for (const kid of kids) out.push({ task: kid, parentTitle: task.title });
+    }
+    return out;
+  }, [grouped]);
 
   /**
    * The ids a bulk action actually receives: everything picked, plus the
@@ -435,6 +468,47 @@ export function TaskList({
     // screen filtering nothing.
     setQuery("");
     setFilters({ status: null, priority: null, assignee: null, label: null, q: null });
+  }
+
+  /**
+   * Hand the browser a file built from the rows this page is already holding.
+   *
+   * A blob and a synthetic anchor rather than a route handler: there is no round
+   * trip, so there is nothing to authorise and no way for the file to contain a
+   * task this list was not already showing. See the note at the top of
+   * `task-csv.ts` for why the alternative was refused.
+   *
+   * The object URL is released on a timer rather than in the same tick. Revoking
+   * it immediately after `click()` cancels the download in some browsers, and
+   * the symptom is a button that appears to do nothing at all.
+   */
+  function exportCsv() {
+    const csv = taskCsv(exportRows, { projectKey, includeProject: showProject });
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = csvFilename(projectKey, new Date());
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+
+    /*
+     * Two numbers, because one cannot be true.
+     *
+     * The fraction beside this button counts top-level rows only — a subtask is
+     * part of its parent rather than an item beside it — while the file has a
+     * line for each. Reporting either number alone contradicts something the
+     * person can see.
+     */
+    const parents = exportRows.filter((row) => !row.parentTitle).length;
+    const kids = exportRows.length - parents;
+    const tasks = `${parents} ${parents === 1 ? "task" : "tasks"}`;
+    toast.success(
+      kids === 0
+        ? `Exported ${tasks}.`
+        : `Exported ${tasks} and ${kids} ${kids === 1 ? "subtask" : "subtasks"}.`,
+    );
   }
 
   /** The detail panel is rendered by the page that owns this list. */
@@ -570,6 +644,19 @@ export function TaskList({
             <SelectItem value="title">Name A→Z</SelectItem>
           </SelectContent>
         </Select>
+
+        {/* Next to the filters on purpose: what it exports is what they left. */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={exportCsv}
+          disabled={exportRows.length === 0}
+          aria-label="Export these tasks as CSV"
+          title="Export these tasks as CSV"
+        >
+          <Download className="size-4" />
+          <span className="hidden sm:inline">Export</span>
+        </Button>
 
         {/* Top-level rows, both sides.
             
