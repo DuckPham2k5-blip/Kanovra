@@ -1248,9 +1248,29 @@ once the view was no longer the active one, because a row shows a tick while it 
 applied and the tick wins over both the globe and the lock; that ordering briefly
 looked like the icon was missing.
 
-Five of the six long-unverified items fell in one sitting — not because a
-production build was required to show any of them, but because it was the first
-time anything had been running with a real session in front of it.
+**And the conflict banner's second button was pressed**, which closes the list
+entirely — all six, in one sitting. It is the only one that cannot be reached by
+using the application, so it was staged: a `UPDATE … jsonb_set` on one throwaway
+map's hub label, run straight against Postgres while the owner had that map open.
+That works precisely because it does *not* go through the application — no
+`logActivity`, so no `pg_notify`, so the open page never learns and keeps its
+stale version indefinitely. Two browsers would have been the natural way and is
+the unreliable one: they do deliver live updates to each other, so the second
+browser may quietly adopt the new version before anybody can force a conflict.
+
+The label was changed to something readable rather than to anything — `gcgc` to
+`gcgc-SERVER` — so that "Load the saved one" had a *visible* consequence. It had
+all three: the hub label changed on screen, the banner went, and the drag that
+caused the conflict was rolled back. The row was then read again and had not moved
+a millisecond past the timestamp of that staged `UPDATE`, which is the other half
+of the proof — the button discards the browser's document and refetches, and
+writes nothing at all. "Keep mine" would have left a new timestamp and the old
+label.
+
+All six long-unverified items fell in one sitting — not because a production build
+was required to show any of them, but because it was the first time anything had
+been running with a real session in front of it. The list in the handoff's section
+5 that had stood since the eighth pass is empty.
 `/api/health` answered `database: up` for 29 minutes with a clean log and a green
 healthcheck, and the container then stayed up for eight days.
 
@@ -1267,10 +1287,7 @@ swings from 0.35 to 0.95 opacity. Two clicks, and no ambiguity in the answer.
 **Still unverified:** the `migrate` compose service run through compose itself (it
 points at the real dev database and could recreate the running Postgres container,
 so the command was proven on the builder image against a scratch database
-instead) and the conflict banner's second button — the last of the six, and the
-only one that cannot be reached by using the application normally, since it needs a
-version of a map older than the one on the server. And everything about an actual
-VPS — there still is not one.
+instead). And everything about an actual VPS — there still is not one.
 
 ---
 
