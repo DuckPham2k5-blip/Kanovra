@@ -1240,7 +1240,15 @@ not assumed; it is why the local runner passes `-e` values it has stripped itsel
 the real database, they **signed in**, the map's **drifting lights move**, **each
 background carries its own motion**, **a linked picture paints**, and a circle
 map's **segment outlines read as two shapes** where a branch meets its own child.
-Four of the six long-unverified items fell in one sitting — not because a
+**Sharing a saved view** went with them, and it is the one that was settled by the
+database rather than by the screen: the row read `shared = t` with
+`query = q=Gi`, which proves both halves at once — the switch persists, and
+`?task=` is kept out of a query string the workspace can see. The globe then drew
+once the view was no longer the active one, because a row shows a tick while it is
+applied and the tick wins over both the globe and the lock; that ordering briefly
+looked like the icon was missing.
+
+Five of the six long-unverified items fell in one sitting — not because a
 production build was required to show any of them, but because it was the first
 time anything had been running with a real session in front of it.
 `/api/health` answered `database: up` for 29 minutes with a clean log and a green
@@ -1259,8 +1267,10 @@ swings from 0.35 to 0.95 opacity. Two clicks, and no ambiguity in the answer.
 **Still unverified:** the `migrate` compose service run through compose itself (it
 points at the real dev database and could recreate the running Postgres container,
 so the command was proven on the builder image against a scratch database
-instead); the conflict banner's second button; and sharing a saved view. And
-everything about an actual VPS — there still is not one.
+instead) and the conflict banner's second button — the last of the six, and the
+only one that cannot be reached by using the application normally, since it needs a
+version of a map older than the one on the server. And everything about an actual
+VPS — there still is not one.
 
 ---
 
