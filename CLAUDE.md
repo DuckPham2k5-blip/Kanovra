@@ -142,6 +142,32 @@ access — hence `task:view` to create one. Renaming and sharing belong to the
 author whatever their role; deleting also to an admin, because tidying a shared
 list is housekeeping and rewriting somebody's filters under their name is not.
 
+**A CSV is built in the browser, from the rows already drawn.** The obvious
+design is `/api/export?…`, and it is the wrong one: the filter, the sort and the
+fold are client state in `task-list.tsx`, so a route taking the same query string
+would be a *second* implementation of them — the drift `applyTaskUpdate` exists
+to prevent. Building it where the rows already are also removes the security
+question instead of answering it: there is no new read path, nothing to
+authorise, and no way for the file to hold a task its reader could not already
+see, where a route handler would have had to re-check membership, project access
+and `task:view` and been one forgotten check from handing over a stranger's
+board. The grouping of subtasks under parents is shared with the screen rather
+than repeated, because two copies is how the two would stop agreeing about whose
+child is whose. **Subtasks are exported even when the fold is shut** — a fold is
+a convenience for a screen of fixed height, a file has no height, and a row
+silently missing from a file nobody re-counts is worse than one that is merely
+unexpected. That is why the toast names **two** numbers: the fraction on the
+toolbar deliberately counts top-level rows only, so "1 task and 2 subtasks" is
+the only phrasing true to both the screen and the file. **A cell beginning `=`,
+`+`, `-`, `@`, tab or CR is prefixed with an apostrophe**, because every
+spreadsheet runs such a cell as a formula and task titles are typed by anybody
+with edit rights — they type it, a teammate exports, the teammate's machine runs
+it. A UTF-8 BOM leads the file: Excel on Windows reads a BOM-less UTF-8 file as
+the ANSI codepage, which for a project written in Vietnamese is every title
+turned to mojibake. An absent value is an empty cell and never the em dash the
+screen draws — on screen `—` means "nothing here", in a column it is a value that
+sorts, defeats a filter on blanks and breaks a sum.
+
 **A recurring task makes its successor when it is completed.** Generating
 occurrences ahead needs a timer, and PM2 runs two workers — a `setInterval` in
 the app fires twice and creates everything twice, the same shape as the emitter
@@ -643,9 +669,9 @@ without limit, rather than derived from depth.
 
 **Known feature gaps** versus comparable products, in no particular order:
 actual time tracking (`estimate` exists, actuals do not), project
-templates, keyboard shortcuts beyond ⌘K, CSV export, public read-only share
-links. *(Multi-select and bulk actions, undo on the map canvas, and undo for a
-task delete are all done — see the decisions above.)*
+templates, keyboard shortcuts beyond ⌘K, public read-only share
+links. *(Multi-select and bulk actions, undo on the map canvas, undo for a
+task delete and CSV export are all done — see the decisions above.)*
 
 ---
 
