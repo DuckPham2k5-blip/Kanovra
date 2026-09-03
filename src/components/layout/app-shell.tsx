@@ -2,6 +2,7 @@
 
 import type { Role } from "@prisma/client";
 import { Menu } from "lucide-react";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import { AmbientBackdrop } from "@/components/layout/ambient-backdrop";
@@ -9,10 +10,17 @@ import { CommandPalette } from "@/components/layout/command-palette";
 import { PageAccentScope } from "@/components/layout/page-accent-scope";
 import { PageGlyph } from "@/components/layout/page-glyph";
 import { RealtimeSync } from "@/components/layout/realtime-sync";
+import { ShortcutsDialog } from "@/components/layout/shortcuts-dialog";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import {
+  isTypingTarget,
+  resolveShortcut,
+  shortcutHref,
+  type PrefixState,
+} from "@/lib/shortcuts";
 
 export type ShellUser = {
   id: string;
@@ -58,23 +66,63 @@ export function AppShell({
   unreadCount: number;
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
+  const [helpOpen, setHelpOpen] = React.useState(false);
 
-  // Global ⌘K / Ctrl+K.
+  /*
+   * A ref, not state: an armed prefix is not something the page draws, and
+   * holding it in state would re-render the whole shell on the way to a key
+   * press that may turn out to mean nothing.
+   */
+  const prefix = React.useRef<PrefixState>(null);
+
+  // Every global shortcut. The table and the matching rule are in
+  // `lib/shortcuts.ts`; this is the part that touches the browser.
   React.useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      // `event.key` is occasionally undefined for synthetic/IME-composed
-      // events (some browser extensions, autofill) — guard before calling
-      // string methods on it.
-      if (event.key?.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
+      const outcome = resolveShortcut(event, prefix.current, Date.now());
+      if (outcome.kind === "ignore") return;
+
+      /*
+       * The typing guard sits here rather than inside the resolver, and applies
+       * only to presses without a modifier.
+       *
+       * ⌘K has always closed the palette from inside the palette's own search
+       * box — that is how people dismiss it. Putting this check one step
+       * earlier, over every outcome, would have taken that away silently, and
+       * nothing would have failed.
+       */
+      if (!event.metaKey && !event.ctrlKey && isTypingTarget(event.target)) {
+        prefix.current = null;
+        return;
+      }
+
+      if (outcome.kind === "prefix") {
         event.preventDefault();
-        setPaletteOpen((open) => !open);
+        prefix.current = { key: outcome.key, at: Date.now() };
+        return;
+      }
+
+      prefix.current = null;
+      // A spent prefix and nothing to run: let the key through untouched.
+      if (outcome.kind === "clear") return;
+
+      // `/` opens Firefox's quick-find and `?` its own search; both have to be
+      // taken before they reach the browser.
+      event.preventDefault();
+
+      if (outcome.id === "palette") setPaletteOpen((open) => !open);
+      else if (outcome.id === "help") setHelpOpen(true);
+      else {
+        const href = shortcutHref(outcome.id, workspace.slug);
+        if (href) router.push(href);
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [router, workspace.slug]);
 
   return (
     <PageAccentScope className="relative flex h-dvh overflow-hidden bg-background">
@@ -143,7 +191,10 @@ export function AppShell({
         onOpenChange={setPaletteOpen}
         workspaceSlug={workspace.slug}
         projects={projects}
+        onShowShortcuts={() => setHelpOpen(true)}
       />
+
+      <ShortcutsDialog open={helpOpen} onOpenChange={setHelpOpen} />
     </PageAccentScope>
   );
 }

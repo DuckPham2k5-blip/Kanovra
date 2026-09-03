@@ -6,6 +6,7 @@ import {
   Bell,
   CalendarDays,
   FolderKanban,
+  Keyboard,
   LayoutDashboard,
   ListChecks,
   Settings,
@@ -46,11 +47,21 @@ export function CommandPalette({
   onOpenChange,
   workspaceSlug,
   projects,
+  onShowShortcuts,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workspaceSlug: string;
   projects: ShellProject[];
+  /**
+   * Opens the shortcuts sheet.
+   *
+   * The sheet is bound to `?`, which nobody can press without already knowing
+   * it exists — so the one entry point that *is* advertised, the ⌘K chip in the
+   * top bar, has to lead there too. Otherwise the whole feature is discoverable
+   * only by reading the source.
+   */
+  onShowShortcuts?: () => void;
 }) {
   const router = useRouter();
   const [query, setQuery] = React.useState("");
@@ -175,6 +186,21 @@ export function CommandPalette({
             </CommandItem>
           ))}
         </CommandGroup>
+
+        {onShowShortcuts ? (
+          <CommandGroup heading="Help">
+            <CommandItem
+              value="keyboard shortcuts"
+              onSelect={() => {
+                onOpenChange(false);
+                onShowShortcuts();
+              }}
+            >
+              <Keyboard />
+              Keyboard shortcuts
+            </CommandItem>
+          </CommandGroup>
+        ) : null}
       </CommandList>
     </CommandDialog>
   );
