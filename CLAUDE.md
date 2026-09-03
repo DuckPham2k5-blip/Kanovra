@@ -197,7 +197,10 @@ then nothing happens. One file at `w/[slug]/loading.tsx` covers all nine
 workspace routes — nine bespoke skeletons would each be a second copy of a page's
 layout and would drift the first time that page changed, and a skeleton that no
 longer resembles what it precedes is worse than a plain one, because the content
-visibly jumps when it lands.
+visibly jumps when it lands. **Confirmed on screen by the owner** the day it was
+added — which was worth checking, because with Turbopack the render it covers can
+now be quick enough for the skeleton to flash past unnoticed, and a boundary
+nobody ever sees is indistinguishable from one that was never wired up.
 
 **Measure before optimising, and know which number you are holding.** A page
 felt slow, and the terminal said why: `GET /w/…/projects 200 in 12719ms` on the
