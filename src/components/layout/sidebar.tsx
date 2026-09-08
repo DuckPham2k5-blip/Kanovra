@@ -15,6 +15,7 @@ import {
   LogOut,
   Plus,
   Settings,
+  Sparkles,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -73,6 +74,10 @@ export function Sidebar({
     { href: `${base}/calendar`, label: "Calendar", icon: CalendarDays },
     { href: `${base}/maps`, label: "Maps", icon: Network },
     { href: `${base}/analytics`, label: "Analytics", icon: BarChart3 },
+    // `?from=` tells the assistant which page the person left, so "how does
+    // this work?" has a subject. It is matched against the product guide's
+    // known routes and contributes nothing when it matches none.
+    { href: `${base}/ai?from=${encodeURIComponent(pathname)}`, label: "Assistant", icon: Sparkles },
     { href: `${base}/notifications`, label: "Notifications", icon: Bell, badge: unreadCount },
   ];
 

@@ -164,3 +164,19 @@ export function clientAddress(
   // The last hop is the one our own proxy appended.
   return hops.length > 0 ? hops[hops.length - 1] : "unknown";
 }
+
+/**
+ * Assistant requests, per signed-in person.
+ *
+ * The first endpoint in this application where a request costs money rather
+ * than a little database time, which makes it the first where a runaway client
+ * loop is a bill rather than a slow afternoon. Thirty in five minutes is far
+ * past anybody typing — a fast conversation is a message every twenty seconds —
+ * and well under what a loop reaches in the time it takes to notice one.
+ *
+ * Per user rather than per address, like the Server Action limit and for the
+ * same reason: an office behind one NAT address would otherwise share a single
+ * allowance. Two workers hold separate buckets, so the effective ceiling is
+ * about twice this; the number is chosen knowing that.
+ */
+export const AI_LIMIT: RateLimitOptions = { limit: 30, windowMs: 5 * 60_000 };
