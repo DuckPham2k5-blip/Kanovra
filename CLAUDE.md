@@ -390,6 +390,76 @@ a slow database. A stale id is skipped and counted rather than failing the batch
 refusing the lot makes it useless on a shared board and deleting everything is a
 quiet privilege escalation.
 
+**A shared board is a row, and the row is the revocation list.** A signed token
+would need one the moment anybody wanted a link back; a row *is* one, so deleting
+it ends access in the same instant with nothing left that could be un-revoked —
+which is also why revoking deletes rather than setting a flag, since the only
+thing that ever happens to a flag is somebody flipping it back. The token is
+stored as it appears in the URL and **not hashed**, because hashing protects a
+secret worth more than the database holding it and this one grants read access to
+a board that same database stores in full. **One link per project**, enforced by a
+unique index rather than by the application remembering: two links would differ
+only in expiry, "which of these did I give the client" is a question the product
+cannot answer, and a second address the interface never shows is an address nobody
+can revoke. Asking again mints a **new** token, because somebody reopening that
+dialog is changing the link's lifetime and silently extending an address that has
+been forwarded twice is the outcome nobody would have chosen. Expiry is decided
+**at read time**, never by a sweep: a job that has not run yet leaves an expired
+board public and nothing about the page looks wrong. `lastViewedAt` is stamped at
+most once an hour, or a page open to the internet becomes a database write per
+request; there is no view *count*, because a count of unauthenticated hits is
+mostly crawlers and would look precise while meaning nothing.
+
+**What a stranger sees is an allowlist, and it is a separate step from the
+query.** The read reuses `getBoardData` and `toTaskCardDTO` — the members' board's
+own path — and then narrows, rather than adding a second `select` shaped for the
+public page, which is the drift `applyTaskUpdate` exists to prevent. The narrowing
+names what may travel instead of deleting what may not: strip-the-email fails
+*open*, so the next field added to `TaskCardDTO` reaches the open internet the day
+it is added, silently, reviewed by nobody thinking about strangers. Naming the
+fields fails the other way — a new one is simply absent until somebody decides it
+belongs, and an absence is visible on screen where a leak is not. Proved both
+ways: a deny-list version passes the email test and fails the two that matter.
+`assignee.email` is the field it exists for; `assignee.id` does travel, because
+the avatar's colour comes from it and every route that would accept a user id asks
+for a session first. Comments, attachments and time entries are not on the public
+page at all — each is its own decision about a stranger's access that nobody has
+made, so the public surface is exactly one query.
+
+**Publishing is `project:share`, which is ADMIN.** A saved view is `task:view`,
+the weakest thing anybody holds, because it narrows a list its reader could
+already see and hands over a query string rather than access. This is the
+opposite in every respect, so it sits with the roles that already decide what
+happens to a project. The board's own header draws a **Public** badge when a link
+is live — the person working on the board is the one most likely to notice a link
+that should have been off for weeks, and they cannot notice it from a menu they
+have no reason to open. Drawn only for people who could act on it: a badge a
+member can see and do nothing about is an alarm with no switch.
+
+**The public page renders its own board, and imports no server action.** Passing
+`canEdit={false}` into the real `KanbanBoard` would still ship every action
+reference to somebody with no session, on a route where middleware deliberately
+skips `auth.protect()`. Each action calls `requireUser()`, so that is not an
+authentication hole — but "safe because twenty-six checks all hold" is a worse
+property than "there is no write path in the bundle", and only one of the two can
+be checked by reading a single file. The *card* is not duplicated:
+`TaskCardContent` moved into its own module so both boards draw the same one.
+`force-dynamic`, or a revoked board could still be served from the full route
+cache — the one failure a revoke button must not have. `robots: index: false` plus
+an `X-Robots-Tag` header, because a meta tag is only read by a crawler that parses
+the HTML, and a page in a search index does not come back out when the link is
+turned off.
+
+**Making a route public must not open a hole in the write limiter.** Next
+dispatches a Server Action by the `Next-Action` header, not by the path it was
+posted to — any URL will do. So the moment `/share/(.*)` joined the public matcher
+and stopped calling `auth.protect()`, it also became a URL where an action POST
+skipped the rate limit entirely, and the whole cap became one line of JavaScript
+to step around. The limiter now runs *before* the public early return, keyed by
+address there rather than by user. Anonymous reads of a share link have their own
+per-address ceiling for the same reason: it is the first route in this application
+that makes the database do work for somebody with no account.
+
 **The logger redacts by value as well as by key name.** Key-based redaction
 missed `DATABASE_URL`, whose name matches no secret pattern while its value
 carries a password — and a Prisma connection error quotes that whole string
@@ -768,12 +838,10 @@ zoom are one transform, not a scrollable box, which is what a fixed sheet
 could not do. Node size is chosen when a node is made, in either direction
 without limit, rather than derived from depth.
 
-**Known feature gaps** versus comparable products: public read-only share links,
-and that is the whole list. It is also the one with a real security surface — it
-means serving workspace content to somebody with no session at all. *(Multi-select
+**Known feature gaps** versus comparable products: none left. Public read-only
+share links were the last one and are done — see the decision above. *(Multi-select
 and bulk actions, undo on the map canvas, undo for a task delete, CSV export,
-keyboard shortcuts, project templates and time tracking are all done — see the
-decisions above.)*
+keyboard shortcuts, project templates and time tracking are all done too.)*
 
 ---
 
@@ -1418,6 +1486,44 @@ so the command was proven on the builder image against a scratch database
 instead). And everything about an actual VPS — there still is not one.
 
 ---
+
+## Built after the eleventh pass (2026-09-08) — public share links
+
+The last item on the feature list, and the only one with a security surface of
+its own. The decisions are above; what this section records is how much of it has
+actually been seen to work.
+
+**Verified against the real database**, not a fixture: 11 tests that publish a
+link on a real project with a real assignee and then ask for the board. The one
+worth naming is the email — the address is genuinely in Postgres, genuinely
+pulled by `getBoardData`'s include two levels down, and genuinely absent from
+what comes back. A fixture would only ever have contained what the test put
+there. The same run proves the four gates (malformed token, unissued token,
+expired link, deleted row) and that the unique index refuses a second link rather
+than the application remembering to.
+
+**The allowlist was proved by breaking it.** A deny-list version — spread the
+card, `delete assignee.email` — was swapped in and the suite run: it passes the
+email assertion and fails the two that matter. That is the difference the
+allowlist buys, demonstrated rather than argued.
+
+**The bundle was measured, and the first attempt was wrong.** `read-only-board`
+imported `TaskCardContent` from `task-card`, which re-exports it beside
+`SortableTaskCard` — so the public page shipped 50 kB of `@dnd-kit` to render
+cards nobody can drag. Nothing about the import line says so, and typecheck, lint
+and 428 tests were all green with it in place. Found by reading the chunks out of
+`.next` and grepping them, which is the only thing that would have. First Load
+188 kB → 169 kB, and `droppable` no longer appears in any chunk the route loads.
+
+**Verified:** typecheck, lint, 428 tests, a production build with the port-3000
+check in the same command, and the migration applied and read back — seven
+columns, three indexes, two cascading foreign keys, `projectId` unique.
+
+**Not verified:** anything in a browser. In particular the dialog (create, copy,
+replace, revoke), the Public badge on the header, and the public page itself
+rendering for somebody with no session. That last one is newly *possible* — the
+share route needs no Clerk session, so for the first time the assistant's own
+browser can reach real application content, which every previous pass could not.
 
 ## Working style the owner expects
 
