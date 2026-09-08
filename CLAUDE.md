@@ -743,6 +743,30 @@ stack.
   the narrowed payload is untouched. This is the only way to check what a public
   page actually serves, and **dev is the wrong place to audit one**.
 
+- **A production measurement is worthless until `.next/BUILD_ID` is newer than
+  the change.** Removing the Clerk localisation prop appeared to do *nothing* —
+  same page, same 99 kB, dictionary still there — and that reading was written
+  up as the hypothesis being wrong. It was not. `.next/BUILD_ID` was stamped
+  10:03, the source change 10:13 and `package.json` 10:14: the build had never
+  run, and the server was serving a build that predated everything being tested.
+  `find .next -newermt` returned **zero** files.
+
+  Two lessons, and the second is the sharper one. The build had failed with the
+  `EPERM` on `query_engine-windows.dll.node` already recorded here — but the
+  *port check was not enough to catch it*: nothing was listening on 3000 and a
+  `next start` process was still alive holding the DLL. Check for a **node
+  process**, not only a listener; `Get-CimInstance Win32_Process` names it.
+
+  And: a report that the build succeeded is not evidence the build succeeded.
+  The filesystem is. Read `BUILD_ID`'s timestamp before believing any number
+  taken off a running production server.
+
+- **The owner's terminal is PowerShell, and bash syntax does not merely fail —
+  it fails confusingly.** A `if …; then …; fi` one-liner and `&&` both produce
+  `MissingOpenParenthesisInIfStatement`, which reads as a broken command rather
+  than as the wrong language. Windows PowerShell 5.1 has no `&&`: chain with
+  `;` and `if ($?) { … }`. This is what cost the round trip above.
+
 - **A second agent session on the same working tree will sweep your unfinished
   edits into its own commit.** One ran `git add -A` while a file was half-edited
   here; nothing was lost that time, and nothing would have said so if it had
@@ -1596,17 +1620,35 @@ own localhost. It is recorded as a trap because the *next* person to check this
 page in dev will find a teammate's address and conclude the narrowing is broken —
 and then "fix" something that was never wrong.
 
-### Measured in passing: 59 kB of Clerk on every page
+### And then found by accident: 60 kB of Clerk on every page
 
-The production share page is 156 kB of HTML, and **59 kB of it is Clerk's English
-localisation dictionary** — on a page with no sign-in form, no session and no
-Clerk component on it. It is there because the root layout passes
-`localization={enUS}` as a prop into `ClerkProvider`, and props crossing into a
-client component are serialised into the flight payload. The root layout wraps
-everything, so this is on every route in the application, not only this one.
-English is Clerk's default, so the prop is very likely redundant — unverified,
-and left alone deliberately: it is auth copy, it is outside share links, and it
-deserves its own check rather than a change smuggled into another commit.
+Counting the `@` signs on the share page turned up four more, and they were
+Clerk's `formFieldInputPlaceholder__emailAddresses` strings — which meant the
+whole English dictionary was in the HTML of a page with no sign-in form, no
+session and no Clerk component on it. It was there because the root layout
+passed `localization={enUS}` into `ClerkProvider`; that is a client component,
+so the prop was serialised into the flight payload, and the root layout wraps
+every route.
+
+Removed, and measured on a production build as raw bytes off `fetch` rather
+than `outerHTML` — the latter counts what hydration adds and is not what was
+sent:
+
+```
+/sign-in    78,258 -> 18,230 bytes   -77%
+/share/…   144,817 -> 84,789 bytes   -41%
+```
+
+The same 60,028 bytes either way, because it is one dictionary on every route.
+The board that lost 41% of its weight has no Clerk component on it at all. The
+sign-in screen is unchanged word for word — title, subtitle, both field labels,
+both buttons, the footer, and the curly apostrophe in "Don't have an account?"
+— because English is what clerk-js renders anyway and the prop was only ever an
+override. The share page now contains **no email address of any kind**, not even
+a placeholder.
+
+Bigger than the lucide fix in the eighth pass, and found the same way: by
+measuring something nobody had reason to suspect.
 
 ## Working style the owner expects
 

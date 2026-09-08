@@ -29,7 +29,6 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
-    "@clerk/localizations": "^3.37.8",
     "@clerk/nextjs": "^6.12.0",
     "@clerk/themes": "^2.2.0",
     "@dnd-kit/core": "^6.3.1",

@@ -1,5 +1,4 @@
 import { ClerkProvider } from "@clerk/nextjs";
-import { enUS } from "@clerk/localizations";
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 
@@ -46,9 +45,38 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
+/**
+ * No `localization` prop.
+ *
+ * It used to pass `enUS`, and that one word cost **60,028 bytes of HTML on every
+ * route in the application**. `ClerkProvider` is a client component, so a prop
+ * handed to it from this server component is serialised into the flight payload
+ * — and `enUS` is Clerk's entire English dictionary, every string for every
+ * screen the product has, including screens this application never renders.
+ *
+ * Measured on a production build, as raw bytes off `fetch` rather than
+ * `outerHTML`, which counts what hydration adds and is not what was sent:
+ *
+ *     /sign-in    78,258 -> 18,230 bytes   (-77%)
+ *     /share/…   144,817 -> 84,789 bytes   (-41%)
+ *
+ * The same 60,028 either way, because it is the same dictionary and the root
+ * layout wraps every route. The board that lost 41% of its weight has no Clerk
+ * component on it at all.
+ *
+ * English is what Clerk renders anyway: the prop is an *override*, forwarded to
+ * clerk-js at runtime, and clerk-js carries its own English. Verified by
+ * comparing the sign-in screen word for word against a capture taken before —
+ * title, subtitle, both field labels, both buttons, the footer, and the curly
+ * apostrophe in "Don't have an account?" all identical.
+ *
+ * Restore it only for a language that is not English, and then knowing the cost
+ * is paid on every route rather than on the two screens that show a Clerk
+ * component.
+ */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider localization={enUS}>
+    <ClerkProvider>
       <html lang="en" suppressHydrationWarning className={`${sans.variable} ${mono.variable}`}>
         <body>
           <Providers>{children}</Providers>
