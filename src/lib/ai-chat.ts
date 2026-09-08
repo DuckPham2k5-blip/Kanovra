@@ -168,7 +168,20 @@ async function* streamAnthropic(input: {
     {
       model: input.modelId,
       max_tokens: 4000,
-      system: input.system,
+      /*
+       * Marked cacheable, because it is the same ~5,300 tokens on every single
+       * turn of every conversation — the whole product guide, which is the
+       * point of it. Paying full price to re-send an unchanged block on each
+       * message is the sort of cost that is invisible until a bill arrives.
+       *
+       * An array of blocks rather than a plain string is what carries the
+       * marker; the content is identical either way. A cache miss costs
+       * slightly more than no caching at all, which is why the marker sits on
+       * the one block guaranteed to be byte-identical between turns — the
+       * conversation itself is deliberately not marked, since it changes with
+       * every message and would miss every time.
+       */
+      system: [{ type: "text" as const, text: input.system, cache_control: { type: "ephemeral" as const } }],
       ...(input.thinking ? { thinking: { type: "adaptive" as const } } : {}),
       output_config: { effort: input.thinking ? ("high" as const) : ("low" as const) },
       messages: input.turns.map((t) => ({ role: t.role, content: t.content })),

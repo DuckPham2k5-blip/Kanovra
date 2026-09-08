@@ -1,3 +1,4 @@
+import { conceptIds } from "@/lib/product-concepts";
 import { guideForPath, PRODUCT_GUIDE } from "@/lib/product-guide";
 
 /**
@@ -26,6 +27,17 @@ export type Suggestion = {
   /** What actually goes in the box. Fuller than the label, and specific. */
   prompt: string;
   group: "this page" | "learn" | "work" | "make";
+  /**
+   * The concept in `product-concepts.ts` this opener leans on, when it asks
+   * about the product rather than about the person's own work.
+   *
+   * A test refuses a name that is not there. Without it, "Keyboard shortcuts"
+   * sat in this list for a while as an invitation to ask something the
+   * grounding could not answer — and an opener the product itself offers
+   * carries the product's endorsement, so the fabrication that follows lands
+   * with more authority than an ordinary wrong answer.
+   */
+  grounds?: string;
 };
 
 /** Openers that always make sense, wherever the person is. */
@@ -40,17 +52,20 @@ export const GENERAL_SUGGESTIONS: Suggestion[] = [
     prompt:
       "How do I give somebody outside the workspace a read-only link to a project board? What exactly will they be able to see?",
     group: "learn",
+    grounds: "sharing",
   },
   {
     label: "What can each role do?",
     prompt:
       "Explain the four roles — Owner, Admin, Member, Viewer — and give me an example of something each one can do that the one below cannot.",
     group: "learn",
+    grounds: "roles",
   },
   {
     label: "Keyboard shortcuts",
     prompt: "What keyboard shortcuts does this app have, and what does each one do?",
     group: "learn",
+    grounds: "shortcuts",
   },
   {
     label: "Break a task down",
@@ -156,3 +171,13 @@ export function suggestionsFor(input: {
 export function pagesWithSuggestions(): string[] {
   return PRODUCT_GUIDE.map((e) => e.route);
 }
+
+/** Concept names the openers rely on, for the test that keeps them grounded. */
+export function groundsClaimed(): string[] {
+  return [...GENERAL_SUGGESTIONS, ...IMAGE_SUGGESTIONS]
+    .map((s) => s.grounds)
+    .filter((g): g is string => Boolean(g));
+}
+
+/** Every concept that exists, re-exported so the test reads in one place. */
+export { conceptIds };

@@ -492,6 +492,38 @@ to describe eight pages when there are nine. Same shape as the icon registry's
 cover test, and it earned itself immediately by failing on `/w/[slug]/ai` before
 that page existed.
 
+**The grounding covers what the product invites people to ask, and a test ties
+the two together.** The openers on the assistant page were shipped asking two
+questions the guide could not answer: "Keyboard shortcuts", while nothing in the
+prompt named a single key, and "what exactly will they be able to see?" about
+share links, while the prompt knew only that the button sits in a menu. An
+application that invites a question its assistant must invent an answer to is
+worse than one offering no openers at all — the fabrication arrives carrying the
+product's own endorsement. So `product-concepts.ts` holds the things that are
+not a page (sharing, roles, views, export, time, dependencies, repeats, bulk,
+undo, templates, maps, shortcuts), each opener names the concept it leans on,
+and a test refuses a name that is not there. **The shortcut list is derived from
+the real `SHORTCUTS` table**, never retyped: two lists of key bindings drift the
+first time one changes, silently, and an assistant confidently naming a key that
+does nothing is the exact failure the grounding exists to prevent.
+
+**And the grounding is proved to reach the wire, not just to exist.** Testing
+`buildSystemPrompt` tests a string a function returns; a perfect prompt that the
+request body never carries fails identically and no such test would show it. So
+`ai-grounding.test.ts` stands in for the network, captures what `streamChat`
+actually posts to Gemini and to OpenAI, and asserts the `⋯ menu` and the derived
+shortcuts are in the system field of the real body — plus that it is not shorter
+than the guide, since a prompt truncated by a length cap somewhere would lose
+the concepts at the end and leave the assistant wrong about exactly what was
+added last.
+
+**The system prompt is marked cacheable.** It is the same ~5,300 tokens on every
+turn of every conversation, which is the point of it; paying full price to
+re-send an unchanged block per message is the sort of cost that is invisible
+until a bill arrives. The marker sits on the system block alone — the one thing
+guaranteed byte-identical between turns — and deliberately not on the
+conversation, which changes every message and would miss every time.
+
 **Three providers, one shape, and no key ever crosses to the browser.** Claude
 through its SDK because it is already a dependency; Gemini and OpenAI through
 plain `fetch`, because two more SDKs is megabytes in `node_modules` and a stream

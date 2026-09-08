@@ -34,6 +34,8 @@
  * page it describes, and an unreviewable description is one that goes stale.
  */
 
+import { conceptsAsText } from "@/lib/product-concepts";
+
 export type GuideControl = {
   /** Exactly what is printed on it, or its accessible name if it has no text. */
   label: string;
@@ -462,5 +464,8 @@ export function guideEntryAsText(entry: GuideEntry): string {
  * exists to prevent.
  */
 export function guideAsText(): string {
-  return PRODUCT_GUIDE.map(guideEntryAsText).join("\n\n");
+  // Pages, then the things that are not a page. The second half exists because
+  // the assistant was offering openers about sharing and about keyboard
+  // shortcuts while knowing nothing about either — see `product-concepts.ts`.
+  return [PRODUCT_GUIDE.map(guideEntryAsText).join("\n\n"), conceptsAsText()].join("\n\n");
 }
