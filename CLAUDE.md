@@ -1664,6 +1664,27 @@ a placeholder.
 Bigger than the lucide fix in the eighth pass, and found the same way: by
 measuring something nobody had reason to suspect.
 
+### And then the rest of the bundle was swept, and is clean
+
+Having found two of these by accident, the whole build was measured on purpose —
+per route, summing the page entry *and* its layout entries as the eighth-pass
+note says to, gzipped. Nothing else is misplaced:
+
+```
+recharts   108 kB gz   1 route    analytics, where the charts are
+dnd-kit     17 kB gz   1 route    the board, and not /share
+clerk       29 kB gz   5 routes + 17 kB on 16
+date-fns    18 kB gz   5 routes
+framework   99 kB gz  36 routes   React and Next themselves
+```
+
+Every heavy library is loaded only by routes that use it. The heaviest page is
+analytics at 408 kB gz including the shell, and 108 kB of that is recharts doing
+the thing the page exists for — not an anomaly, and not worth splitting a page
+whose content *is* the charts. Recorded so this is not measured a third time:
+after the icon registry and the Clerk dictionary, there is no third find of that
+kind waiting.
+
 ## Working style the owner expects
 
 Verify claims rather than asserting them — render an image and look at it,
