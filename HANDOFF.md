@@ -271,25 +271,27 @@ the owner before the next one started. A new session can begin anywhere.
 
 **Next, in the order the owner and I agreed:**
 
-1. **Deploy.** Eight migrations are waiting for the VPS — section 1 has the order
-   and the one destructive rule. `deploy/nginx.conf` is still unapplied, and
-   without it SSE connections are cut every 60 seconds and the write rate limit
-   is not enforced at the edge. This is the largest gap between what exists and
-   what is running anywhere: thirty-two commits, none of them deployed.
-2. **GitHub**, which the owner has kept paused all along. Section 2. Do not touch
-   the remote unless they lift it.
-3. **The next feature**, if they want one. The list is below, smallest first.
+1. **Deploy.** Eighteen migrations are waiting for the VPS — section 1 has the
+   order and the one destructive rule. `deploy/nginx.conf` is still unapplied,
+   and without it SSE connections are cut every 60 seconds, the write rate limit
+   is not enforced at the edge, and the per-address ceiling on public share links
+   degrades to a global one — with no proxy setting `X-Forwarded-For` there is no
+   address to key on. This is the largest gap between what exists and what is
+   running anywhere: 173 commits, none of them deployed. There is still no VPS
+   and no domain, and neither is something an assistant can obtain.
+2. **GitHub is live.** The pause was lifted and `main` is pushed; the remote and
+   the local tree matched at the last check. Pushing still happens only when the
+   owner asks for it.
+3. **The next feature** — there is no list left; see below.
 
-**Remaining feature gaps** (from `CLAUDE.md`), roughly by size:
+**Remaining feature gaps**: none. All five that stood here are done and on
+`main` — CSV export, keyboard shortcuts, project templates, time tracking, and
+public read-only share links. Each has its decision recorded in `CLAUDE.md`;
+the last one is the only one that serves workspace content to somebody with no
+session, so read that entry before changing anything under `/share`.
 
-- **CSV export** — the smallest, and easier than it was: the filters now live in
-  the URL, so "export what I am looking at" is already expressible.
-- **Keyboard shortcuts beyond ⌘K.**
-- **Project templates.**
-- **Actual time tracking** — `estimate` exists, actuals do not.
-- **Public read-only share links** — the largest, and the only one with a real
-  security surface: it means serving workspace content to somebody with no
-  session at all.
+The next piece of work is therefore not on a feature list. It is the deploy
+chain, and it is waiting on a domain and a VPS rather than on code.
 
 **Technical debt that is not a feature**, and the honest one to name first:
 
