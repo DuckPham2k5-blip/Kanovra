@@ -1,7 +1,13 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { consumeToken, PUBLIC_READ_LIMIT, WRITE_LIMIT, type RateLimitResult } from "@/lib/rate-limit";
+import {
+  clientAddress,
+  consumeToken,
+  PUBLIC_READ_LIMIT,
+  WRITE_LIMIT,
+  type RateLimitResult,
+} from "@/lib/rate-limit";
 
 /**
  * Everything is private by default. Only the marketing page, the auth screens,
@@ -44,17 +50,14 @@ function isServerAction(req: NextRequest) {
 /**
  * Who to charge a request to, when there is no signed-in user to charge it to.
  *
- * `X-Forwarded-For` is a list, oldest first, and only the entries added by our
- * own proxy can be trusted — anything before them was written by the client.
- * The first entry is what Nginx received as the peer address, which is the
- * closest thing to a caller this application gets. Absent any proxy it is
- * missing entirely and every anonymous caller shares one bucket; see the note
- * on `PUBLIC_READ_LIMIT`.
+ * The reading of the headers is in `clientAddress`, with its own tests, because
+ * it is the whole of the per-caller limit and it is easy to get backwards — this
+ * took the *first* hop of `X-Forwarded-For` at first, which is the entry the
+ * caller writes, so rotating the header handed out a fresh allowance per
+ * request.
  */
 function anonymousKey(req: NextRequest) {
-  const forwarded = req.headers.get("x-forwarded-for");
-  const first = forwarded?.split(",")[0]?.trim();
-  return first || req.headers.get("x-real-ip")?.trim() || "unknown";
+  return clientAddress(req.headers.get("x-forwarded-for"), req.headers.get("x-real-ip"));
 }
 
 function tooMany(verdict: RateLimitResult, limit: number) {

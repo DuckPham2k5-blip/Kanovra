@@ -450,6 +450,20 @@ an `X-Robots-Tag` header, because a meta tag is only read by a crawler that pars
 the HTML, and a page in a search index does not come back out when the link is
 turned off.
 
+**`X-Forwarded-For` is read from the end, and the first version read the
+front.** Nginx sets it with `$proxy_add_x_forwarded_for`, which is
+`"$http_x_forwarded_for, $remote_addr"` — it **appends** the real peer to
+whatever the caller sent. So every entry before the last one was written by the
+caller, and keying the limiter on the first entry keys it on a value the caller
+picks: send a different header each time and every request gets its own bucket.
+That is not a weaker limit, it is none. Demonstrated rather than argued — with
+the first-hop version a caller rotating the header got **85 requests through a
+limit of 60**, and only because the loop stopped there. `X-Real-IP` is preferred
+over the list because Nginx *replaces* it rather than appending, so it cannot
+carry caller data at all. `clientAddress` in `rate-limit.ts` holds this, with
+the spoofing case as a test, because the mistake is invisible in review: the
+comment above the broken version stated the correct rule.
+
 **Making a route public must not open a hole in the write limiter.** Next
 dispatches a Server Action by the `Next-Action` header, not by the path it was
 posted to — any URL will do. So the moment `/share/(.*)` joined the public matcher

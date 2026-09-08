@@ -120,3 +120,47 @@ export const WRITE_LIMIT: RateLimitOptions = { limit: 120, windowMs: 60_000 };
  * optional.
  */
 export const PUBLIC_READ_LIMIT: RateLimitOptions = { limit: 60, windowMs: 60_000 };
+
+/**
+ * Who to charge an anonymous request to.
+ *
+ * ## `X-Forwarded-For` is read from the *end*, and getting this backwards is a
+ * silent hole
+ *
+ * Nginx sets the header with `$proxy_add_x_forwarded_for`, which is
+ * `"$http_x_forwarded_for, $remote_addr"` — it **appends** the real peer address
+ * to whatever the client sent. So the list runs oldest-first and everything
+ * before the last entry was written by the caller. Reading the *first* entry
+ * therefore reads a value the caller chose: send a different
+ * `X-Forwarded-For` on every request and every request gets its own bucket,
+ * which is not a weaker limit but no limit at all. That is how this function
+ * was first written.
+ *
+ * `X-Real-IP` is preferred because it cannot carry caller data at all: it is a
+ * plain `proxy_set_header X-Real-IP $remote_addr`, which *replaces* anything
+ * that arrived. Behind this project's Nginx the two agree; the fallback exists
+ * for a proxy that sets only the standard header.
+ *
+ * ## Without a proxy there is no answer, and it fails closed
+ *
+ * Run Next with nothing in front and both headers are whatever the caller says,
+ * so neither can be trusted — but then they are usually absent, and `unknown`
+ * puts every anonymous caller in one shared bucket. That is a stricter limit
+ * rather than a looser one, which is the right direction to be wrong in, and it
+ * is one more reason `deploy/nginx.conf` is not optional.
+ */
+export function clientAddress(
+  forwardedFor: string | null | undefined,
+  realIp?: string | null,
+): string {
+  const real = realIp?.trim();
+  if (real) return real;
+
+  const hops = (forwardedFor ?? "")
+    .split(",")
+    .map((hop) => hop.trim())
+    .filter(Boolean);
+
+  // The last hop is the one our own proxy appended.
+  return hops.length > 0 ? hops[hops.length - 1] : "unknown";
+}
