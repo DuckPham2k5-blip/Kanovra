@@ -722,6 +722,27 @@ stack.
   (same dispatch), moving the panel somewhere more visible, and a geometric
   cause — the control cluster overlapping a neighbour was measured against real
   coordinates and does not happen.
+- **In dev, a public page's source contains raw database rows — including the
+  email addresses the narrowing removes.** Checking `/share/<token>` under
+  `npm run dev` turns up a real workspace address, and it looks exactly like the
+  allowlist having failed. It has not. React's development build serialises debug
+  information about server-component arguments into the flight stream, so one raw
+  Prisma row is written out concretely with the rest elided as `"$Y"` — a marker
+  that appears in **no** production build of `react-server-dom-*` (both the
+  turbopack and webpack variants were checked; `.development.js` only, emitted by
+  `serializeDeferredObject` into `request.deferredDebugObjects`).
+
+  How to tell the two apart without guessing: **count the fields**. The narrowed
+  payload appears once per card — 13 cards gave `checklistTotal` 13 times — while
+  the debug row appears exactly *once*, and carries keys the DTO does not have at
+  all (`assigneeId`, `updatedAt`, `labels: [{taskId, labelId}]`, `_count`). A
+  genuine leak would scale with the number of cards; this does not.
+
+  Then confirm it rather than believing the reasoning: stop dev, `npm run build`,
+  `npm start`, and read the same URL. Every one of those keys goes to zero and
+  the narrowed payload is untouched. This is the only way to check what a public
+  page actually serves, and **dev is the wrong place to audit one**.
+
 - **A second agent session on the same working tree will sweep your unfinished
   edits into its own commit.** One ran `git add -A` while a file was half-edited
   here; nothing was lost that time, and nothing would have said so if it had
@@ -1519,11 +1540,73 @@ and 428 tests were all green with it in place. Found by reading the chunks out o
 check in the same command, and the migration applied and read back — seven
 columns, three indexes, two cascading foreign keys, `projectId` unique.
 
-**Not verified:** anything in a browser. In particular the dialog (create, copy,
-replace, revoke), the Public badge on the header, and the public page itself
-rendering for somebody with no session. That last one is newly *possible* — the
-share route needs no Clerk session, so for the first time the assistant's own
-browser can reach real application content, which every previous pass could not.
+**And then verified in a browser — the assistant's own, for the first time in
+this project.** The share route needs no Clerk session, which is the barrier that
+had blocked every previous pass. The owner published a real board from the
+dialog; the assistant opened the link with no session at all, which is exactly a
+stranger's position, and read the page.
+
+- The board draws: name, key, a **Read-only** chip, five columns with the right
+  counts, labels, `Blocked by 1`, checklist progress, task references, assignee
+  initials. The footer read *"This link stops working on 15 September 2026"* —
+  seven days from the day it was made, which is the expiry the owner chose.
+- **The loading boundary was caught running.** The first read of the page
+  returned "Loading the board…". No `loading.tsx` in this project had ever been
+  seen mid-flight before; the workspace one was confirmed only by the owner
+  glimpsing a grey frame.
+- A token differing from the real one by its **last character**, and
+  `/share/wp-admin`, both answer with the same page. Indistinguishable, which is
+  the point.
+- Headers on the live response: `X-Robots-Tag: noindex, nofollow, noarchive`,
+  `X-Frame-Options: DENY` (overriding the app-wide SAMEORIGIN), and
+  `Cache-Control: private, no-cache, no-store` — `force-dynamic` doing its job,
+  so no revoked board can be served from a cache.
+- **No `$ACTION_ID` anywhere in the document**, which is the structural claim the
+  separate read-only board was built to make: there is no write path in the
+  bundle, rather than twenty-six checks that hold.
+
+### The one that mattered: a real email address, and it was dev
+
+In **dev** the page source contained a real workspace address. The narrowing was
+not at fault, and the counting is what showed it: `checklistTotal` appeared 13
+times, once per narrowed card, while `assigneeId`, `updatedAt` and `email`
+appeared **once each** — inside a blob carrying `labels: [{taskId, labelId}]` and
+`_count`, which is a raw Prisma row and not a `TaskCardDTO`. Twelve further rows
+sat beside it as `"$Y"`.
+
+`$Y` is React's marker for a deferred **debug** object (`serializeDeferredObject`,
+writing to `request.deferredDebugObjects`), and the string exists in no
+production build of `react-server-dom-*` — checked across both the turbopack and
+webpack variants, `.development.js` only. So the raw rows reach the flight stream
+as dev debug information about server-component arguments, never as anybody's
+props.
+
+That is still *reading code*, so it was measured: dev was stopped, the project
+built, and served with `npm start`. On the same URL the address is **gone** —
+that email 0, `$Y` 0, `assigneeId` 0, `createdById` 0, `updatedAt` 0,
+`workspaceId` 0, `clerkId` 0, while `checklistTotal` and `openBlockers` still
+read 13 apiece. The four remaining `@` strings are Clerk's
+`formFieldInputPlaceholder__emailAddresses` localisation text.
+
+**Nothing was changed as a result, and that is the decision.** Fetching the board
+through a second `select` shaped for the public page would keep raw rows out of
+the dev render scope, and would reintroduce exactly the drift `applyTaskUpdate`
+exists to prevent, to buy nothing in production. The exposure is one developer's
+own localhost. It is recorded as a trap because the *next* person to check this
+page in dev will find a teammate's address and conclude the narrowing is broken —
+and then "fix" something that was never wrong.
+
+### Measured in passing: 59 kB of Clerk on every page
+
+The production share page is 156 kB of HTML, and **59 kB of it is Clerk's English
+localisation dictionary** — on a page with no sign-in form, no session and no
+Clerk component on it. It is there because the root layout passes
+`localization={enUS}` as a prop into `ClerkProvider`, and props crossing into a
+client component are serialised into the flight payload. The root layout wraps
+everything, so this is on every route in the application, not only this one.
+English is Clerk's default, so the prop is very likely redundant — unverified,
+and left alone deliberately: it is auth copy, it is outside share links, and it
+deserves its own check rather than a change smuggled into another commit.
 
 ## Working style the owner expects
 
