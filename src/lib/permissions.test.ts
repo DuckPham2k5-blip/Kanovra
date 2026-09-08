@@ -61,6 +61,20 @@ describe("can()", () => {
     expect(can(Role.MEMBER, "comment:delete_any")).toBe(false);
   });
 
+  /*
+   * Publishing a board to the internet is the one permission that hands content
+   * to somebody outside the workspace entirely, so it is asserted by name
+   * rather than left to the ordering invariant below. A member who can create
+   * and delete tasks still cannot decide that the board is public.
+   */
+  it("lets only admins and owners publish a board", () => {
+    expect(can(Role.OWNER, "project:share")).toBe(true);
+    expect(can(Role.ADMIN, "project:share")).toBe(true);
+    expect(can(Role.MEMBER, "project:share")).toBe(false);
+    expect(can(Role.VIEWER, "project:share")).toBe(false);
+    expect(can(null, "project:share")).toBe(false);
+  });
+
   it("never grants a lower role something a higher role lacks", () => {
     const permissions: Permission[] = [
       "workspace:view", "workspace:update", "workspace:delete", "workspace:manage_members",

@@ -7,6 +7,7 @@ import {
   CalendarDays,
   KanbanSquare,
   List,
+  Globe,
   MoreHorizontal,
   ImagePlus,
   Pencil,
@@ -23,6 +24,7 @@ import { ProjectIcon } from "@/components/icon-picker";
 import { ProjectBannerDialog } from "@/components/project/project-banner-dialog";
 import { ProjectDialog } from "@/components/project/project-dialog";
 import { ProjectMembersDialog } from "@/components/project/project-members-dialog";
+import { ShareDialog, type ShareLinkState } from "@/components/project/share-dialog";
 import { ProjectStatusBadge } from "@/components/shared/badges";
 import { AvatarStack } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -34,6 +36,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { formatDate } from "@/lib/date";
 import { bannerPresetCss } from "@/lib/project-banners";
 import { cn } from "@/lib/utils";
@@ -73,6 +76,8 @@ export function ProjectHeader({
   role,
   canEditProject,
   canDeleteProject,
+  canShare,
+  shareLink,
 }: {
   workspaceSlug: string;
   workspaceId: string;
@@ -82,6 +87,10 @@ export function ProjectHeader({
   role: Role;
   canEditProject: boolean;
   canDeleteProject: boolean;
+  /** `project:share` — ADMIN. Publishing a board is not a member-level act. */
+  canShare: boolean;
+  /** The live link, or null. Loaded only for people who may manage it. */
+  shareLink: ShareLinkState;
 }) {
   const router = useRouter();
   const segment = useSelectedLayoutSegment();
@@ -89,6 +98,7 @@ export function ProjectHeader({
   const [membersOpen, setMembersOpen] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [bannerOpen, setBannerOpen] = React.useState(false);
+  const [shareOpen, setShareOpen] = React.useState(false);
 
   const base = `/w/${workspaceSlug}/projects/${project.id}`;
 
@@ -165,6 +175,26 @@ export function ProjectHeader({
               {project.archived ? (
                 <span className="text-xs text-muted-foreground">(archived)</span>
               ) : null}
+              {/* A board that is public should look public, on the page itself
+                  rather than only inside the dialog that published it. Whoever
+                  is working on this board is the person most likely to notice a
+                  link that should have been turned off weeks ago — and they
+                  cannot notice it from a menu they have no reason to open.
+                  Drawn only for people who could act on it, since a badge that
+                  a member can see and do nothing about is an alarm with no
+                  switch. */}
+              {canShare && shareLink ? (
+                <SimpleTooltip label="This board has a public link. Anyone holding it can see the board.">
+                  <button
+                    type="button"
+                    onClick={() => setShareOpen(true)}
+                    className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400"
+                  >
+                    <Globe className="size-3" />
+                    Public
+                  </button>
+                </SimpleTooltip>
+              ) : null}
             </div>
 
             <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">
@@ -214,6 +244,11 @@ export function ProjectHeader({
                 <DropdownMenuItem onClick={() => setBannerOpen(true)}>
                   <ImagePlus /> Backdrop
                 </DropdownMenuItem>
+                {canShare ? (
+                  <DropdownMenuItem onClick={() => setShareOpen(true)}>
+                    <Globe /> {shareLink ? "Manage public link" : "Share board"}
+                  </DropdownMenuItem>
+                ) : null}
                 <DropdownMenuItem onClick={() => void handleArchive()}>
                   {project.archived ? <ArchiveRestore /> : <Archive />}
                   {project.archived ? "Restore" : "Archive"}
@@ -287,6 +322,16 @@ export function ProjectHeader({
         imageUrl={bannerImage}
         positionY={project.bannerPositionY}
       />
+
+      {canShare ? (
+        <ShareDialog
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          projectId={project.id}
+          projectName={project.name}
+          link={shareLink}
+        />
+      ) : null}
 
       <ProjectMembersDialog
         open={membersOpen}

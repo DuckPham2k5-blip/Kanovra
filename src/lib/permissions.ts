@@ -25,6 +25,7 @@ export type Permission =
   | "project:update"
   | "project:archive"
   | "project:delete"
+  | "project:share"
   // Board
   | "board:view"
   | "board:manage_columns"
@@ -52,6 +53,20 @@ const MINIMUM_ROLE: Record<Permission, Role> = {
   "project:update": Role.MEMBER,
   "project:archive": Role.ADMIN,
   "project:delete": Role.ADMIN,
+  /*
+   * Publishing a board to the open internet, and it sits at ADMIN on purpose.
+   *
+   * A saved view is `task:view` — the weakest thing anybody holds — because it
+   * narrows a list its reader could already see and hands over a query string,
+   * not access. A share link is the opposite of that in every respect: it hands
+   * content to somebody with no account, no role and no membership, and once
+   * the address is out there is no taking it back from whoever copied it.
+   *
+   * That is a decision about who the workspace's work belongs to, so it belongs
+   * with the roles that already decide what happens to a project — the same
+   * rank that can archive one or delete it outright.
+   */
+  "project:share": Role.ADMIN,
 
   "board:view": Role.VIEWER,
   "board:manage_columns": Role.MEMBER,

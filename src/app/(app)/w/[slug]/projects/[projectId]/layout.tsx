@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ProjectHeader } from "@/components/project/project-header";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getShareLink } from "@/lib/public-board";
 import { getWorkspaceMembers } from "@/lib/queries";
 
 export default async function ProjectLayout({
@@ -28,6 +29,15 @@ export default async function ProjectLayout({
   if (!project) notFound();
 
   const workspaceMembers = await getWorkspaceMembers(workspace.id);
+
+  /*
+   * The share link is fetched only for people who may act on it. A token is a
+   * password to the board, and there is no reason it should reach the browser
+   * of somebody who cannot create or revoke one — a page that ships a secret it
+   * only intends to hide has published it.
+   */
+  const canShare = can("project:share");
+  const shareLink = canShare ? await getShareLink(project.id) : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -68,6 +78,18 @@ export default async function ProjectLayout({
         role={role}
         canEditProject={can("project:update")}
         canDeleteProject={can("project:delete")}
+        canShare={canShare}
+        shareLink={
+          shareLink
+            ? {
+                token: shareLink.token,
+                createdAt: shareLink.createdAt.toISOString(),
+                expiresAt: shareLink.expiresAt?.toISOString() ?? null,
+                lastViewedAt: shareLink.lastViewedAt?.toISOString() ?? null,
+                createdByName: shareLink.createdBy.name,
+              }
+            : null
+        }
       />
       <div className="min-h-0 flex-1">{children}</div>
     </div>

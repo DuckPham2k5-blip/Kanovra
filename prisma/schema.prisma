@@ -133,6 +133,7 @@ model User {
   actedNotifications Notification[]       @relation("NotificationActor")
   invitationsSent    Invitation[]         @relation("InvitationInviter")
   savedViews         SavedView[]
+  shareLinks         ShareLink[]          @relation("ShareLinkCreator")
 
   @@index([email])
   @@map("users")
@@ -255,6 +256,7 @@ model Project {
   activities Activity[]
   mindMaps   MindMap[]
   savedViews SavedView[]
+  shareLink  ShareLink?
 
   @@unique([workspaceId, key])
   @@index([workspaceId])
@@ -757,4 +759,43 @@ model DeletedTask {
   /// Swept by age on the next delete in the same workspace.
   @@index([workspaceId, createdAt])
   @@map("deleted_tasks")
+}
+
+/// A read-only board served to somebody with no account at all.
+///
+/// A row rather than a signed token. A signature would need a revocation list
+/// the moment anybody wanted a link back, and a row *is* that list: deleting it
+/// ends access in the same instant, with nothing left over that could be
+/// un-revoked.
+///
+/// The token is stored as it appears in the URL, not hashed. Hashing protects a
+/// secret whose plaintext is worth more than the database holding it — and this
+/// secret grants read access to a board that the same database stores in full.
+/// Anybody who can read this table can already read the tasks.
+model ShareLink {
+  id          String @id @default(cuid())
+  /// One link per project: the thing being shared is the whole board, so two
+  /// links would differ only in expiry, and "which of these did I give the
+  /// client" is a question the product cannot answer. One link means revoking
+  /// is one button with one meaning — this board is no longer public.
+  projectId   String @unique
+  /// The secret in the address bar: 256 bits from `randomBytes`, base64url.
+  /// Unique so a collision is a write error rather than a silent hijack.
+  token       String @unique
+  createdById String
+
+  createdAt DateTime  @default(now())
+  /// Null means it does not expire. Checked on every read, never by a sweep:
+  /// a job that has not run yet would keep an expired board public.
+  expiresAt DateTime?
+  /// Roughly when somebody last opened it, for deciding whether to revoke.
+  /// Stamped at most once an hour, so anonymous traffic cannot turn a public
+  /// page into a write per request. No view *count*: a count of unauthenticated
+  /// hits is mostly crawlers, and would look precise while meaning nothing.
+  lastViewedAt DateTime?
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("ShareLinkCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@map("share_links")
 }

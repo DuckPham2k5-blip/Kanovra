@@ -33,6 +33,30 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
         ],
       },
+      {
+        /*
+         * A published board must never reach a search index.
+         *
+         * The page already sets `robots: { index: false }`, which emits a meta
+         * tag — and a meta tag is only read by a crawler that parses the HTML.
+         * This header says the same thing to everything else: a crawler
+         * fetching the RSC payload, a preview fetcher, an archiver. Belt and
+         * braces on the one route where the failure is permanent, since
+         * revoking a link does not remove a page somebody has already indexed.
+         */
+        source: "/share/:path*",
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+          /*
+           * And it must never be embedded. The global rule above is
+           * SAMEORIGIN, which permits framing by this application itself; a
+           * shared board has no reason to be framed by anything, and `none`
+           * closes clickjacking on a page whose visitors are, by definition,
+           * people we know nothing about.
+           */
+          { key: "X-Frame-Options", value: "DENY" },
+        ],
+      },
     ];
   },
 };

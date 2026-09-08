@@ -102,3 +102,21 @@ export function resetRateLimits() {
  * to stop a script or a runaway client loop, not to pace normal work.
  */
 export const WRITE_LIMIT: RateLimitOptions = { limit: 120, windowMs: 60_000 };
+
+/**
+ * Anonymous reads of a public share link, per client address.
+ *
+ * This is the first route in the application that makes the database do work
+ * for somebody with no account, so it is the first that can be made expensive
+ * by a stranger. A person reading a board makes a handful of requests and then
+ * stops; sixty a minute leaves that untouched and still puts a ceiling on a
+ * script.
+ *
+ * Keyed off `X-Forwarded-For`, which the Nginx config sets. With no proxy in
+ * front — `next dev`, or a deploy that skipped `deploy/nginx.conf` — there is
+ * no address to key on and every anonymous visitor shares one bucket, so the
+ * limit degrades into a global cap rather than a per-caller one. That is the
+ * safe direction to fail, and it is another reason the Nginx config is not
+ * optional.
+ */
+export const PUBLIC_READ_LIMIT: RateLimitOptions = { limit: 60, windowMs: 60_000 };
