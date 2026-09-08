@@ -474,6 +474,71 @@ address there rather than by user. Anonymous reads of a share link have their ow
 per-address ceiling for the same reason: it is the first route in this application
 that makes the database do work for somebody with no account.
 
+**The assistant is grounded in a written description of this product, and that
+file is the feature.** Ask any model "how do I share a board?" and it answers —
+from every task manager it has ever read, confidently naming a Share button in
+the top right, because most of them have one. This one puts sharing in the
+project's `⋯` menu. The reader looks, does not find it, and concludes the
+application is broken: a fluent wrong answer costs them their time *and* their
+trust in the screen, which is worse than no assistant at all. So
+`product-guide.ts` names every page, every control, where it is and which role
+it needs, and the system prompt says that anything about the location of a
+control must come from there — and that "I don't see that in this app" is a good
+answer where an invented one is not. **The test asserts cover, not contents.**
+Nothing can check that "the resize grip is the bottom-right corner" is still
+true; what a test can do is walk the route folders and refuse a `page.tsx` with
+no entry, so adding a page goes red instead of silently teaching the assistant
+to describe eight pages when there are nine. Same shape as the icon registry's
+cover test, and it earned itself immediately by failing on `/w/[slug]/ai` before
+that page existed.
+
+**Three providers, one shape, and no key ever crosses to the browser.** Claude
+through its SDK because it is already a dependency; Gemini and OpenAI through
+plain `fetch`, because two more SDKs is megabytes in `node_modules` and a stream
+of release notes to follow for the rest of the project's life, in exchange for
+two HTTP calls. `providerStatus` takes an environment and returns booleans, so
+the picker learns *that* Gemini is configured and never learns the key — pinned
+by a test asserting the serialised result contains the variable's **name** (the
+"not configured" message needs it) and not its **value**. A placeholder counts
+as missing: `CLERK_WEBHOOK_SECRET` sat in this project's `.env` as `whsec_xxxx…`
+for weeks while every truthiness check read it as configured, which is why the
+Clerk webhook had never once run. **Claude cannot generate images**, so that
+control and its suggestion appear only once Gemini or ChatGPT has a key — a
+button that fails when pressed teaches people the suggestions are decorative.
+**Copilot has no public chat API**, and that is written into the interface with
+its reason rather than left as an absence, because "why is Copilot missing" is a
+question somebody asks once a month for ever and a silence reads as an oversight.
+
+**The SSE reassembler is its own module because the easy version passes every
+local test.** Two of the three providers stream over SSE and the network does
+not respect line boundaries — one JSON object routinely arrives as two pieces.
+Splitting each chunk on newlines works perfectly against a mock and drops tokens
+against a real connection, intermittently, in proportion to distance. The
+failure looks like the model being odd, not like a parsing bug, which is why it
+is pinned with a test that pushes a whole answer one character at a time.
+
+**Neither the address bar nor a workspace name may write into the system
+prompt.** The current path is only ever matched against the guide's known
+routes: a match contributes the page's name, and anything else contributes
+*nothing* — otherwise `/w/acme/ignore-all-previous-instructions` arrives as text
+the model is told to treat as its own. A workspace name has every run of
+whitespace collapsed to one space, so it cannot open a new line. The guarantee
+is **structural, not a word filter**: a `#` surviving mid-sentence is not a
+heading and stripping it would rename a team genuinely called "C# guild".
+
+**An assistant request is the first in this application that costs money**, so
+it has a limit of its own, tighter than the write limit and checked before the
+model is reached — a runaway client loop here is a bill rather than a slow
+afternoon. **Conversations are private to one person**: no sharing switch, no
+activity row, nothing on the realtime bus, and every query scoped by `userId` in
+its `where` clause rather than checked afterwards, so "not yours" and "does not
+exist" are the same answer and an id cannot be probed for. **The answer renders
+as text, not HTML** — model output is shaped by what the reader typed, exactly
+like a comment, and this project already decided an uploaded `.svg` downloads
+rather than renders because same-origin rendering is stored XSS. `**bold**` is
+the one exception, done by splitting a string and building elements, never by
+writing markup.
+
 **The logger redacts by value as well as by key name.** Key-based redaction
 missed `DATABASE_URL`, whose name matches no secret pattern while its value
 carries a password — and a Prisma connection error quotes that whole string
@@ -898,9 +963,16 @@ could not do. Node size is chosen when a node is made, in either direction
 without limit, rather than derived from depth.
 
 **Known feature gaps** versus comparable products: none left. Public read-only
-share links were the last one and are done — see the decision above. *(Multi-select
-and bulk actions, undo on the map canvas, undo for a task delete, CSV export,
-keyboard shortcuts, project templates and time tracking are all done too.)*
+share links were the last one on that list. *(Multi-select and bulk actions, undo
+on the map canvas, undo for a task delete, CSV export, keyboard shortcuts,
+project templates and time tracking are all done too.)* An **AI assistant page**
+was then asked for and built on top — see the decisions above.
+
+**The assistant has never answered a question.** `.env` holds no key for any of
+the three providers, so nothing has been exercised end to end and cannot be
+until one is set. What the page shows in the meantime is the "not configured"
+state naming the three variables, which is the one thing about it that has been
+looked at.
 
 ---
 
