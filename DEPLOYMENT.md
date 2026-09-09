@@ -136,7 +136,11 @@ npm run build
 
 mkdir -p .next/standalone/.next
 cp -r .next/static .next/standalone/.next/static
-cp -r public .next/standalone/public
+# `public/` không tồn tại trong repo này, nên `cp` không điều kiện sẽ dừng ở
+# `cannot stat 'public'`. Cùng nguyên nhân đã làm hỏng `COPY --from=builder
+# /app/public` trong Dockerfile ở lần thứ mười — script `deploy.sh` đã có chốt
+# chặn này từ lúc ấy, tài liệu thì chưa.
+[ -d public ] && cp -r public .next/standalone/public
 cp .env .next/standalone/.env
 
 pm2 start ecosystem.config.js --env production

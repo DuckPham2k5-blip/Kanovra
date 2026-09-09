@@ -925,6 +925,26 @@ stack.
   hit it on a VPS. Write config through Bash, or use
   `[System.IO.File]::WriteAllText` with a `UTF8Encoding($false)`.
 
+- **PM2 decides whether a file is a config or a program by its *filename*.** A
+  copy of `ecosystem.config.js` named `ecosystem.local.js` was not recognised as
+  a config, so PM2 **executed it** — and reported
+  `Starting … in fork_mode (1 instance)` followed by `Done.`, which reads as
+  success. There was one process called `ecosystem.local`, in fork mode, running
+  the config file as a program; no cluster, no two workers, no application. The
+  name has to match what PM2 looks for (`*.config.js`, `ecosystem.config.js`, or
+  a `.json`/`.yaml`), and the tell that it went wrong is the **app name in the
+  table** — it should be `kanovra`, not the file's own name.
+
+- **Hundreds of concurrent requests exhaust Windows' ephemeral ports, and the
+  application then answers 500.** A load test through nginx left **15,758
+  sockets in `TIME_WAIT`** against a default range of roughly 16,384, so every
+  subsequent outbound connection failed with `ENOBUFS` — including the ones the
+  app makes to Postgres, and the ones PM2's Windows cluster proxy makes to its
+  own workers. The symptom is an application returning 500 on every route while
+  its logs say `Ready`, and Postgres answering normally when asked directly.
+  Check `netstat -an | grep -c TIME_WAIT` before believing a 500 that appeared
+  right after a burst; the range drains on its own in a couple of minutes.
+
 - **A second agent session on the same working tree will sweep your unfinished
   edits into its own commit.** One ran `git add -A` while a file was half-edited
   here; nothing was lost that time, and nothing would have said so if it had
