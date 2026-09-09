@@ -558,6 +558,18 @@ whitespace collapsed to one space, so it cannot open a new line. The guarantee
 is **structural, not a word filter**: a `#` surviving mid-sentence is not a
 heading and stripping it would rename a team genuinely called "C# guild".
 
+**The window of a conversation must open on a user turn.** Turns alternate and
+the newest is always the question just written, so counting back from the end
+gives user, assistant, user … — and an **even** limit lands on an assistant
+turn, which Anthropic refuses. A plain `slice(-20)` therefore works perfectly
+until a chat passes twenty turns, roughly ten exchanges in, and then fails on
+every message after that: far enough in to read as the assistant breaking rather
+than as a window built wrong. `conversationWindow` also **collapses** two turns
+of one role rather than dropping either — a stream that produces nothing writes
+no assistant row, and the next question then sits beside the previous one, both
+genuinely asked. It trims *before* fixing the alternation, or it quietly returns
+fewer turns than its own parameter asked for.
+
 **An assistant request is the first in this application that costs money**, so
 it has a limit of its own, tighter than the write limit and checked before the
 model is reached — a runaway client loop here is a bill rather than a slow
@@ -878,6 +890,31 @@ stack.
   than as the wrong language. Windows PowerShell 5.1 has no `&&`: chain with
   `;` and `if ($?) { … }`. This is what cost the round trip above.
 
+- **A fixture has to contain the row the query is supposed to be filtering
+  out.** Fifteen tests for the assistant route passed on the first run, which is
+  the moment to be suspicious rather than pleased — so the membership check was
+  broken on purpose (`userId` removed from its `where`) and **they all passed
+  again**. The cause was in the fixture: `prisma.workspace.create({ ownerId })`
+  sets a column and creates no `WorkspaceMember` at all, so the "somebody else's
+  workspace" had no members, and a query with the caller filter removed still
+  found nothing. The test proved the query *ran*; it never proved the query
+  **discriminates**. With one membership row added, the same sabotage fails
+  immediately — `expected 200 to be 404`, an outsider being answered.
+
+  This is the hand-written-fixture trap in a second costume: the map round-trip
+  test used coordinates of `240` and `60`, too tidy to hold what a real drag
+  produces, and stayed green through the bug it existed to catch. **Break the
+  check before believing the test**, and look at *why* it still passes.
+
+- **`Buffer.from(x, "base64")` does not throw on rubbish.** It skips whatever it
+  cannot decode and returns what is left, which for a short enough string is an
+  empty buffer. `generateImage` handed that back happily, the route wrote a
+  **zero-byte file** to disk and created a message row pointing at it, and the
+  reader saw a broken image in their conversation with no error anywhere behind
+  it. Worse than the request failing: a failure can be retried, and a saved
+  blank looks like the picture that was made. Anything decoding base64 into
+  bytes that get *stored* needs a length check.
+
 - **A second agent session on the same working tree will sweep your unfinished
   edits into its own commit.** One ran `git add -A` while a file was half-edited
   here; nothing was lost that time, and nothing would have said so if it had
@@ -1000,11 +1037,36 @@ on the map canvas, undo for a task delete, CSV export, keyboard shortcuts,
 project templates and time tracking are all done too.)* An **AI assistant page**
 was then asked for and built on top — see the decisions above.
 
-**The assistant has never answered a question.** `.env` holds no key for any of
-the three providers, so nothing has been exercised end to end and cannot be
-until one is set. What the page shows in the meantime is the "not configured"
-state naming the three variables, which is the one thing about it that has been
-looked at.
+**The assistant has never answered a real question**, and that is now the *only*
+thing about it that is unproven. `.env` holds no key for any of the three
+providers, so no model has ever seen the prompt — the owner reached both Claude
+and Gemini and was stopped by a payment page at one and by "the request is
+suspicious" at the other, on the mobile connection that also blocks GitHub.
+
+Everything up to the model is tested, and most of it was tested by breaking it
+first:
+
+- **The grounding reaches the wire.** A stand-in for the network captures what
+  `streamChat` really posts and asserts the `⋯ menu` and the derived shortcut
+  list are in the system field of the body.
+- **The route**, against a real database: no session, not a member, a workspace
+  that does not exist, somebody else's conversation (and nothing written to it
+  on the way to being refused), an unparseable body, a message that is empty or
+  too long, an unknown model, nothing written when it refuses, the spend limit
+  and that it is charged per *person* rather than per conversation, the thread
+  being sent back rather than only the newest question, `no-store` and
+  `x-accel-buffering`, and a provider failing mid-answer being written into the
+  answer and kept.
+- **The actions**, against a real database and a real disk — including that a
+  refusal leaves the other person's title, their conversation *and* their
+  picture untouched, which is the half nobody checks after being told no.
+- **The picture path**, with the network stood in for: a model that cannot draw
+  never reaching the network at all, the provider's own refusal surviving as far
+  as the reader, and the key never appearing in a URL.
+
+What has been *looked at* is the "not configured" state naming the three
+variables. Adding any one key is the whole of what stands between here and an
+answer.
 
 ---
 
