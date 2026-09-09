@@ -182,13 +182,35 @@ opt() {  # $1 tên biến, $2 mất gì
   fi
 }
 opt RESEND_API_KEY    "thư mời không gửi được, phải copy link mời bằng tay"
-opt ANTHROPIC_API_KEY "các nút AI báo chưa cấu hình"
 opt ERROR_WEBHOOK_URL "lỗi chỉ ra stdout (pm2 logs), không đẩy đi đâu"
+
+# Ba nhà cung cấp cho trợ lý; MỘT cái là đủ. Nên chúng được báo cùng nhau chứ
+# không phải mỗi cái một dòng "chưa đặt" — ba lời than về cùng một tính năng
+# khiến người đọc tưởng thiếu ba thứ.
+ai_count=0
+for v in ANTHROPIC_API_KEY GOOGLE_AI_API_KEY OPENAI_API_KEY; do
+  if isset "$v" && ! is_placeholder "$(get "$v")"; then
+    ok "$v đã đặt"
+    ai_count=$((ai_count + 1))
+  fi
+done
+if [ "$ai_count" = "0" ]; then
+  # Căn lề bằng khoảng trắng đếm tay: printf '%-22s' đếm BYTE, và một nhãn
+  # tiếng Việt nhiều byte hơn số ký tự nó hiện ra, nên nó luôn thụt vào.
+  note "khoá trợ lý AI         chưa có cái nào — trang Assistant mở được"
+  note "                        nhưng không trả lời; các nút AI báo chưa cấu hình."
+  note "                        Đặt MỘT trong ANTHROPIC_API_KEY, GOOGLE_AI_API_KEY,"
+  note "                        OPENAI_API_KEY là đủ."
+elif ! (isset GOOGLE_AI_API_KEY && ! is_placeholder "$(get GOOGLE_AI_API_KEY)")    && ! (isset OPENAI_API_KEY && ! is_placeholder "$(get OPENAI_API_KEY)"); then
+  # Claude không tạo được ảnh, nên nút tạo ảnh sẽ không xuất hiện.
+  note "tạo ảnh                không có — Claude không sinh ảnh; cần"
+  note "                        GOOGLE_AI_API_KEY hoặc OPENAI_API_KEY."
+fi
 
 # ---------------------------------------------------------------------------
 head2 "Biến lạ"
 # ---------------------------------------------------------------------------
-known=" DATABASE_URL DIRECT_URL NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY CLERK_SECRET_KEY CLERK_WEBHOOK_SECRET NEXT_PUBLIC_CLERK_SIGN_IN_URL NEXT_PUBLIC_CLERK_SIGN_UP_URL NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL RESEND_API_KEY RESEND_FROM_EMAIL ANTHROPIC_API_KEY ERROR_WEBHOOK_URL UPLOAD_DIR NEXT_PUBLIC_APP_URL SEED_DEMO_EMAILS NODE_ENV PORT HOSTNAME PM2_INSTANCES "
+known=" DATABASE_URL DIRECT_URL NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY CLERK_SECRET_KEY CLERK_WEBHOOK_SECRET NEXT_PUBLIC_CLERK_SIGN_IN_URL NEXT_PUBLIC_CLERK_SIGN_UP_URL NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL RESEND_API_KEY RESEND_FROM_EMAIL ANTHROPIC_API_KEY GOOGLE_AI_API_KEY OPENAI_API_KEY ERROR_WEBHOOK_URL UPLOAD_DIR NEXT_PUBLIC_APP_URL SEED_DEMO_EMAILS NODE_ENV PORT HOSTNAME PM2_INSTANCES "
 unknown=0
 for k in "${!ENV[@]}"; do
   case "$known" in *" $k "*) ;; *) note "$k — không có trong .env.example, gõ nhầm tên?"; unknown=$((unknown + 1)) ;; esac
