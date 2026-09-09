@@ -30,10 +30,20 @@ describe("isRealKey", () => {
    * webhook had never once run, and nothing said so. A placeholder is not a
    * key, and this is the only place that gets to decide that.
    */
+  /*
+   * The prefixes below are deliberately broken with a `<…>` marker.
+   *
+   * GitHub's push protection reads `sk_test_` followed by ~24 plausible
+   * characters as a Stripe secret and rejects the **entire push** — this
+   * project has already lost a push to a string of x's in `.env.example`, and
+   * writing the unbroken shape here would rebuild that trap inside the test
+   * that exists to reject it. The run of x's is what `isRealKey` actually
+   * matches on, and it survives the break.
+   */
   it("rejects the placeholder shapes people actually leave behind", () => {
     for (const v of [
-      "whsec_xxxxxxxxxxxxxxxxxxxxxxxx",
-      "sk_test_xxxxxxxxxxxxxxxxxxxxxxxx",
+      "whsec_<placeholder>xxxxxxxxxxxxxxxx",
+      "sk_test_<placeholder>xxxxxxxxxxxxxxxx",
       "<your-anthropic-api-key>",
       "your-api-key-goes-here",
       "YOUR_API_KEY_HERE_PLEASE",
