@@ -1776,6 +1776,48 @@ What this still does not prove: certbot obtaining a real certificate, the config
 surviving `certbot --nginx`'s own edits to it, and any of it under a real
 domain's DNS.
 
+### `ecosystem.config.js` has now been run too, and it is coherent
+
+PM2 reads the file and starts **two workers in `cluster_mode` named `kanovra`**,
+both booting the standalone bundle cleanly (`Ready in 2000ms`, once per worker),
+with the PM2 daemon holding the listening socket as the cluster primary. Static
+assets served through it — 174 kB off `/_next/static/…`, which is the whole
+point of the copy step `deploy.sh` does and the Dockerfile's own `public`
+trouble taught this project to check.
+
+Only four fields were changed to run it here, all environmental and none
+structural: `cwd`, the two log paths and `PORT`. `exec_mode`, `instances`,
+`max_memory_restart` and the standalone script are the shipped values.
+
+**The interesting failure was `HOSTNAME: "127.0.0.1"`, and the config is right
+anyway.** Every request through middleware answered 500 with
+`Failed to proxy http://localhost:<port>/… ECONNREFUSED`, while
+`/_next/static/…` — the one path the middleware matcher excludes — answered 200.
+So something in the middleware produces an absolute URL that Next then proxies,
+and it names the host `localhost`; on a machine where `localhost` resolves to
+`::1` first, an application bound IPv4-only refuses *itself*. Changing
+`HOSTNAME` to `0.0.0.0` turned every one of those into a 200, which is what
+identifies the cause rather than guessing at it.
+
+Left as `127.0.0.1` deliberately. Binding loopback-only is what keeps the app
+off the public interface with nginx in front, and **every probe in the deploy
+chain already names `127.0.0.1` rather than `localhost`** — the Dockerfile's
+`HEALTHCHECK`, `deploy.sh`'s `HEALTH_URL`, and DEPLOYMENT.md's own `curl`, all
+checked. `run-prod-local.sh` is the one that says `localhost`, and it addresses
+a Docker container whose app binds `0.0.0.0`, so it is unaffected.
+
+The remaining piece is a hypothesis rather than a finding: the absolute URL is
+most likely Clerk's handshake, since this is a **development** instance whose
+keys expect `localhost`. On a VPS with a production instance and requests
+arriving through nginx carrying the real `Host`, the same path would not name
+`localhost` at all. Worth knowing before somebody "fixes" `HOSTNAME` in
+production and quietly exposes the app on every interface.
+
+**Anyone who does hit this on the VPS** — a 500 on every page while
+`pm2 logs` says `Ready` — should read the error line for the *host it is
+proxying to*, and try `curl http://127.0.0.1:3000/api/health` before anything
+else. The two answers are different diagnoses.
+
 ---
 
 ## Built after the eleventh pass (2026-09-08) — public share links
