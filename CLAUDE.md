@@ -915,6 +915,16 @@ stack.
   blank looks like the picture that was made. Anything decoding base64 into
   bytes that get *stored* needs a length check.
 
+- **PowerShell's `Set-Content -Encoding utf8` writes a BOM, and nginx refuses
+  the file.** Rewriting `nginx.conf` through PowerShell produced
+  `[emerg] unknown directive "﻿#"` on line 1 — the byte-order mark read as a
+  directive. The repo's own files are clean (`23 20 4b`, checked), so this was a
+  harness fault; but it is the same shape as the CRLF trap already recorded, it
+  comes from the same place (a Windows machine editing files a Linux server
+  parses), and it would be indistinguishable from a corrupt config to whoever
+  hit it on a VPS. Write config through Bash, or use
+  `[System.IO.File]::WriteAllText` with a `UTF8Encoding($false)`.
+
 - **A second agent session on the same working tree will sweep your unfinished
   edits into its own commit.** One ran `git add -A` while a file was half-edited
   here; nothing was lost that time, and nothing would have said so if it had
@@ -1709,6 +1719,42 @@ swings from 0.35 to 0.95 opacity. Two clicks, and no ambiguity in the answer.
 points at the real dev database and could recreate the running Postgres container,
 so the command was proven on the builder image against a scratch database
 instead). And everything about an actual VPS — there still is not one.
+
+### `nginx.conf` has now been run, not only read (2026-09-09)
+
+The tenth pass checked one directive — `listen … http2` — across three nginx
+versions. The file as a **whole** had never been parsed by nginx, and the state
+it actually runs in, *after* certbot fills in the certificates, had never existed
+anywhere. Both are now closed without a VPS.
+
+The post-certbot config was reconstructed: the four commented lines uncommented,
+a self-signed certificate and a 2048-bit `ssl-dhparams.pem` generated, and
+certbot's own `options-ssl-nginx.conf` stubbed with its real contents. `nginx -t`
+then **passes on 1.18, 1.24 and 1.29** — the two Ubuntu LTS versions a Hostinger
+VPS is likely to run, and a current one. 1.29 warns that `listen … http2` is
+deprecated and nothing else, exactly as the comment in the file predicted.
+
+Then it was **run**, with the upstream pointed at a stand-in backend — one line
+changed, and the only one:
+
+```
+port 80                     301 Moved Permanently
+port 443                    all four security headers present
+120 rapid GET /api/…        67 through, 53 refused with 429 (not nginx's 503 default)
+80 rapid POST /             41 refused with 429
+80 rapid GET  /             80 × 200, none refused
+```
+
+The last two lines are the point. `$kanovra_write_key` maps POST to the caller's
+address and everything else to an empty string, and an empty key disables
+limiting — so the map has to **discriminate**, not merely run. Writes are shed at
+the edge and reads are untouched, measured rather than reasoned about. And
+`limit_req_status 429` holds: nginx's default 503 would tell an uptime monitor
+the service is down and give a client nothing to back off against.
+
+What this still does not prove: certbot obtaining a real certificate, the config
+surviving `certbot --nginx`'s own edits to it, and any of it under a real
+domain's DNS.
 
 ---
 
