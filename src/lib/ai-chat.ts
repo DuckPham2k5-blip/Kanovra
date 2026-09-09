@@ -349,7 +349,7 @@ export async function generateImage(input: {
 
     const first = body?.predictions?.[0];
     if (!first?.bytesBase64Encoded) throw new Error("The provider returned no picture.");
-    return { bytes: Buffer.from(first.bytesBase64Encoded, "base64"), mime: first.mimeType ?? "image/png" };
+    return { bytes: decodePicture(first.bytesBase64Encoded), mime: first.mimeType ?? "image/png" };
   }
 
   const response = await fetch("https://api.openai.com/v1/images/generations", {
@@ -366,7 +366,24 @@ export async function generateImage(input: {
 
   const b64 = body?.data?.[0]?.b64_json;
   if (!b64) throw new Error("The provider returned no picture.");
-  return { bytes: Buffer.from(b64, "base64"), mime: "image/png" };
+  return { bytes: decodePicture(b64), mime: "image/png" };
+}
+
+/**
+ * Base64 to bytes, refusing to hand back nothing.
+ *
+ * `Buffer.from(x, "base64")` does not throw on rubbish. It skips whatever it
+ * cannot decode and returns what is left, which for a short enough string is an
+ * empty buffer — and an empty buffer is written to disk as a zero-byte file
+ * with a message row pointing at it. The reader then sees a broken image in
+ * their conversation with no error anywhere behind it, which is a worse outcome
+ * than the request having failed: a failure can be retried, and a saved blank
+ * looks like the picture that was made.
+ */
+function decodePicture(base64: string): Buffer {
+  const bytes = Buffer.from(base64, "base64");
+  if (bytes.length === 0) throw new Error("The provider returned no picture.");
+  return bytes;
 }
 
 /** Providers that are configured right now, for the page to render its picker. */
