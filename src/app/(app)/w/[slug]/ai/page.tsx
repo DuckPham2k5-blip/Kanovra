@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
 import { Assistant } from "@/components/ai/assistant";
+import { listConversations, openConversation } from "@/lib/ai-conversations";
 import { providerStatus, defaultModel, capabilityAvailable } from "@/lib/ai-providers";
 import { requireWorkspace } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Assistant" };
 
@@ -29,35 +29,21 @@ export default async function AssistantPage({
   const { c: openId } = await searchParams;
   const { workspace, user } = await requireWorkspace(slug);
 
-  const conversations = await prisma.aiConversation.findMany({
-    where: { userId: user.id, workspaceId: workspace.id },
-    orderBy: { updatedAt: "desc" },
-    take: 60,
-    select: { id: true, title: true, updatedAt: true },
+  const conversations = await listConversations({
+    userId: user.id,
+    workspaceId: workspace.id,
   });
 
   /*
-   * Scoped by owner in the `where`, not filtered after: `?c=` comes from the
-   * address bar, and somebody else's id has to answer exactly as a made-up one.
+   * `?c=` comes from the address bar, so the lookup is scoped by owner in its
+   * `where` — somebody else's id has to answer exactly as a made-up one. See
+   * `ai-conversations.ts`.
    */
   const open = openId
-    ? await prisma.aiConversation.findFirst({
-        where: { id: openId, userId: user.id, workspaceId: workspace.id },
-        select: {
-          id: true,
-          title: true,
-          messages: {
-            orderBy: { createdAt: "asc" },
-            select: {
-              id: true,
-              role: true,
-              content: true,
-              model: true,
-              imageId: true,
-              createdAt: true,
-            },
-          },
-        },
+    ? await openConversation({
+        conversationId: openId,
+        userId: user.id,
+        workspaceId: workspace.id,
       })
     : null;
 

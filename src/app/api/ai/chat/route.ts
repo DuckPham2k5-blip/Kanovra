@@ -11,7 +11,8 @@ import {
   streamChat,
   type ChatTurn,
 } from "@/lib/ai-chat";
-import { titleFromMessage } from "@/lib/ai-conversation";
+import { conversationWindow, titleFromMessage } from "@/lib/ai-conversation";
+import { findOwnConversation, recentTurns } from "@/lib/ai-conversations";
 import { findModel } from "@/lib/ai-providers";
 import { getCurrentUser } from "@/lib/auth";
 import { logError } from "@/lib/logger";
@@ -93,9 +94,10 @@ export async function POST(request: NextRequest) {
    * conversation exists — and a conversation is private in a way a task is not.
    */
   let conversation = body.conversationId
-    ? await prisma.aiConversation.findFirst({
-        where: { id: body.conversationId, userId: user.id, workspaceId: workspace.id },
-        select: { id: true },
+    ? await findOwnConversation({
+        conversationId: body.conversationId,
+        userId: user.id,
+        workspaceId: workspace.id,
       })
     : null;
 
@@ -126,21 +128,17 @@ export async function POST(request: NextRequest) {
     return respondWithImage({ conversationId, prompt: body.message, modelId: body.modelId });
   }
 
-  const previous = await prisma.aiMessage.findMany({
-    where: { conversationId },
-    orderBy: { createdAt: "desc" },
-    take: HISTORY_TURNS,
-    select: { role: true, content: true },
-  });
-
-  /*
-   * Oldest first for the model, newest first from the database — the `take`
-   * has to bite at the *recent* end, or a long conversation would send its
-   * opening and forget everything since.
-   */
-  const turns: ChatTurn[] = previous
-    .reverse()
-    .map((m) => ({ role: m.role === AiRole.USER ? "user" : "assistant", content: m.content }));
+  // Oldest first, trimmed at the recent end, then shaped into something a
+  // provider will accept — see `conversationWindow`, which exists because a
+  // plain trim opens on an assistant turn and Anthropic refuses that.
+  const previous = await recentTurns(conversationId, HISTORY_TURNS);
+  const turns: ChatTurn[] = conversationWindow(
+    previous.map((m) => ({
+      role: m.role === AiRole.USER ? "user" : "assistant",
+      content: m.content,
+    })),
+    HISTORY_TURNS,
+  );
 
   const system = buildSystemPrompt({ workspaceName: workspace.name, currentPath: body.path });
 
