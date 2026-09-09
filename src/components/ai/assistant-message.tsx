@@ -4,6 +4,7 @@ import { Loader2, Sparkles } from "lucide-react";
 
 import type { ChatMessage } from "@/components/ai/assistant";
 import { findModel } from "@/lib/ai-providers";
+import { emphasisSegments } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
 
 /**
@@ -87,22 +88,23 @@ export function AssistantMessage({
 /**
  * `**bold**`, and nothing else.
  *
- * Split on the delimiter and build React elements from the pieces. The odd
- * indices are the emphasised runs, so an unmatched `**` simply leaves its text
- * alone rather than swallowing the rest of the answer — which is what a regex
- * replace into `innerHTML` would do, on top of being an injection.
+ * The splitting lives in `lib/rich-text.ts` with its own tests, because it is
+ * the one place model output influences what is drawn — and because the version
+ * inline here carried a comment claiming an unclosed `**` left its text alone
+ * while the code turned the whole rest of the answer bold.
+ *
+ * Segments in, elements out. No string on this path ever becomes markup.
  */
 function Emphasised({ text }: { text: string }) {
-  const parts = text.split("**");
   return (
     <>
-      {parts.map((part, i) =>
-        i % 2 === 1 ? (
+      {emphasisSegments(text).map((segment, i) =>
+        segment.bold ? (
           <strong key={i} className={cn("font-semibold")}>
-            {part}
+            {segment.text}
           </strong>
         ) : (
-          <span key={i}>{part}</span>
+          <span key={i}>{segment.text}</span>
         ),
       )}
     </>
