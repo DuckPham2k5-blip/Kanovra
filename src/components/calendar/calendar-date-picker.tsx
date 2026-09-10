@@ -9,10 +9,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   daysInMonth,
-  pickableParts,
+  DATE_PARTS,
+  PART_LABELS,
   pickerYears,
   withPart,
-  type CalendarView,
   type DatePart,
 } from "@/lib/calendar-view";
 import { format } from "@/lib/date";
@@ -21,43 +21,27 @@ import { cn } from "@/lib/utils";
 /**
  * Jump the calendar to an exact day/month/year, from the sketch the owner drew.
  *
- * The stepper walks one unit at a time; this is for "March 2027" in one move,
- * which is what following work across a long stretch needs. Clicking the period
- * opens a panel of tabs — one per part the current view reads (see
- * `pickableParts`) — and a tab reveals a scrolling column of its values.
- * Double-clicking a tab turns that column into a box you type into, which is
- * how the year reaches somewhere a scroll never would.
+ * The stepper walks one month at a time; this is for "March 2027" in one move.
+ * Clicking the period opens a panel with a tab per part — Day, Month, Year,
+ * always all three — and a tab reveals a scrolling column of its values, the
+ * current one lit so you can see where you are. Double-clicking a tab turns the
+ * column into a box you type into, which is how the year reaches somewhere a
+ * scroll never would.
  *
  * Every choice writes the anchor through `onPick` and the page refetches; the
  * arithmetic (clamping the 31st into February, the year span) is in
  * `calendar-view.ts` with tests, so this file is only the surface.
  */
 export function CalendarDatePicker({
-  view,
   anchor,
   onPick,
 }: {
-  view: CalendarView;
   anchor: Date;
   onPick: (date: Date) => void;
 }) {
   const [open, setOpen] = React.useState(false);
-  const parts = pickableParts(view);
-  const [active, setActive] = React.useState<DatePart>(parts[0]);
+  const [active, setActive] = React.useState<DatePart>("day");
   const [typing, setTyping] = React.useState(false);
-
-  // The panel is scoped to the view, and switching view can drop the active
-  // tab (Day disappears in month view). Fall back to the first available one.
-  React.useEffect(() => {
-    if (!parts.includes(active)) setActive(parts[0]);
-  }, [parts, active]);
-
-  const label =
-    view === "day"
-      ? format(anchor, "EEEE, d MMMM yyyy")
-      : view === "month"
-        ? format(anchor, "MMMM yyyy")
-        : format(anchor, "yyyy");
 
   function choose(part: DatePart, value: number) {
     onPick(withPart(anchor, part, value));
@@ -71,20 +55,23 @@ export function CalendarDatePicker({
       onOpenChange={(v) => {
         setOpen(v);
         if (!v) setTyping(false);
-        if (v) setActive(parts[0]);
+        if (v) {
+          setActive("day");
+          setTyping(false);
+        }
       }}
     >
       <PopoverTrigger asChild>
         <Button variant="ghost" className="h-auto gap-1.5 px-2 py-1 text-lg font-semibold capitalize">
-          {label}
+          {format(anchor, "d MMMM yyyy")}
           <ChevronDown className="size-4 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
 
       <PopoverContent align="start" className="w-64 p-0">
-        {/* Tabs: one per part this view reads. Click selects, double-click types. */}
+        {/* One tab per part. Click selects the tab; double-click types into it. */}
         <div className="flex border-b" role="tablist" aria-label="Pick a date part">
-          {parts.map((part) => (
+          {DATE_PARTS.map((part) => (
             <button
               key={part}
               role="tab"
@@ -98,7 +85,7 @@ export function CalendarDatePicker({
                 setTyping(true);
               }}
               className={cn(
-                "flex-1 px-3 py-2 text-sm capitalize transition-colors",
+                "flex-1 px-3 py-2 text-sm transition-colors",
                 part === active
                   ? "border-b-2 border-primary font-medium text-foreground"
                   : "text-muted-foreground hover:bg-accent/60",
@@ -120,9 +107,7 @@ export function CalendarDatePicker({
   );
 }
 
-const PART_LABELS: Record<DatePart, string> = { day: "Day", month: "Month", year: "Year" };
-
-/** The scrolling list of numbers for the active part, current value centred. */
+/** The scrolling list of numbers for the active part, current value lit and centred. */
 function ValueColumn({
   part,
   anchor,
@@ -159,9 +144,7 @@ function ValueColumn({
               onClick={() => onChoose(value)}
               className={cn(
                 "block w-full rounded-md px-3 py-1.5 text-center text-sm tabular-nums transition-colors",
-                selected
-                  ? "bg-primary font-medium text-primary-foreground"
-                  : "hover:bg-accent/60",
+                selected ? "bg-primary font-medium text-primary-foreground" : "hover:bg-accent/60",
               )}
             >
               {part === "month"
@@ -203,8 +186,7 @@ function TypeBox({
   function apply() {
     const n = Number(text);
     if (!Number.isInteger(n) || n < bounds.min || n > bounds.max) return;
-    // Month is shown 1-based and stored 0-based; day and year pass straight
-    // through.
+    // Month is shown 1-based and stored 0-based; day and year pass straight through.
     onApply(part === "month" ? n - 1 : n);
   }
 

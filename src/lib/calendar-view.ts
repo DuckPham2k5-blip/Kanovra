@@ -2,61 +2,33 @@ import {
   endOfDay,
   endOfMonth,
   endOfWeek,
-  endOfYear,
-  format,
   startOfDay,
   startOfMonth,
   startOfWeek,
-  startOfYear,
 } from "date-fns";
 
 /**
- * The three ways to look at the calendar, and the arithmetic behind each.
+ * The calendar is a month grid, and one date is *selected* on it.
  *
- * ## Why this is a module and not inline in the component
+ * There used to be three views — day, month, year — behind a switcher, and the
+ * owner removed it: the grid is the one canvas now, and the picker moves the
+ * selected date around it. So this module is two things — the range the server
+ * fetches for a month, and the arithmetic the date picker needs — with the day
+ * arithmetic pinned by tests because every piece of it has a trap in it.
  *
- * Three things have to agree about what "the September 2026 view" means: the
- * server, which fetches exactly the tasks in a range; the header, which names
- * the period; and the prev/next buttons, which step by one unit of it. Written
- * three times they drift — a range that fetches a day while the header says a
- * month is a screen that looks empty for no reason anybody can see. So the
- * range, the label and the step all come from here, and the one thing that is
- * hard to get right — a fetch range that covers the *whole grid*, not just the
- * calendar month — is pinned by a test.
+ * ## The anchor is the selected date, carried as `?date=YYYY-MM-DD`
  *
- * ## The anchor is one date, whatever the view
- *
- * `?date=YYYY-MM-DD` carries the position for all three views rather than a
- * param per view, so switching day→month→year keeps you where you were instead
- * of resetting to today. The day it names is only *within* the period on the
- * wider views: the anchor `2026-09-15` is "September" to the month view and
- * "2026" to the year view.
+ * It positions the grid (which month it shows) and marks the cell that glows.
+ * Parsed local, never through `new Date("…")`, which is UTC midnight and lands
+ * a day early west of Greenwich.
  */
 
-export type CalendarView = "day" | "month" | "year";
-
-const VIEWS: readonly CalendarView[] = ["day", "month", "year"] as const;
-
-/** A value from the address bar is only ever one of the three. */
-export function resolveView(param: string | undefined | null): CalendarView {
-  return VIEWS.includes(param as CalendarView) ? (param as CalendarView) : "month";
-}
-
-/**
- * The anchor date, from `?date=YYYY-MM-DD`, falling back to today.
- *
- * Parsed into a *local* date rather than through `new Date("2026-09-15")`,
- * which reads the string as UTC midnight and lands on the day before in any
- * timezone west of Greenwich. Every other date in this file is local, and a
- * calendar that disagrees with itself by a day near midnight is the kind of bug
- * that only ever reproduces for somebody in the wrong timezone.
- */
 export function resolveAnchor(param: string | undefined | null, today = new Date()): Date {
   if (param && /^\d{4}-\d{2}-\d{2}$/.test(param)) {
     const [y, m, d] = param.split("-").map(Number);
     const parsed = new Date(y, m - 1, d);
-    // A shape like 2026-13-40 passes the regex and rolls over; reject anything
-    // that did not round-trip to the numbers it was built from.
+    // 2026-13-40 passes the regex and rolls over; reject anything that did not
+    // round-trip to the numbers it was built from.
     if (parsed.getFullYear() === y && parsed.getMonth() === m - 1 && parsed.getDate() === d) {
       return parsed;
     }
@@ -66,97 +38,54 @@ export function resolveAnchor(param: string | undefined | null, today = new Date
 
 /** The anchor as the string the URL carries. */
 export function anchorKey(date: Date): string {
-  return format(date, "yyyy-MM-dd");
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 /**
- * The inclusive [from, to] range to fetch for a view at an anchor.
+ * The inclusive [from, to] to fetch for the month the anchor sits in.
  *
- * Day is that day. Year is 1 January to 31 December. Month is the whole grid a
- * month view draws — Monday of the week the 1st falls in, to Sunday of the week
- * the last day falls in — because the grid shows the tail of the previous month
- * and the head of the next, and a task due on one of those trailing days is
- * visible in the cell and must be fetched or the cell lies.
+ * The whole grid, not the calendar month — Monday of the week the 1st falls in
+ * to Sunday of the week the last day falls in — because the grid draws the tail
+ * of the previous month and the head of the next, and a task due on one of
+ * those trailing days shows in the cell and must be fetched or the cell lies.
  */
-export function rangeFor(view: CalendarView, anchor: Date): { from: Date; to: Date } {
-  switch (view) {
-    case "day":
-      return { from: startOfDay(anchor), to: endOfDay(anchor) };
-    case "year":
-      return { from: startOfYear(anchor), to: endOfYear(anchor) };
-    case "month":
-      return {
-        from: startOfWeek(startOfMonth(anchor), { weekStartsOn: 1 }),
-        to: endOfDay(endOfWeek(endOfMonth(anchor), { weekStartsOn: 1 })),
-      };
-  }
+export function monthGridRange(anchor: Date): { from: Date; to: Date } {
+  return {
+    from: startOfWeek(startOfMonth(anchor), { weekStartsOn: 1 }),
+    to: endOfDay(endOfWeek(endOfMonth(anchor), { weekStartsOn: 1 })),
+  };
 }
 
 /**
- * The anchor moved one unit of the view — a day, a month or a year.
+ * The anchor moved one month, landing on the 1st.
  *
- * Month steps on the 1st, not the anchor's own day-of-month: stepping from the
- * 31st would skip February and land on 3 March, the same `setUTCMonth` trap the
- * recurring-task code already carries a note about. Day and year cannot hit it.
+ * Not on the anchor's own day-of-month: stepping a month from the 31st would
+ * ask for 31 November, which JavaScript rolls to 1 December — October skipped
+ * every time you page forward off a 31-day month. The same `setUTCMonth` trap
+ * the recurring-task code carries a note about.
  */
-export function step(view: CalendarView, anchor: Date, direction: 1 | -1): Date {
+export function stepMonth(anchor: Date, direction: 1 | -1): Date {
   const next = new Date(anchor);
-  switch (view) {
-    case "day":
-      next.setDate(next.getDate() + direction);
-      break;
-    case "month":
-      next.setDate(1);
-      next.setMonth(next.getMonth() + direction);
-      break;
-    case "year":
-      next.setFullYear(next.getFullYear() + direction);
-      break;
-  }
+  next.setDate(1);
+  next.setMonth(next.getMonth() + direction);
   return startOfDay(next);
 }
 
-/** What the header says the current period is. */
-export function periodLabel(view: CalendarView, anchor: Date): string {
-  switch (view) {
-    case "day":
-      return format(anchor, "EEEE, d MMMM yyyy");
-    case "month":
-      return format(anchor, "MMMM yyyy");
-    case "year":
-      return format(anchor, "yyyy");
-  }
-}
-
-export const VIEW_LABELS: Record<CalendarView, string> = {
-  day: "Day",
-  month: "Month",
-  year: "Year",
-};
-
-export { VIEWS };
+// ---------------------------------------------------------------------------
+// The date picker — choosing an exact day/month/year to jump to.
+// ---------------------------------------------------------------------------
 
 /**
- * The date picker — choosing an exact day/month/year to jump to.
- *
- * The stepper answers "the next month"; this answers "March 2027" in one move,
- * which is what tracking work across a long stretch actually needs. The parts a
- * picker offers follow the view, because picking a *day* while looking at a
- * year is choosing something the year view does not read — so year view offers
- * only the year, month view the month and year, and day view all three.
+ * All three, always. The picker offers day, month and year whatever the grid
+ * is showing, because the grid is always a month and the point of the picker is
+ * to reach a cell that is not currently on it.
  */
 export type DatePart = "day" | "month" | "year";
-
-export function pickableParts(view: CalendarView): DatePart[] {
-  switch (view) {
-    case "day":
-      return ["day", "month", "year"];
-    case "month":
-      return ["month", "year"];
-    case "year":
-      return ["year"];
-  }
-}
+export const DATE_PARTS: readonly DatePart[] = ["day", "month", "year"] as const;
+export const PART_LABELS: Record<DatePart, string> = { day: "Day", month: "Month", year: "Year" };
 
 /**
  * Days in a month, month being 0-based like `Date`.
@@ -171,11 +100,10 @@ export function daysInMonth(year: number, month0: number): number {
 /**
  * The anchor with one part replaced, the day clamped to a real date.
  *
- * Setting the month from a 31st to February would roll over to March if trusted
- * — the same overflow the stepper avoids by landing on the 1st. Here the day is
- * *kept* where it can be, so picking "February" from the 15th stays the 15th,
- * and clamped only when it cannot: the 31st in February becomes the 28th (or
- * 29th) rather than leaking into the next month.
+ * The day is *kept* where it can be — picking "February" from the 15th stays
+ * the 15th — and clamped only when it cannot: the 31st in February becomes the
+ * 28th (or 29th) rather than leaking into March, the overflow `stepMonth` also
+ * guards against.
  */
 export function withPart(anchor: Date, part: DatePart, value: number): Date {
   let year = anchor.getFullYear();
@@ -194,10 +122,9 @@ export function withPart(anchor: Date, part: DatePart, value: number): Date {
 /**
  * The span of years the picker lists.
  *
- * Wide rather than unbounded — a list is a list and has to end somewhere — but
- * far past any real due date in either direction, and typing reaches anything
- * outside it. Centred loosely on now so the current year is scrolled to without
- * the list starting there.
+ * Wide rather than unbounded — a list ends somewhere — but far past any real
+ * due date in either direction, and typing reaches anything outside it. The
+ * current year is scrolled to without the list starting there.
  */
 export function pickerYears(currentYear: number, span = { back: 100, forward: 1000 }): number[] {
   const first = currentYear - span.back;

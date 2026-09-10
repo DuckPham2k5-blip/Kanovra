@@ -9,21 +9,14 @@ import { PriorityBadge } from "@/components/shared/badges";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import {
-  anchorKey,
-  resolveAnchor,
-  resolveView,
-  step,
-  VIEW_LABELS,
-  VIEWS,
-  type CalendarView,
-} from "@/lib/calendar-view";
+import { anchorKey, resolveAnchor, stepMonth } from "@/lib/calendar-view";
 import { TASK_STATUS_META } from "@/lib/constants";
 import {
   eachDay,
   endOfMonth,
   endOfWeek,
   format,
+  isSameDay,
   isToday,
   startOfMonth,
   startOfWeek,
@@ -44,31 +37,27 @@ export type CalendarTask = {
 };
 
 /**
- * Tasks by due date, at one of three resolutions.
+ * A month of tasks by due date, with one date selected on the grid.
  *
- * Day / month / year is a URL choice (`?view=`, `?date=`), so the server has
- * already fetched exactly the range being shown and this component only draws
- * it. Every navigation — a step, a "Today", a view switch, drilling from a year
- * cell into its month — writes those two params and lets the page refetch,
- * which is what keeps the range and the picture in agreement. The arithmetic
- * behind all of it is in `lib/calendar-view.ts`, with its own tests.
+ * The grid is the only view. Where you are is a URL choice (`?date=`), so the
+ * server has already fetched the whole month grid for it and this component
+ * draws it. The date picker and the prev/next stepper both move that anchor and
+ * let the page refetch, which keeps the range and the picture in agreement, and
+ * the anchor's cell glows so it is obvious which day you jumped to.
  */
 export function CalendarBoard({
   tasks,
-  view: viewParam,
   anchor: anchorParam,
   showProject = true,
 }: {
   tasks: CalendarTask[];
-  view: string;
   anchor: string;
   showProject?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [selected, setSelected] = React.useState<Date | null>(null);
+  const [drill, setDrill] = React.useState<Date | null>(null);
 
-  const view = resolveView(viewParam);
   const anchor = React.useMemo(() => resolveAnchor(anchorParam), [anchorParam]);
 
   const byDay = React.useMemo(() => {
@@ -82,11 +71,10 @@ export function CalendarBoard({
     return map;
   }, [tasks]);
 
-  /** Writes `view`/`date` and lets the page refetch; drops any open drill-down. */
+  /** Writes `date` (or opens a task) and lets the page refetch. */
   const go = React.useCallback(
-    (next: { view?: CalendarView; date?: Date; task?: string }) => {
+    (next: { date?: Date; task?: string }) => {
       const params = new URLSearchParams(searchParams.toString());
-      if (next.view) params.set("view", next.view);
       if (next.date) params.set("date", anchorKey(next.date));
       if (next.task) params.set("task", next.task);
       else params.delete("task");
@@ -97,84 +85,155 @@ export function CalendarBoard({
 
   const openTask = (taskId: string) => go({ task: taskId });
 
+  const days = React.useMemo(
+    () =>
+      eachDay(
+        startOfWeek(startOfMonth(anchor), { weekStartsOn: 1 }),
+        endOfWeek(endOfMonth(anchor), { weekStartsOn: 1 }),
+      ),
+    [anchor],
+  );
+  const anyTasks = byDay.size > 0;
+
   return (
     <div className="space-y-4 px-4 py-4 sm:px-6">
-      {/* Header: the date picker, view switcher, and prev/today/next */}
+      {/* Header: the date picker, and the month stepper. */}
       <div className="flex flex-wrap items-center gap-2">
-        <CalendarDatePicker view={view} anchor={anchor} onPick={(date) => go({ date })} />
+        <CalendarDatePicker anchor={anchor} onPick={(date) => go({ date })} />
 
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg border p-0.5" role="tablist" aria-label="Calendar view">
-            {VIEWS.map((v) => (
-              <button
-                key={v}
-                role="tab"
-                aria-selected={v === view}
-                onClick={() => go({ view: v })}
-                className={cn(
-                  "rounded-md px-3 py-1 text-sm transition-colors",
-                  v === view
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent/60",
-                )}
-              >
-                {VIEW_LABELS[v]}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={() => go({ date: step(view, anchor, -1) })}
-              aria-label={`Previous ${view}`}
-            >
-              <ChevronLeft className="size-4" />
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => go({ date: new Date() })}>
-              Today
-            </Button>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={() => go({ date: step(view, anchor, 1) })}
-              aria-label={`Next ${view}`}
-            >
-              <ChevronRight className="size-4" />
-            </Button>
-          </div>
+        <div className="ml-auto flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onClick={() => go({ date: stepMonth(anchor, -1) })}
+            aria-label="Previous month"
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => go({ date: new Date() })}>
+            Today
+          </Button>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onClick={() => go({ date: stepMonth(anchor, 1) })}
+            aria-label="Next month"
+          >
+            <ChevronRight className="size-4" />
+          </Button>
         </div>
       </div>
 
-      {view === "day" ? (
-        <DayView anchor={anchor} tasks={byDay.get(anchorKey(anchor)) ?? []} onOpen={openTask} showProject={showProject} />
-      ) : view === "year" ? (
-        <YearView anchor={anchor} tasks={tasks} onPickMonth={(date) => go({ view: "month", date })} />
-      ) : (
-        <MonthGrid
-          anchor={anchor}
-          byDay={byDay}
-          onOpen={openTask}
-          onOverflow={setSelected}
-          showProject={showProject}
-        />
-      )}
+      {/* Desktop grid — translucent surface, opaque chips; see `.tf-calendar-surface`. */}
+      <div className="tf-calendar-surface hidden overflow-hidden rounded-lg border shadow-sm md:block">
+        <div className="grid grid-cols-7 border-b bg-muted">
+          {WEEKDAY_LABELS.map((label) => (
+            <div key={label} className="px-2 py-2 text-center text-xs font-medium text-muted-foreground">
+              {label}
+            </div>
+          ))}
+        </div>
 
-      {/* Day drill-down (month grid "+N" and the mobile agenda share it) */}
-      {selected ? (
+        <div className="grid grid-cols-7">
+          {days.map((day, index) => {
+            const key = anchorKey(day);
+            const dayTasks = byDay.get(key) ?? [];
+            const outside = day.getMonth() !== anchor.getMonth();
+            // The glow: the cell the picker/stepper landed on, so you can see
+            // where you are. Distinct from today's filled day-number.
+            const selected = isSameDay(day, anchor);
+
+            return (
+              <div
+                key={key}
+                className={cn(
+                  "relative min-h-28 border-b border-r p-1.5 last:border-r-0",
+                  index % 7 === 6 && "border-r-0",
+                  outside && "bg-muted/30",
+                  selected && "z-10 bg-primary/10 ring-2 ring-inset ring-primary",
+                )}
+              >
+                <div className="mb-1 flex items-center justify-between px-1">
+                  <span
+                    className={cn(
+                      "text-xs",
+                      outside ? "text-muted-foreground/60" : "text-muted-foreground",
+                      isToday(day) &&
+                        "flex size-5 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground",
+                    )}
+                  >
+                    {day.getDate()}
+                  </span>
+                  {dayTasks.length > 3 ? (
+                    <button
+                      onClick={() => setDrill(day)}
+                      className="text-[10px] text-primary hover:underline"
+                    >
+                      +{dayTasks.length - 3}
+                    </button>
+                  ) : null}
+                </div>
+
+                <div className="space-y-1">
+                  {dayTasks.slice(0, 3).map((task) => (
+                    <TaskChip key={task.id} task={task} onOpen={openTask} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Mobile agenda */}
+      <div className="space-y-3 md:hidden">
+        {!anyTasks ? (
+          <EmptyState icon={CalendarDays} title="Nothing due" description="Nothing this month has a due date set." />
+        ) : (
+          days
+            .filter((day) => (byDay.get(anchorKey(day)) ?? []).length > 0)
+            .map((day) => (
+              <div key={anchorKey(day)} className="space-y-1.5">
+                <p
+                  className={cn(
+                    "text-xs font-medium capitalize",
+                    isSameDay(day, anchor)
+                      ? "text-primary"
+                      : isToday(day)
+                        ? "text-foreground"
+                        : "text-muted-foreground",
+                  )}
+                >
+                  {format(day, "EEEE, dd/MM")}
+                  {isSameDay(day, anchor) ? " ·" : null}
+                </p>
+                {(byDay.get(anchorKey(day)) ?? []).map((task) => (
+                  <AgendaRow key={task.id} task={task} onOpen={openTask} showProject={showProject} />
+                ))}
+              </div>
+            ))
+        )}
+      </div>
+
+      {!anyTasks ? (
+        <p className="hidden text-center text-sm text-muted-foreground md:block">
+          No tasks are due this month.
+        </p>
+      ) : null}
+
+      {/* Day drill-down for the "+N" overflow */}
+      {drill ? (
         <DayDrillDown
-          day={selected}
-          tasks={byDay.get(anchorKey(selected)) ?? []}
+          day={drill}
+          tasks={byDay.get(anchorKey(drill)) ?? []}
           onOpen={openTask}
-          onClose={() => setSelected(null)}
+          onClose={() => setDrill(null)}
         />
       ) : null}
     </div>
   );
 }
 
-/** A single status dot in the project's colour, used on every chip. */
 function statusDot(status: string) {
   return TASK_STATUS_META[status as keyof typeof TASK_STATUS_META]?.color;
 }
@@ -193,200 +252,6 @@ function TaskChip({ task, onOpen }: { task: CalendarTask; onOpen: (id: string) =
       />
       {task.title}
     </button>
-  );
-}
-
-function MonthGrid({
-  anchor,
-  byDay,
-  onOpen,
-  onOverflow,
-  showProject,
-}: {
-  anchor: Date;
-  byDay: Map<string, CalendarTask[]>;
-  onOpen: (id: string) => void;
-  onOverflow: (day: Date) => void;
-  showProject: boolean;
-}) {
-  const days = React.useMemo(
-    () =>
-      eachDay(
-        startOfWeek(startOfMonth(anchor), { weekStartsOn: 1 }),
-        endOfWeek(endOfMonth(anchor), { weekStartsOn: 1 }),
-      ),
-    [anchor],
-  );
-  const anyTasks = byDay.size > 0;
-
-  return (
-    <>
-      {/* Desktop grid — translucent surface, opaque chips; see `.tf-calendar-surface`. */}
-      <div className="tf-calendar-surface hidden overflow-hidden rounded-lg border shadow-sm md:block">
-        <div className="grid grid-cols-7 border-b bg-muted">
-          {WEEKDAY_LABELS.map((label) => (
-            <div key={label} className="px-2 py-2 text-center text-xs font-medium text-muted-foreground">
-              {label}
-            </div>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-7">
-          {days.map((day, index) => {
-            const key = anchorKey(day);
-            const dayTasks = byDay.get(key) ?? [];
-            const outside = day.getMonth() !== anchor.getMonth();
-
-            return (
-              <div
-                key={key}
-                className={cn(
-                  "min-h-28 border-b border-r p-1.5 last:border-r-0",
-                  index % 7 === 6 && "border-r-0",
-                  outside && "bg-muted/30",
-                )}
-              >
-                <div className="mb-1 flex items-center justify-between px-1">
-                  <span
-                    className={cn(
-                      "text-xs",
-                      outside ? "text-muted-foreground/60" : "text-muted-foreground",
-                      isToday(day) &&
-                        "flex size-5 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground",
-                    )}
-                  >
-                    {day.getDate()}
-                  </span>
-                  {dayTasks.length > 3 ? (
-                    <button
-                      onClick={() => onOverflow(day)}
-                      className="text-[10px] text-primary hover:underline"
-                    >
-                      +{dayTasks.length - 3}
-                    </button>
-                  ) : null}
-                </div>
-
-                <div className="space-y-1">
-                  {dayTasks.slice(0, 3).map((task) => (
-                    <TaskChip key={task.id} task={task} onOpen={onOpen} />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Mobile agenda */}
-      <div className="space-y-3 md:hidden">
-        {!anyTasks ? (
-          <EmptyState icon={CalendarDays} title="Nothing due" description="Nothing this month has a due date set." />
-        ) : (
-          days
-            .filter((day) => (byDay.get(anchorKey(day)) ?? []).length > 0)
-            .map((day) => (
-              <div key={anchorKey(day)} className="space-y-1.5">
-                <p className={cn("text-xs font-medium capitalize", isToday(day) ? "text-primary" : "text-muted-foreground")}>
-                  {format(day, "EEEE, dd/MM")}
-                </p>
-                {(byDay.get(anchorKey(day)) ?? []).map((task) => (
-                  <AgendaRow key={task.id} task={task} onOpen={onOpen} showProject={showProject} />
-                ))}
-              </div>
-            ))
-        )}
-      </div>
-
-      {!anyTasks ? (
-        <p className="hidden text-center text-sm text-muted-foreground md:block">No tasks are due this month.</p>
-      ) : null}
-    </>
-  );
-}
-
-function DayView({
-  anchor,
-  tasks,
-  onOpen,
-  showProject,
-}: {
-  anchor: Date;
-  tasks: CalendarTask[];
-  onOpen: (id: string) => void;
-  showProject: boolean;
-}) {
-  if (tasks.length === 0) {
-    return (
-      <EmptyState
-        icon={CalendarDays}
-        title={isToday(anchor) ? "Nothing due today" : "Nothing due"}
-        description="No task has a due date on this day."
-      />
-    );
-  }
-  return (
-    <div className="space-y-2">
-      {tasks.map((task) => (
-        <AgendaRow key={task.id} task={task} onOpen={onOpen} showProject={showProject} />
-      ))}
-    </div>
-  );
-}
-
-/**
- * Twelve month cells with a count of what is due in each.
- *
- * A year of individual days is unreadable, so the year view answers a coarser
- * question — which months carry the load — and clicking one drills into it. The
- * count is of tasks whose due date falls in that calendar month, which is why
- * the page fetches the whole year for this view.
- */
-function YearView({
-  anchor,
-  tasks,
-  onPickMonth,
-}: {
-  anchor: Date;
-  tasks: CalendarTask[];
-  onPickMonth: (date: Date) => void;
-}) {
-  const year = anchor.getFullYear();
-  const counts = React.useMemo(() => {
-    const per = new Array(12).fill(0);
-    for (const task of tasks) {
-      const d = new Date(task.dueDate);
-      if (d.getFullYear() === year) per[d.getMonth()] += 1;
-    }
-    return per;
-  }, [tasks, year]);
-
-  const now = new Date();
-  const thisMonth = now.getFullYear() === year ? now.getMonth() : -1;
-
-  return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-      {counts.map((count, month) => {
-        const date = new Date(year, month, 1);
-        return (
-          <button
-            key={month}
-            onClick={() => onPickMonth(date)}
-            className={cn(
-              "flex flex-col gap-1 rounded-lg border p-3 text-left transition-colors hover:bg-accent/60",
-              month === thisMonth && "border-primary",
-            )}
-          >
-            <span className={cn("text-sm font-medium", month === thisMonth && "text-primary")}>
-              {format(date, "MMMM")}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {count === 0 ? "Nothing due" : `${count} task${count === 1 ? "" : "s"} due`}
-            </span>
-          </button>
-        );
-      })}
-    </div>
   );
 }
 

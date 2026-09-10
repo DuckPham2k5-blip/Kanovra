@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { CalendarBoard } from "@/components/calendar/calendar-board";
 import { TaskDetailSheet } from "@/components/task/task-detail-sheet";
-import { rangeFor, resolveAnchor, resolveView } from "@/lib/calendar-view";
+import { monthGridRange, resolveAnchor } from "@/lib/calendar-view";
 import { loadProjectView } from "@/lib/project-view";
 import { getTasksInRange } from "@/lib/queries";
 
@@ -13,10 +13,10 @@ export default async function ProjectCalendarPage({
   searchParams,
 }: {
   params: Promise<{ slug: string; projectId: string }>;
-  searchParams: Promise<{ task?: string; view?: string; date?: string }>;
+  searchParams: Promise<{ task?: string; date?: string }>;
 }) {
   const { slug, projectId } = await params;
-  const { task: openTaskId, view: viewParam, date: dateParam } = await searchParams;
+  const { task: openTaskId, date: dateParam } = await searchParams;
 
   const { project, members, labels, openTask, user, can, workspace } = await loadProjectView(
     slug,
@@ -24,15 +24,13 @@ export default async function ProjectCalendarPage({
     openTaskId,
   );
 
-  const view = resolveView(viewParam);
   const anchor = resolveAnchor(dateParam);
-  const { from, to } = rangeFor(view, anchor);
+  const { from, to } = monthGridRange(anchor);
   const tasks = await getTasksInRange(workspace.id, from, to, { projectId: project.id });
 
   return (
     <div className="h-full overflow-y-auto">
       <CalendarBoard
-        view={view}
         anchor={dateParam ?? ""}
         showProject={false}
         tasks={tasks.map((task) => ({

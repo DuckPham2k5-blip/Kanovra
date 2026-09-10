@@ -5,7 +5,7 @@ import { CalendarBoard } from "@/components/calendar/calendar-board";
 import { PageHeader } from "@/components/shared/page-header";
 import { TaskDetailSheet } from "@/components/task/task-detail-sheet";
 import { requireWorkspace } from "@/lib/auth";
-import { rangeFor, resolveAnchor, resolveView } from "@/lib/calendar-view";
+import { monthGridRange, resolveAnchor } from "@/lib/calendar-view";
 import { toTaskDetailDTO } from "@/lib/dto";
 import { prisma } from "@/lib/prisma";
 import { getTaskDetail, getTasksInRange, getWorkspaceMembers } from "@/lib/queries";
@@ -18,21 +18,14 @@ export default async function CalendarPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{
-    view?: string;
-    date?: string;
-    project?: string;
-    assignee?: string;
-    task?: string;
-  }>;
+  searchParams: Promise<{ date?: string; project?: string; assignee?: string; task?: string }>;
 }) {
   const { slug } = await params;
   const query = await searchParams;
   const { user, workspace, can } = await requireWorkspace(slug);
 
-  const view = resolveView(query.view);
   const anchor = resolveAnchor(query.date);
-  const { from, to } = rangeFor(view, anchor);
+  const { from, to } = monthGridRange(anchor);
 
   const [tasks, projects, rawMembers, rawLabels] = await Promise.all([
     getTasksInRange(workspace.id, from, to, {
@@ -66,7 +59,7 @@ export default async function CalendarPage({
     <div>
       <PageHeader
         title="Calendar"
-        description="Tasks with a due date, by day, month or year."
+        description="Tasks by due date. Pick a day, month or year to jump to it."
         actions={
           <CalendarFilters
             projects={projects}
@@ -78,7 +71,6 @@ export default async function CalendarPage({
       />
 
       <CalendarBoard
-        view={view}
         anchor={query.date ?? ""}
         tasks={tasks.map((task) => ({
           id: task.id,

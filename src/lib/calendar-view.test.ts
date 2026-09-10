@@ -2,35 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import {
   anchorKey,
+  DATE_PARTS,
   daysInMonth,
-  periodLabel,
-  pickableParts,
+  monthGridRange,
   pickerYears,
-  rangeFor,
   resolveAnchor,
-  resolveView,
-  step,
+  stepMonth,
   withPart,
 } from "@/lib/calendar-view";
 
-const iso = (d: Date) => `${anchorKey(d)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-
-describe("resolveView", () => {
-  it("accepts the three views", () => {
-    expect(resolveView("day")).toBe("day");
-    expect(resolveView("month")).toBe("month");
-    expect(resolveView("year")).toBe("year");
-  });
-
-  it("falls back to month for anything else", () => {
-    // The value comes from the address bar, so "week", "", null and junk all
-    // have to land on the same safe default rather than reaching a switch with
-    // no arm for them.
-    for (const bad of ["week", "", "  ", "MONTH", "day ", undefined, null, "../etc"]) {
-      expect(resolveView(bad), String(bad)).toBe("month");
-    }
-  });
-});
+const iso = (d: Date) =>
+  `${anchorKey(d)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 
 describe("resolveAnchor", () => {
   const today = new Date(2026, 8, 20); // 20 Sep 2026, local
@@ -67,102 +49,69 @@ describe("resolveAnchor", () => {
     expect(anchor.getMonth()).toBe(8);
     expect(anchor.getHours()).toBe(0);
   });
+
+  it("round-trips through anchorKey", () => {
+    expect(anchorKey(resolveAnchor("2027-12-01", today))).toBe("2027-12-01");
+  });
 });
 
-describe("rangeFor", () => {
-  const anchor = new Date(2026, 8, 15); // 15 Sep 2026
-
-  it("day view covers exactly the one day", () => {
-    const { from, to } = rangeFor("day", anchor);
-    expect(iso(from)).toBe("2026-09-15 00:00");
-    expect(iso(to)).toBe("2026-09-15 23:59");
-  });
-
-  it("year view covers 1 January to 31 December", () => {
-    const { from, to } = rangeFor("year", anchor);
-    expect(anchorKey(from)).toBe("2026-01-01");
-    expect(anchorKey(to)).toBe("2026-12-31");
-  });
-
+describe("monthGridRange", () => {
   /*
    * The one that is easy to get wrong. September 2026 begins on a Tuesday, so
    * the grid's first cell is Monday 31 August, and it ends on a Wednesday, so
    * the last cell is Sunday 4 October. A range of just 1–30 September leaves a
    * task due on the 31st of August visible in the grid but never fetched — a
-   * cell that silently lies. The range has to cover the whole grid.
+   * cell that silently lies. The range covers the whole grid.
    */
-  it("month view covers the whole grid, not just the calendar month", () => {
-    const { from, to } = rangeFor("month", anchor);
+  it("covers the whole grid, not just the calendar month", () => {
+    const { from, to } = monthGridRange(new Date(2026, 8, 15));
     expect(anchorKey(from)).toBe("2026-08-31"); // Monday of the 1st's week
-    expect(anchorKey(to)).toBe("2026-10-04"); // Sunday of the last day's week
-    expect(iso(to)).toBe("2026-10-04 23:59");
+    expect(iso(to)).toBe("2026-10-04 23:59"); // Sunday of the last day's week, end of day
   });
 
-  it("month view starts on a Monday and ends on a Sunday, every month of a year", () => {
+  it("starts on a Monday and ends on a Sunday, every month of a year", () => {
     for (let m = 0; m < 12; m += 1) {
-      const { from, to } = rangeFor("month", new Date(2026, m, 15));
+      const { from, to } = monthGridRange(new Date(2026, m, 15));
       // 1 = Monday, 0 = Sunday in getDay().
       expect(from.getDay(), `month ${m} start`).toBe(1);
       expect(to.getDay(), `month ${m} end`).toBe(0);
     }
   });
+
+  it("does not depend on which day of the month the anchor is", () => {
+    const first = monthGridRange(new Date(2026, 8, 1));
+    const last = monthGridRange(new Date(2026, 8, 30));
+    expect(anchorKey(first.from)).toBe(anchorKey(last.from));
+    expect(anchorKey(first.to)).toBe(anchorKey(last.to));
+  });
 });
 
-describe("step", () => {
-  it("day moves one day", () => {
-    expect(anchorKey(step("day", new Date(2026, 8, 15), 1))).toBe("2026-09-16");
-    expect(anchorKey(step("day", new Date(2026, 8, 15), -1))).toBe("2026-09-14");
-  });
-
-  it("day crosses a month boundary", () => {
-    expect(anchorKey(step("day", new Date(2026, 8, 30), 1))).toBe("2026-10-01");
-  });
-
-  it("year moves one year", () => {
-    expect(anchorKey(step("year", new Date(2026, 8, 15), 1))).toBe("2027-09-15");
-    expect(anchorKey(step("year", new Date(2026, 8, 15), -1))).toBe("2025-09-15");
-  });
-
-  it("month moves one month", () => {
-    expect(anchorKey(step("month", new Date(2026, 8, 15), 1))).toBe("2026-10-01");
-    expect(anchorKey(step("month", new Date(2026, 8, 15), -1))).toBe("2026-08-01");
+describe("stepMonth", () => {
+  it("moves one month, landing on the first", () => {
+    expect(anchorKey(stepMonth(new Date(2026, 8, 15), 1))).toBe("2026-10-01");
+    expect(anchorKey(stepMonth(new Date(2026, 8, 15), -1))).toBe("2026-08-01");
   });
 
   /*
    * The month trap this project already carries a note about, for recurring
    * tasks. Stepping a month from the 31st with the day-of-month kept would ask
    * for 31 November, which JavaScript rolls to 1 December — so October would be
-   * unreachable, skipped every time you paged forward from a 31-day month. It
-   * steps on the 1st to avoid it.
+   * unreachable, skipped every time you paged forward off a 31-day month.
    */
-  it("month steps on the first, so a 31-day month does not skip the next", () => {
-    expect(anchorKey(step("month", new Date(2026, 9, 31), 1))).toBe("2026-11-01");
-    expect(anchorKey(step("month", new Date(2026, 0, 31), 1))).toBe("2026-02-01");
+  it("steps on the first, so a 31-day month does not skip the next", () => {
+    expect(anchorKey(stepMonth(new Date(2026, 9, 31), 1))).toBe("2026-11-01");
+    expect(anchorKey(stepMonth(new Date(2026, 0, 31), 1))).toBe("2026-02-01");
   });
 
-  it("month steps across a year boundary in both directions", () => {
-    expect(anchorKey(step("month", new Date(2026, 11, 10), 1))).toBe("2027-01-01");
-    expect(anchorKey(step("month", new Date(2026, 0, 10), -1))).toBe("2025-12-01");
-  });
-});
-
-describe("periodLabel", () => {
-  const anchor = new Date(2026, 8, 15);
-
-  it("names each period at the right resolution", () => {
-    expect(periodLabel("day", anchor)).toBe("Tuesday, 15 September 2026");
-    expect(periodLabel("month", anchor)).toBe("September 2026");
-    expect(periodLabel("year", anchor)).toBe("2026");
+  it("crosses a year boundary in both directions", () => {
+    expect(anchorKey(stepMonth(new Date(2026, 11, 10), 1))).toBe("2027-01-01");
+    expect(anchorKey(stepMonth(new Date(2026, 0, 10), -1))).toBe("2025-12-01");
   });
 });
 
-describe("pickableParts", () => {
-  it("offers only what the view reads", () => {
-    // Picking a day while looking at a year sets something the year view never
-    // shows, so the parts follow the view rather than always being three.
-    expect(pickableParts("day")).toEqual(["day", "month", "year"]);
-    expect(pickableParts("month")).toEqual(["month", "year"]);
-    expect(pickableParts("year")).toEqual(["year"]);
+describe("the picker parts", () => {
+  it("offers all three, in day-month-year order", () => {
+    expect(DATE_PARTS).toEqual(["day", "month", "year"]);
   });
 });
 
@@ -191,7 +140,7 @@ describe("withPart", () => {
   /*
    * The clamp, which is the whole reason this is not `date.setMonth(...)`.
    * Moving the 31st to February must land on the last real day of February, not
-   * roll forward into March — the overflow the stepper also guards against.
+   * roll forward into March.
    */
   it("clamps a day that the new month does not have", () => {
     expect(anchorKey(withPart(new Date(2026, 0, 31), "month", 1))).toBe("2026-02-28");
