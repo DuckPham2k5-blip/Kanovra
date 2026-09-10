@@ -777,8 +777,20 @@ function Segment({
   const edge = custom ? fillBorder(custom) : outline;
   const label = custom ? fillInk(custom) : ink;
   const size = sector.depth === 1 ? 15 : 12;
-  const text = node.emoji ? `${node.emoji} ${node.text}` : node.text;
+  const text = node.text;
   const place = labelPlacement(ring, text.length * size * LABEL_FUDGE);
+
+  /*
+   * The emoji sits at the segment's outer corner, upright, not in the flow of
+   * the label — an emoji rotated along an arc and squeezed between the words is
+   * a smudge, and it drifts as the text changes. A fixed spot near the leading
+   * edge of the rim reads as a mark *on* the branch. The angular inset is a
+   * fixed arc distance turned into degrees, so it stays a constant gap from the
+   * edge whether the ring is near the hub or far out.
+   */
+  const emojiAt = node.emoji
+    ? polarPoint(ring.r1 - 13, ring.a0 + (13 / Math.max(1, ring.r1)) * (180 / Math.PI))
+    : null;
 
   return (
     <g className="cursor-pointer" onPointerDown={(event) => event.stopPropagation()} onClick={onSelect}>
@@ -843,6 +855,22 @@ function Segment({
           {text}
         </text>
       )}
+
+      {/* The emoji, upright at the outer corner. Shown even while selected —
+          it is a mark on the branch, not the editable label, so it stays put
+          when the text turns into an input. */}
+      {node.emoji && emojiAt ? (
+        <text
+          x={emojiAt.x}
+          y={emojiAt.y}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={17}
+          style={{ pointerEvents: "none", userSelect: "none" }}
+        >
+          {node.emoji}
+        </text>
+      ) : null}
     </g>
   );
 }
