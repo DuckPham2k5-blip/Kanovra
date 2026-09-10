@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 
 import { CalendarFilters } from "@/components/calendar/calendar-filters";
-import { MonthCalendar } from "@/components/calendar/month-calendar";
+import { CalendarBoard } from "@/components/calendar/calendar-board";
 import { PageHeader } from "@/components/shared/page-header";
 import { TaskDetailSheet } from "@/components/task/task-detail-sheet";
 import { requireWorkspace } from "@/lib/auth";
-import { monthRangeFromKey, resolveMonth } from "@/lib/date";
+import { rangeFor, resolveAnchor, resolveView } from "@/lib/calendar-view";
 import { toTaskDetailDTO } from "@/lib/dto";
 import { prisma } from "@/lib/prisma";
 import { getTaskDetail, getTasksInRange, getWorkspaceMembers } from "@/lib/queries";
@@ -18,14 +18,21 @@ export default async function CalendarPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ month?: string; project?: string; assignee?: string; task?: string }>;
+  searchParams: Promise<{
+    view?: string;
+    date?: string;
+    project?: string;
+    assignee?: string;
+    task?: string;
+  }>;
 }) {
   const { slug } = await params;
   const query = await searchParams;
   const { user, workspace, can } = await requireWorkspace(slug);
 
-  const month = resolveMonth(query.month);
-  const { from, to } = monthRangeFromKey(month);
+  const view = resolveView(query.view);
+  const anchor = resolveAnchor(query.date);
+  const { from, to } = rangeFor(view, anchor);
 
   const [tasks, projects, rawMembers, rawLabels] = await Promise.all([
     getTasksInRange(workspace.id, from, to, {
@@ -59,7 +66,7 @@ export default async function CalendarPage({
     <div>
       <PageHeader
         title="Calendar"
-        description="Every task with a due date this month."
+        description="Tasks with a due date, by day, month or year."
         actions={
           <CalendarFilters
             projects={projects}
@@ -70,8 +77,9 @@ export default async function CalendarPage({
         }
       />
 
-      <MonthCalendar
-        month={month}
+      <CalendarBoard
+        view={view}
+        anchor={query.date ?? ""}
         tasks={tasks.map((task) => ({
           id: task.id,
           number: task.number,
