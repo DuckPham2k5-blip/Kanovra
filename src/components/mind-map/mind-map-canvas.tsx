@@ -924,21 +924,30 @@ export function MindMapCanvas({
     [nodes],
   );
 
-  /** A root and everything hanging off it — one wheel's worth of nodes. */
+  /**
+   * A root and everything hanging off it — one wheel's worth of nodes.
+   *
+   * Returned in the *same order as the full node list*, not in traversal order.
+   * The layout draws a parent's children in the order they appear, and the grips
+   * work out a segment's neighbours from that same order through `siblingsOf` —
+   * so a subtree that reordered the children (a stack pops last-in-first-out and
+   * silently reverses them) drew the wheel one way while the grips traded width
+   * the other, and every branch's neighbours were wrong.
+   */
   const subtreeOf = React.useCallback(
     (rootId: string) => {
-      const out: CanvasNode[] = [];
-      const seen = new Set<string>();
-      const stack = [rootId];
-      while (stack.length) {
-        const id = stack.pop()!;
-        if (seen.has(id)) continue;
-        seen.add(id);
-        const node = nodes.find((n) => n.id === id);
-        if (node) out.push(node);
-        for (const child of nodes) if (child.parentId === id) stack.push(child.id);
+      const ids = new Set<string>([rootId]);
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (const node of nodes) {
+          if (node.parentId && ids.has(node.parentId) && !ids.has(node.id)) {
+            ids.add(node.id);
+            grew = true;
+          }
+        }
       }
-      return out;
+      return nodes.filter((node) => ids.has(node.id));
     },
     [nodes],
   );
@@ -1490,7 +1499,10 @@ export function MindMapCanvas({
               center={wheel.center}
               onMoveStart={onHubMoveStart}
               nodes={wheel.nodes}
-              radial={radial}
+              // Each wheel turns on its own axis: its start angle is its root's
+              // `spin`, falling back to the map-wide default. Turning one no
+              // longer turns the rest.
+              radial={{ ...radial, start: wheel.root.spin ?? radial.start }}
               canEdit={canEdit}
               canComment={canComment}
               mounted={mounted}
@@ -1507,9 +1519,9 @@ export function MindMapCanvas({
               onSetThickness={setThickness}
               onSetWeights={setWeights}
               onCommitRotation={(start) => {
-                remember("rotate");
-                setRadial((prev) => ({ ...prev, start }));
-                setDirty(true);
+                // Onto this wheel's root, not the shared setting — so the others
+                // stay where they are.
+                update(wheel.root.id, { spin: start }, `rotate:${wheel.root.id}`);
               }}
               siblingsOf={siblingsOf}
               onOpenThread={setOpenThread}

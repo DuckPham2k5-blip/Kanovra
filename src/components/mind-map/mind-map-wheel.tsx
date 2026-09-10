@@ -408,7 +408,7 @@ export function MindMapWheel({
           else event.stopPropagation();
         }}
         className={cn(
-          "absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center rounded-full border-2 text-center",
+          "absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border-2 text-center",
           canEdit && onMoveStart ? "cursor-move" : undefined,
         )}
         style={{
@@ -424,10 +424,9 @@ export function MindMapWheel({
           borderColor: root.fill ? fillBorder(root.fill) : `hsl(${mapHue} 85% 62%)`,
         }}
       >
-        {/* The title rides the top of the hub, not its middle. The middle is the
-            handle you grab to move the wheel, and a text box filling it left
-            nowhere to take hold of — so the words sit up top and the space below
-            is for dragging. */}
+        {/* Centred in the hub. The box is only three-quarters as wide and a
+            third as tall, so the ring of hub around it is space to grab and drag
+            the wheel — the title sits in the middle without filling it. */}
         <textarea
           value={root.text}
           readOnly={!canEdit}
@@ -435,7 +434,7 @@ export function MindMapWheel({
           rows={2}
           placeholder="Main title"
           onChange={(event) => onUpdate(root.id, { text: event.target.value })}
-          className="mt-3 h-1/3 w-3/4 cursor-text resize-none bg-transparent text-center text-sm font-semibold leading-snug outline-none placeholder:text-muted-foreground"
+          className="h-1/3 w-3/4 cursor-text resize-none bg-transparent text-center text-sm font-semibold leading-snug outline-none placeholder:text-muted-foreground"
           // On the words, not on the hub: `color` inherits, and the controls
           // pinned to the hub's corners sit inside it.
           style={{ color: root.fill ? fillInk(root.fill) : undefined }}
@@ -878,20 +877,34 @@ function Segment({
         </text>
       )}
 
-      {/* The emoji, upright at the outer corner. Shown even while selected —
-          it is a mark on the branch, not the editable label, so it stays put
-          when the text turns into an input. */}
+      {/* The emoji, upright at the outer corner, on a small disc. Shown even
+          while selected — it is a mark on the branch, not the editable label, so
+          it stays put when the text turns into an input. The disc is the point
+          of this: an emoji straight on a segment fill is hard to pick out, and a
+          plain dark circle behind it gives it a consistent ground whatever
+          colour the branch is. */}
       {node.emoji && emojiAt ? (
-        <text
-          x={emojiAt.x}
-          y={emojiAt.y}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fontSize={17}
-          style={{ pointerEvents: "none", userSelect: "none" }}
-        >
-          {node.emoji}
-        </text>
+        <>
+          <circle
+            cx={emojiAt.x}
+            cy={emojiAt.y}
+            r={13}
+            fill="hsl(222 47% 11% / 0.82)"
+            stroke="hsl(0 0% 100% / 0.35)"
+            strokeWidth={1}
+            style={{ pointerEvents: "none" }}
+          />
+          <text
+            x={emojiAt.x}
+            y={emojiAt.y}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize={16}
+            style={{ pointerEvents: "none", userSelect: "none" }}
+          >
+            {node.emoji}
+          </text>
+        </>
       ) : null}
     </g>
   );

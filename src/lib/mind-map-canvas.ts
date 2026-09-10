@@ -123,6 +123,16 @@ export const canvasNodeSchema = z.object({
    * hangs off, so one fat branch pushes only its own descendants outward.
    */
   thickness: z.number().finite().min(24).max(2000).default(DEFAULT_THICKNESS),
+  /**
+   * A root wheel's own rotation, in degrees. Only a root reads it.
+   *
+   * A circle map can hold several wheels now, and turning one must not turn the
+   * others — so the start angle each wheel is drawn from lives on its own root
+   * rather than in the map-wide `radial.start`, which stays the default every
+   * new wheel begins at. Absent on every non-root node and on maps made before
+   * this existed, where it falls back to `radial.start`.
+   */
+  spin: z.number().finite().nullish(),
 });
 
 /**
