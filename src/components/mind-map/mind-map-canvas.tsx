@@ -85,6 +85,17 @@ import { updateMindMapData } from "@/server/actions/mind-map";
 const MIN_SCALE = 0.02;
 const MAX_SCALE = 40;
 
+/**
+ * The gap left open in a circle wheel, in degrees.
+ *
+ * A closed wheel meets itself at a seam where the first and last branch touch,
+ * and that seam is fixed — it is where rotation is anchored — so neither of
+ * those two branches can trade width across it. Leaving a small gap gives each
+ * of them a real outer edge instead, and keeps the wheel reading as an open fan
+ * rather than a pie with an invisible join. Centred on the wheel's start angle.
+ */
+const WHEEL_GAP = 10;
+
 /** What one undo step restores: the whole document, nodes and wheel together. */
 type Snapshot = { nodes: CanvasNode[]; radial: RadialSettings };
 
@@ -1499,10 +1510,15 @@ export function MindMapCanvas({
               center={wheel.center}
               onMoveStart={onHubMoveStart}
               nodes={wheel.nodes}
-              // Each wheel turns on its own axis: its start angle is its root's
-              // `spin`, falling back to the map-wide default. Turning one no
-              // longer turns the rest.
-              radial={{ ...radial, start: wheel.root.spin ?? radial.start }}
+              // Each wheel turns on its own axis (its root's `spin`) and is left
+              // open by a small gap rather than closed into a full circle, so the
+              // first and last branch have a real edge each instead of meeting at
+              // a fixed seam. `WHEEL_GAP` is that gap, shared by every wheel.
+              radial={{
+                ...radial,
+                start: (wheel.root.spin ?? radial.start) + WHEEL_GAP / 2,
+                sweep: 360 - WHEEL_GAP,
+              }}
               canEdit={canEdit}
               canComment={canComment}
               mounted={mounted}
