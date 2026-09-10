@@ -319,6 +319,7 @@ export function MindMapWheel({
             <Handles
               sector={selectedSector}
               hasNextSibling={nextSiblingOf(selectedNode, siblingsOf) !== undefined}
+              hasPrevSibling={prevSiblingOf(selectedNode, siblingsOf) !== undefined}
               onThicknessDown={(event) =>
                 beginDrag(event, {
                   kind: "thickness",
@@ -338,6 +339,23 @@ export function MindMapWheel({
                   combinedSpan:
                     selectedSector.a1 - selectedSector.a0 + (nextSector.a1 - nextSector.a0),
                   combinedWeight: selectedNode.weight + next.weight,
+                });
+              }}
+              onWeightPrevDown={(event) => {
+                // The leading edge is the previous sibling's trailing edge, so
+                // the drag is the same trade set up from the previous branch's
+                // side — it becomes "mine" and the selected one "theirs".
+                const prev = prevSiblingOf(selectedNode, siblingsOf);
+                const prevSector = prev ? sectors.get(prev.id) : undefined;
+                if (!prev || !prevSector) return;
+                beginDrag(event, {
+                  kind: "weight",
+                  id: prev.id,
+                  nextId: selectedSector.id,
+                  a0: prevSector.a0,
+                  combinedSpan:
+                    prevSector.a1 - prevSector.a0 + (selectedSector.a1 - selectedSector.a0),
+                  combinedWeight: prev.weight + selectedNode.weight,
                 });
               }}
             />
@@ -585,6 +603,13 @@ function nextSiblingOf(node: CanvasNode, siblingsOf: (id: string) => CanvasNode[
   return index >= 0 ? siblings[index + 1] : undefined;
 }
 
+/** The branch drawn immediately before this one — the neighbour on the leading edge. */
+function prevSiblingOf(node: CanvasNode, siblingsOf: (id: string) => CanvasNode[]) {
+  const siblings = siblingsOf(node.id);
+  const index = siblings.findIndex((s) => s.id === node.id);
+  return index > 0 ? siblings[index - 1] : undefined;
+}
+
 /**
  * Every segment, memoised as one unit.
  *
@@ -641,17 +666,22 @@ const Segments = React.memo(function Segments({
 function Handles({
   sector,
   hasNextSibling,
+  hasPrevSibling,
   onThicknessDown,
   onWeightDown,
+  onWeightPrevDown,
 }: {
   sector: Sector;
   hasNextSibling: boolean;
+  hasPrevSibling: boolean;
   onThicknessDown: (event: React.PointerEvent) => void;
   onWeightDown: (event: React.PointerEvent) => void;
+  onWeightPrevDown: (event: React.PointerEvent) => void;
 }) {
   const mid = (sector.a0 + sector.a1) / 2;
   const rim = polarPoint(sector.r1, mid);
-  const edge = polarPoint((sector.r0 + sector.r1) / 2, sector.a1);
+  const trailing = polarPoint((sector.r0 + sector.r1) / 2, sector.a1);
+  const leading = polarPoint((sector.r0 + sector.r1) / 2, sector.a0);
 
   return (
     <>
@@ -668,14 +698,30 @@ function Handles({
         <title>Drag outward to lengthen this branch</title>
       </circle>
 
-      {/* Only when there is a neighbour to trade with. Dragging the last edge of
-          the last branch would have to take its angle from everybody at once, and
-          watching every other boundary move is not what the grip appears to
-          promise. */}
+      {/* A width grip on each boundary the branch shares with a neighbour, so
+          every branch has one — the last branch, which has no *next* sibling,
+          still has a *previous* one to trade with. The one edge that is never a
+          grip is the seam at the wheel's start angle: it is fixed, and turned by
+          dragging the hub rather than traded between two branches. */}
+      {hasPrevSibling ? (
+        <circle
+          cx={leading.x}
+          cy={leading.y}
+          r={7}
+          className="cursor-ew-resize"
+          fill="hsl(0 0% 100% / 0.92)"
+          stroke="hsl(0 0% 0% / 0.5)"
+          strokeWidth={1.5}
+          onPointerDown={onWeightPrevDown}
+        >
+          <title>Drag around to share width with the branch before this</title>
+        </circle>
+      ) : null}
+
       {hasNextSibling ? (
         <circle
-          cx={edge.x}
-          cy={edge.y}
+          cx={trailing.x}
+          cy={trailing.y}
           r={7}
           className="cursor-ew-resize"
           fill="hsl(0 0% 100% / 0.92)"
