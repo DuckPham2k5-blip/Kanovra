@@ -4,13 +4,13 @@ import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 
+import { CalendarDatePicker } from "@/components/calendar/calendar-date-picker";
 import { PriorityBadge } from "@/components/shared/badges";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   anchorKey,
-  periodLabel,
   resolveAnchor,
   resolveView,
   step,
@@ -99,9 +99,9 @@ export function CalendarBoard({
 
   return (
     <div className="space-y-4 px-4 py-4 sm:px-6">
-      {/* Header: period name, view switcher, and prev/today/next */}
+      {/* Header: the date picker, view switcher, and prev/today/next */}
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-semibold capitalize">{periodLabel(view, anchor)}</h2>
+        <CalendarDatePicker view={view} anchor={anchor} onPick={(date) => go({ date })} />
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-lg border p-0.5" role="tablist" aria-label="Calendar view">

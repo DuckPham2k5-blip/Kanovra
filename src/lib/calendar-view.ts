@@ -135,3 +135,72 @@ export const VIEW_LABELS: Record<CalendarView, string> = {
 };
 
 export { VIEWS };
+
+/**
+ * The date picker — choosing an exact day/month/year to jump to.
+ *
+ * The stepper answers "the next month"; this answers "March 2027" in one move,
+ * which is what tracking work across a long stretch actually needs. The parts a
+ * picker offers follow the view, because picking a *day* while looking at a
+ * year is choosing something the year view does not read — so year view offers
+ * only the year, month view the month and year, and day view all three.
+ */
+export type DatePart = "day" | "month" | "year";
+
+export function pickableParts(view: CalendarView): DatePart[] {
+  switch (view) {
+    case "day":
+      return ["day", "month", "year"];
+    case "month":
+      return ["month", "year"];
+    case "year":
+      return ["year"];
+  }
+}
+
+/**
+ * Days in a month, month being 0-based like `Date`.
+ *
+ * Day 0 of the *next* month is the last day of this one, which is how February
+ * comes out 28 or 29 without a leap-year branch to get wrong.
+ */
+export function daysInMonth(year: number, month0: number): number {
+  return new Date(year, month0 + 1, 0).getDate();
+}
+
+/**
+ * The anchor with one part replaced, the day clamped to a real date.
+ *
+ * Setting the month from a 31st to February would roll over to March if trusted
+ * — the same overflow the stepper avoids by landing on the 1st. Here the day is
+ * *kept* where it can be, so picking "February" from the 15th stays the 15th,
+ * and clamped only when it cannot: the 31st in February becomes the 28th (or
+ * 29th) rather than leaking into the next month.
+ */
+export function withPart(anchor: Date, part: DatePart, value: number): Date {
+  let year = anchor.getFullYear();
+  let month = anchor.getMonth();
+  let day = anchor.getDate();
+
+  if (part === "year") year = value;
+  else if (part === "month") month = value; // 0-based
+  else day = value;
+
+  const max = daysInMonth(year, month);
+  if (day > max) day = max;
+  return new Date(year, month, day);
+}
+
+/**
+ * The span of years the picker lists.
+ *
+ * Wide rather than unbounded — a list is a list and has to end somewhere — but
+ * far past any real due date in either direction, and typing reaches anything
+ * outside it. Centred loosely on now so the current year is scrolled to without
+ * the list starting there.
+ */
+export function pickerYears(currentYear: number, span = { back: 100, forward: 1000 }): number[] {
+  const first = currentYear - span.back;
+  const count = span.back + span.forward + 1;
+  return Array.from({ length: count }, (_, i) => first + i);
+}

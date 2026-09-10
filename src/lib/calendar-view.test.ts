@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   anchorKey,
+  daysInMonth,
   periodLabel,
+  pickableParts,
+  pickerYears,
   rangeFor,
   resolveAnchor,
   resolveView,
   step,
+  withPart,
 } from "@/lib/calendar-view";
 
 const iso = (d: Date) => `${anchorKey(d)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -149,5 +153,67 @@ describe("periodLabel", () => {
     expect(periodLabel("day", anchor)).toBe("Tuesday, 15 September 2026");
     expect(periodLabel("month", anchor)).toBe("September 2026");
     expect(periodLabel("year", anchor)).toBe("2026");
+  });
+});
+
+describe("pickableParts", () => {
+  it("offers only what the view reads", () => {
+    // Picking a day while looking at a year sets something the year view never
+    // shows, so the parts follow the view rather than always being three.
+    expect(pickableParts("day")).toEqual(["day", "month", "year"]);
+    expect(pickableParts("month")).toEqual(["month", "year"]);
+    expect(pickableParts("year")).toEqual(["year"]);
+  });
+});
+
+describe("daysInMonth", () => {
+  it("knows the length of each kind of month", () => {
+    expect(daysInMonth(2026, 0)).toBe(31); // January
+    expect(daysInMonth(2026, 3)).toBe(30); // April
+    expect(daysInMonth(2026, 1)).toBe(28); // Feb 2026, not a leap year
+    expect(daysInMonth(2028, 1)).toBe(29); // Feb 2028, a leap year
+  });
+});
+
+describe("withPart", () => {
+  it("replaces the year, keeping month and day", () => {
+    expect(anchorKey(withPart(new Date(2026, 2, 15), "year", 2030))).toBe("2030-03-15");
+  });
+
+  it("replaces the month, keeping the day where it fits", () => {
+    expect(anchorKey(withPart(new Date(2026, 8, 15), "month", 0))).toBe("2026-01-15");
+  });
+
+  it("replaces the day", () => {
+    expect(anchorKey(withPart(new Date(2026, 8, 15), "day", 1))).toBe("2026-09-01");
+  });
+
+  /*
+   * The clamp, which is the whole reason this is not `date.setMonth(...)`.
+   * Moving the 31st to February must land on the last real day of February, not
+   * roll forward into March — the overflow the stepper also guards against.
+   */
+  it("clamps a day that the new month does not have", () => {
+    expect(anchorKey(withPart(new Date(2026, 0, 31), "month", 1))).toBe("2026-02-28");
+    expect(anchorKey(withPart(new Date(2028, 0, 31), "month", 1))).toBe("2028-02-29");
+  });
+
+  it("clamps the 31st when a year change makes February shorter", () => {
+    // 29 Feb 2028 → set year 2026: 2026 is not a leap year, so it becomes the 28th.
+    expect(anchorKey(withPart(new Date(2028, 1, 29), "year", 2026))).toBe("2026-02-28");
+  });
+});
+
+describe("pickerYears", () => {
+  it("spans a wide range around the current year, in order", () => {
+    const years = pickerYears(2026, { back: 2, forward: 3 });
+    expect(years).toEqual([2024, 2025, 2026, 2027, 2028, 2029]);
+  });
+
+  it("reaches far past any real due date, and includes the year 3000", () => {
+    const years = pickerYears(2026);
+    expect(years).toContain(2026);
+    expect(years).toContain(3000);
+    expect(years[0]).toBe(1926);
   });
 });
