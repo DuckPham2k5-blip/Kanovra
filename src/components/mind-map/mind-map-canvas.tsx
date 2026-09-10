@@ -5,6 +5,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   Plus,
+  PlusCircle,
   Redo2,
   Trash2,
   TriangleAlert,
@@ -42,7 +43,7 @@ import {
 } from "@/lib/mind-map-canvas";
 import { MindMapColorPanel } from "@/components/mind-map/mind-map-color-panel";
 import { fillBorder, fillCss, fillInk, rememberFill, type NodeFill } from "@/lib/mind-map-fill";
-import { RING_THICKNESS } from "@/lib/mind-map-radial";
+import { packWheels, radialLayout, radialReach, RING_THICKNESS } from "@/lib/mind-map-radial";
 import { MAP_MOVED_ON } from "@/lib/mind-map-version";
 import {
   edgeAxis,
@@ -923,6 +924,71 @@ export function MindMapCanvas({
     [nodes],
   );
 
+  /**
+   * A circle map can hold several wheels now — each root is its own sunburst.
+   *
+   * The nodes are split into one subtree per root, each laid out on its own and
+   * packed into a row so two wheels never sit on top of each other. Every wheel
+   * is a self-contained `MindMapWheel`: it lays out only its own subtree and
+   * measures the pointer against its own centre, so nothing about the drag or
+   * rotation maths had to learn there is more than one.
+   */
+  const radialWheels = React.useMemo(() => {
+    if (!isRadial) return [];
+    const roots = nodes.filter((n) => n.parentId === null);
+
+    const subtreeOf = (rootId: string) => {
+      const out: CanvasNode[] = [];
+      const seen = new Set<string>();
+      const stack = [rootId];
+      while (stack.length) {
+        const id = stack.pop()!;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const node = nodes.find((n) => n.id === id);
+        if (node) out.push(node);
+        for (const child of nodes) if (child.parentId === id) stack.push(child.id);
+      }
+      return out;
+    };
+
+    const subtrees = roots.map((root) => ({ root, nodes: subtreeOf(root.id) }));
+    const centers = packWheels(
+      subtrees.map((s) => ({ id: s.root.id, reach: radialReach(radialLayout(s.nodes, radial)) })),
+    );
+    return subtrees.map((s) => ({
+      root: s.root,
+      nodes: s.nodes,
+      center: centers.get(s.root.id) ?? { x: 0, y: 0 },
+    }));
+  }, [isRadial, nodes, radial]);
+
+  /**
+   * A second parent — a whole new wheel — in the same map.
+   *
+   * Just a root, the way a fresh circle map starts: a hub with no branches yet,
+   * which the `+` on it grows. Selected on creation so it is obvious which of
+   * several wheels is the new one, and `packWheels` places it clear to the right
+   * of the others.
+   */
+  function addRoot() {
+    remember("add");
+    const rootId = newNodeId();
+    const root: CanvasNode = {
+      id: rootId,
+      text: "",
+      x: 0,
+      y: 0,
+      parentId: null,
+      rank: 0,
+      weight: DEFAULT_WEIGHT,
+      thickness: RING_THICKNESS,
+    };
+    setNodes((prev) => [...prev, root]);
+    setSelected(rootId);
+    setDirty(true);
+  }
+
   function onNodePointerDown(event: React.PointerEvent, node: CanvasNode) {
     /*
      * Swallowed first, before any other question is asked.
@@ -1282,6 +1348,20 @@ export function MindMapCanvas({
           </span>
         ) : null}
 
+        {/* A whole new wheel in this map. Radial only — a free canvas already
+            adds independent nodes by other means — and only for an editor. */}
+        {isRadial && canEdit ? (
+          <button
+            type="button"
+            onClick={addRoot}
+            className="pointer-events-auto flex items-center gap-1 rounded-full border bg-background/90 px-2.5 py-1 text-xs text-muted-foreground backdrop-blur hover:text-foreground"
+            title="Add a separate wheel to this map"
+          >
+            <PlusCircle className="size-3.5" />
+            Wheel
+          </button>
+        ) : null}
+
         <button
           type="button"
           onClick={reset}
@@ -1378,9 +1458,12 @@ export function MindMapCanvas({
               different — no boxes, no edges, no notation marks. Everything around
               it is shared: the node state, the explicit save, pan and zoom, the
               comment panel and presence all live out here. */}
-          {isRadial ? (
+          {isRadial
+            ? radialWheels.map((wheel) => (
             <MindMapWheel
-              nodes={nodes}
+              key={wheel.root.id}
+              center={wheel.center}
+              nodes={wheel.nodes}
               radial={radial}
               canEdit={canEdit}
               canComment={canComment}
@@ -1409,7 +1492,8 @@ export function MindMapCanvas({
                 if (id) setPresenceFocus(`map:${mapId}:${id}`);
               }}
             />
-          ) : null}
+              ))
+            : null}
 
           {/* One overflowing SVG for every edge. It has no meaningful size of
               its own; `overflow: visible` is what lets a line reach a node far

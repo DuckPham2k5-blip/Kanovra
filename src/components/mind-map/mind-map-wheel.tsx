@@ -87,7 +87,10 @@ export function MindMapWheel({
   onFocusNode,
   focusedNodeId,
   siblingsOf,
+  center = { x: 0, y: 0 },
 }: {
+  /** Where this wheel's hub sits in the canvas. One map can hold several. */
+  center?: { x: number; y: number };
   /** The branches sharing a parent with this one, in drawing order. */
   siblingsOf: (id: string) => CanvasNode[];
   nodes: CanvasNode[];
@@ -289,9 +292,10 @@ export function MindMapWheel({
   const selectedNode = focusedNodeId ? byId.get(focusedNodeId) : undefined;
 
   return (
-    <div className="absolute left-0 top-0">
-      {/* Sized from the drawing rather than fixed, and centred on the origin, so
-          the wheel grows outward from the middle exactly as the geometry says. */}
+    <div className="absolute" style={{ left: center.x, top: center.y }}>
+      {/* Sized from the drawing rather than fixed, and centred on this wheel's
+          own point, so several wheels can share one canvas — each grows outward
+          from its own hub exactly as the geometry says. */}
       <svg
         ref={svgRef}
         className="absolute overflow-visible"
