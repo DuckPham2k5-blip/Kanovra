@@ -1513,10 +1513,13 @@ export function MindMapCanvas({
               // Each wheel turns on its own axis (its root's `spin`) and is left
               // open by a small gap rather than closed into a full circle, so the
               // first and last branch have a real edge each instead of meeting at
-              // a fixed seam. `WHEEL_GAP` is that gap, shared by every wheel.
+              // a fixed seam. The gap is *not* folded into `start` here: `start`
+              // is exactly the rotation the commit reads back, and adding half a
+              // gap to it made every rotation store a start half a gap larger
+              // than the last, drifting the wheel round by 5° a turn.
               radial={{
                 ...radial,
-                start: (wheel.root.spin ?? radial.start) + WHEEL_GAP / 2,
+                start: wheel.root.spin ?? radial.start,
                 sweep: 360 - WHEEL_GAP,
               }}
               canEdit={canEdit}

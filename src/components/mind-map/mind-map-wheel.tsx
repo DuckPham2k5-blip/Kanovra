@@ -62,6 +62,17 @@ function swallowUnlessControl(event: React.PointerEvent) {
 }
 
 const LABEL_FUDGE = 0.56;
+
+/**
+ * A coordinate rounded for the DOM.
+ *
+ * A raw trig result is a full-precision double, and React serialises it into an
+ * SVG attribute one way on the server and — a single unit in the last place
+ * apart — another on the client, which hydration reports as a mismatch it will
+ * not patch. Rounding to hundredths is far finer than a pixel and identical on
+ * both sides, so the attribute is the same string wherever it is produced.
+ */
+const r = (value: number) => Math.round(value * 100) / 100;
 /** Gap between neighbouring segments, as a distance rather than an angle. */
 const SEGMENT_PAD = 2;
 
@@ -862,8 +873,8 @@ function Segment({
           as a rendering fault the moment you start typing. */}
       {selected || place.orientation === "none" ? null : (
         <text
-          x={place.x}
-          y={place.y}
+          x={r(place.x)}
+          y={r(place.y)}
           textAnchor="middle"
           dominantBaseline="middle"
           transform={`rotate(${place.rotation.toFixed(2)} ${place.x.toFixed(2)} ${place.y.toFixed(2)})`}
@@ -886,8 +897,8 @@ function Segment({
       {node.emoji && emojiAt ? (
         <>
           <circle
-            cx={emojiAt.x}
-            cy={emojiAt.y}
+            cx={r(emojiAt.x)}
+            cy={r(emojiAt.y)}
             r={13}
             fill="hsl(222 47% 11% / 0.82)"
             stroke="hsl(0 0% 100% / 0.35)"
@@ -895,8 +906,8 @@ function Segment({
             style={{ pointerEvents: "none" }}
           />
           <text
-            x={emojiAt.x}
-            y={emojiAt.y}
+            x={r(emojiAt.x)}
+            y={r(emojiAt.y)}
             textAnchor="middle"
             dominantBaseline="central"
             fontSize={16}
