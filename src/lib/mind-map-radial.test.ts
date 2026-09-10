@@ -4,7 +4,6 @@ import { type CanvasNode, type RadialSettings } from "@/lib/mind-map-canvas";
 import {
   HUB_RADIUS,
   labelPlacement,
-  packWheels,
   radialLayout,
   radialReach,
   sectorPath,
@@ -310,37 +309,5 @@ describe("sectorPath", () => {
   it("produces nothing for a segment with no thickness or no angle", () => {
     expect(sectorPath({ a0: 10, a1: 10, r0: 100, r1: 200 })).toBe("");
     expect(sectorPath({ a0: 0, a1: 90, r0: 200, r1: 200 })).toBe("");
-  });
-});
-
-describe("packWheels", () => {
-  it("centres a single wheel on the origin, so one root behaves as before", () => {
-    const at = packWheels([{ id: "a", reach: 300 }]);
-    expect(at.get("a")).toEqual({ x: 0, y: 0 });
-  });
-
-  it("places the second wheel clear to the right of the first", () => {
-    // first far edge 100, + gap 140, + second radius 100 = 340.
-    const at = packWheels([{ id: "a", reach: 100 }, { id: "b", reach: 100 }], 140);
-    expect(at.get("a")).toEqual({ x: 0, y: 0 });
-    expect(at.get("b")).toEqual({ x: 340, y: 0 });
-  });
-
-  it("keeps wheels from touching however wide each one is", () => {
-    const at = packWheels([
-      { id: "a", reach: 400 },
-      { id: "b", reach: 50 },
-      { id: "c", reach: 200 },
-    ], 140);
-    const a = at.get("a")!;
-    const b = at.get("b")!;
-    const c = at.get("c")!;
-    // Each neighbour pair is separated by at least the two radii plus the gap.
-    expect(b.x - a.x).toBeGreaterThanOrEqual(400 + 50 + 140);
-    expect(c.x - b.x).toBeGreaterThanOrEqual(50 + 200 + 140);
-  });
-
-  it("returns nothing for no roots", () => {
-    expect(packWheels([]).size).toBe(0);
   });
 });

@@ -88,9 +88,12 @@ export function MindMapWheel({
   focusedNodeId,
   siblingsOf,
   center = { x: 0, y: 0 },
+  onMoveStart,
 }: {
   /** Where this wheel's hub sits in the canvas. One map can hold several. */
   center?: { x: number; y: number };
+  /** Begins dragging the whole wheel by its hub. Absent = not movable. */
+  onMoveStart?: (rootId: string, event: React.PointerEvent) => void;
   /** The branches sharing a parent with this one, in drawing order. */
   siblingsOf: (id: string) => CanvasNode[];
   nodes: CanvasNode[];
@@ -390,14 +393,24 @@ export function MindMapWheel({
           `foreignObject` inside SVG behaves differently enough across browsers to
           be a poor place for the one control every map has. */}
       <div
-        // Swallowed, or the viewport underneath captures the pointer to pan and
-        // neither the title box nor the add button ever receives its click.
-        //
-        // Only when the press is on the hub itself. A blanket stop is what killed
-        // every row in the menus on this map: React attaches at the root, so it
-        // stops the native event too, and Radix's menu listens on `document`.
-        onPointerDown={swallowUnlessControl}
-        className="absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 text-center"
+        // A press on the hub *body* drags the whole wheel; a press on a control
+        // inside it (the title box, the corner buttons) is left for that control
+        // and only swallowed so the viewport underneath does not pan. The blanket
+        // stop that used to be here killed every menu row on this map — React
+        // attaches at the root and stops the native event too, and Radix's menu
+        // listens on `document` — so the press is stopped selectively.
+        onPointerDown={(event) => {
+          if ((event.target as HTMLElement).closest("button, textarea, [role='menuitem']")) {
+            event.stopPropagation();
+            return;
+          }
+          if (canEdit && onMoveStart) onMoveStart(root.id, event);
+          else event.stopPropagation();
+        }}
+        className={cn(
+          "absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center rounded-full border-2 text-center",
+          canEdit && onMoveStart ? "cursor-move" : undefined,
+        )}
         style={{
           left: 0,
           top: 0,
@@ -411,13 +424,18 @@ export function MindMapWheel({
           borderColor: root.fill ? fillBorder(root.fill) : `hsl(${mapHue} 85% 62%)`,
         }}
       >
+        {/* The title rides the top of the hub, not its middle. The middle is the
+            handle you grab to move the wheel, and a text box filling it left
+            nowhere to take hold of — so the words sit up top and the space below
+            is for dragging. */}
         <textarea
           value={root.text}
           readOnly={!canEdit}
           maxLength={160}
+          rows={2}
           placeholder="Main title"
           onChange={(event) => onUpdate(root.id, { text: event.target.value })}
-          className="h-2/3 w-3/4 resize-none bg-transparent text-center text-sm font-semibold leading-snug outline-none placeholder:text-muted-foreground"
+          className="mt-3 h-1/3 w-3/4 cursor-text resize-none bg-transparent text-center text-sm font-semibold leading-snug outline-none placeholder:text-muted-foreground"
           // On the words, not on the hub: `color` inherits, and the controls
           // pinned to the hub's corners sit inside it.
           style={{ color: root.fill ? fillInk(root.fill) : undefined }}

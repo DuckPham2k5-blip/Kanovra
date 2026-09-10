@@ -43,7 +43,7 @@ import {
 } from "@/lib/mind-map-canvas";
 import { MindMapColorPanel } from "@/components/mind-map/mind-map-color-panel";
 import { fillBorder, fillCss, fillInk, rememberFill, type NodeFill } from "@/lib/mind-map-fill";
-import { packWheels, radialLayout, radialReach, RING_THICKNESS } from "@/lib/mind-map-radial";
+import { HUB_RADIUS, radialLayout, radialReach, RING_THICKNESS } from "@/lib/mind-map-radial";
 import { MAP_MOVED_ON } from "@/lib/mind-map-version";
 import {
   edgeAxis,
@@ -924,20 +924,9 @@ export function MindMapCanvas({
     [nodes],
   );
 
-  /**
-   * A circle map can hold several wheels now — each root is its own sunburst.
-   *
-   * The nodes are split into one subtree per root, each laid out on its own and
-   * packed into a row so two wheels never sit on top of each other. Every wheel
-   * is a self-contained `MindMapWheel`: it lays out only its own subtree and
-   * measures the pointer against its own centre, so nothing about the drag or
-   * rotation maths had to learn there is more than one.
-   */
-  const radialWheels = React.useMemo(() => {
-    if (!isRadial) return [];
-    const roots = nodes.filter((n) => n.parentId === null);
-
-    const subtreeOf = (rootId: string) => {
+  /** A root and everything hanging off it — one wheel's worth of nodes. */
+  const subtreeOf = React.useCallback(
+    (rootId: string) => {
       const out: CanvasNode[] = [];
       const seen = new Set<string>();
       const stack = [rootId];
@@ -950,34 +939,50 @@ export function MindMapCanvas({
         for (const child of nodes) if (child.parentId === id) stack.push(child.id);
       }
       return out;
-    };
+    },
+    [nodes],
+  );
 
-    const subtrees = roots.map((root) => ({ root, nodes: subtreeOf(root.id) }));
-    const centers = packWheels(
-      subtrees.map((s) => ({ id: s.root.id, reach: radialReach(radialLayout(s.nodes, radial)) })),
-    );
-    return subtrees.map((s) => ({
-      root: s.root,
-      nodes: s.nodes,
-      center: centers.get(s.root.id) ?? { x: 0, y: 0 },
-    }));
-  }, [isRadial, nodes, radial]);
+  /**
+   * A circle map can hold several wheels now — each root is its own sunburst,
+   * positioned wherever it has been dragged to (`root.x`/`root.y`).
+   *
+   * Every wheel is a self-contained `MindMapWheel`: it lays out only its own
+   * subtree and measures the pointer against its own centre, so nothing about
+   * the drag or rotation maths had to learn there is more than one. Position is
+   * stored on the root — unlike the row this first shipped as, because a wheel
+   * you can drag has to remember where it was put.
+   */
+  const radialWheels = React.useMemo(() => {
+    if (!isRadial) return [];
+    return nodes
+      .filter((n) => n.parentId === null)
+      .map((root) => ({ root, nodes: subtreeOf(root.id), center: { x: root.x, y: root.y } }));
+  }, [isRadial, nodes, subtreeOf]);
 
   /**
    * A second parent — a whole new wheel — in the same map.
    *
    * Just a root, the way a fresh circle map starts: a hub with no branches yet,
-   * which the `+` on it grows. Selected on creation so it is obvious which of
-   * several wheels is the new one, and `packWheels` places it clear to the right
-   * of the others.
+   * which the `+` on it grows. Placed clear to the right of every existing
+   * wheel — past the far edge of the widest one — then free to be dragged
+   * anywhere. Selected on creation so it is obvious which of several is new.
    */
   function addRoot() {
     remember("add");
+    const roots = nodes.filter((n) => n.parentId === null);
+    let rightEdge = 0;
+    for (const r of roots) {
+      const reach = radialReach(radialLayout(subtreeOf(r.id), radial));
+      rightEdge = Math.max(rightEdge, r.x + reach);
+    }
+    const x = roots.length ? rightEdge + 140 + HUB_RADIUS : 0;
+
     const rootId = newNodeId();
     const root: CanvasNode = {
       id: rootId,
       text: "",
-      x: 0,
+      x,
       y: 0,
       parentId: null,
       rank: 0,
@@ -987,6 +992,26 @@ export function MindMapCanvas({
     setNodes((prev) => [...prev, root]);
     setSelected(rootId);
     setDirty(true);
+  }
+
+  /**
+   * Starts dragging a whole wheel by its hub — the free-canvas node drag, reused.
+   *
+   * The press is on the hub inside the wheel, which is inside the viewport, so
+   * the same `dragging.current` the box nodes use carries it: the viewport's
+   * move handler reads it and writes the root's `x`/`y`, and the wheel redraws
+   * at its new centre. `stopPropagation` keeps the press off the viewport's own
+   * pan, and the capture keeps the drag alive when the pointer leaves the hub.
+   */
+  function onHubMoveStart(rootId: string, event: React.PointerEvent) {
+    event.stopPropagation();
+    if (!canEdit) return;
+    const node = nodes.find((n) => n.id === rootId);
+    if (!node) return;
+    remember(`move:${rootId}`);
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    const point = toWorld(event);
+    dragging.current = { id: rootId, dx: point.x - node.x, dy: point.y - node.y };
   }
 
   function onNodePointerDown(event: React.PointerEvent, node: CanvasNode) {
@@ -1463,6 +1488,7 @@ export function MindMapCanvas({
             <MindMapWheel
               key={wheel.root.id}
               center={wheel.center}
+              onMoveStart={onHubMoveStart}
               nodes={wheel.nodes}
               radial={radial}
               canEdit={canEdit}
