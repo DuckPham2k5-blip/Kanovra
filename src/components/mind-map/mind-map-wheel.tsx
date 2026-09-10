@@ -158,6 +158,30 @@ export function MindMapWheel({
     [sectors],
   );
 
+  /**
+   * Delete removes the selected branch — the key the free canvas already used
+   * and the wheel had no handler for at all.
+   *
+   * Never the hub: it is the map's title, not a branch, and deleting it would
+   * take the whole map. Never while a label is being typed, where Delete and
+   * Backspace mean "delete a character" — the same guard the free canvas carries
+   * so the key does not eat the node instead of the letter.
+   */
+  React.useEffect(() => {
+    if (!canEdit) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, [contenteditable='true']")) return;
+      if (!focusedNodeId || focusedNodeId === root?.id) return;
+      event.preventDefault();
+      onRemove(focusedNodeId);
+      onFocusNode(null);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [canEdit, focusedNodeId, root?.id, onRemove, onFocusNode]);
+
   const svgRef = React.useRef<SVGSVGElement>(null);
 
   /**
@@ -428,9 +452,26 @@ export function MindMapWheel({
                 // Same reason as the hub, and the same exception: a press on a
                 // control is left alone so it reaches `document`.
                 onPointerDown={swallowUnlessControl}
-                className="absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-1"
+                className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
                 style={{ left: place.x, top: place.y }}
               >
+                {/* The label, editable in place — the wheel's segments had no
+                    text box at all, only the hub did, so a branch could never be
+                    named. Shown for the selected segment, which is why the SVG
+                    label of that one segment is hidden underneath: two of the
+                    same words, one of them stale as you type, is worse than one.
+                    A Viewer sees the words but cannot change them. */}
+                <input
+                  value={node.text}
+                  readOnly={!canEdit}
+                  maxLength={120}
+                  placeholder="Name this branch"
+                  aria-label="Branch text"
+                  onChange={(event) => onUpdate(node.id, { text: event.target.value })}
+                  className="w-36 rounded-md border bg-background px-2 py-1 text-center text-xs shadow-sm outline-none focus:ring-2 focus:ring-primary"
+                />
+
+                <div className="flex items-center gap-1">
                 {renderWatchers(node.id)}
 
                 {savedIds.has(node.id) && (threadSize > 0 || canComment) ? (
@@ -523,6 +564,7 @@ export function MindMapWheel({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 ) : null}
+                </div>
               </div>
             );
           })()
@@ -736,7 +778,10 @@ function Segment({
         stroke={selected ? "hsl(0 0% 100% / 0.9)" : edge}
         strokeWidth={selected ? 2.5 : 1.8}
       />
-      {place.orientation === "none" ? null : (
+      {/* Hidden while selected: the editable input in the furniture sits over
+          this exact point, and a stale SVG copy of the text underneath it reads
+          as a rendering fault the moment you start typing. */}
+      {selected || place.orientation === "none" ? null : (
         <text
           x={place.x}
           y={place.y}
