@@ -1,8 +1,9 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
+import { ChevronDown, Pipette, Plus, X } from "lucide-react";
 import * as React from "react";
 
+import { SpectrumPicker } from "@/components/mind-map/mind-map-spectrum";
 import { Button } from "@/components/ui/button";
 import {
   FILL_SWATCHES,
@@ -71,6 +72,10 @@ export function MindMapColorPanel({
   // "whichever you last pointed at".
   const [active, setActive] = React.useState(0);
   const stop = Math.min(active, current.colors.length - 1);
+  // The full spectrum, folded away until asked for: the presets are the common
+  // path and a hue/value square above them is a lot of panel for the rare exact
+  // colour.
+  const [spectrum, setSpectrum] = React.useState(false);
 
   function setColor(hex: string) {
     const colors = [...current.colors];
@@ -233,6 +238,27 @@ export function MindMapColorPanel({
             />
           ))}
         </div>
+      </section>
+
+      {/* More colours: the exact one no swatch holds. Paints the same stop the
+          swatches do, so a blend can take a hand-picked colour in any of its
+          slots. */}
+      <section className="space-y-2">
+        <button
+          type="button"
+          aria-expanded={spectrum}
+          onClick={() => setSpectrum((open) => !open)}
+          className="flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-accent"
+        >
+          <Pipette className="size-3.5" />
+          More colours
+          <ChevronDown
+            className={cn("ml-auto size-4 transition-transform", spectrum && "rotate-180")}
+          />
+        </button>
+        {spectrum ? (
+          <SpectrumPicker key={stop} hex={current.colors[stop]} onPick={setColor} />
+        ) : null}
       </section>
 
       <Button variant="ghost" size="sm" className="mt-auto" disabled={!fill} onClick={onClear}>
