@@ -1,16 +1,21 @@
 "use client";
 
 import { MindMapType } from "@prisma/client";
-import { Search } from "lucide-react";
+import { Search, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as React from "react";
+import { toast } from "sonner";
 
 import { MindMapGlyph } from "@/components/mind-map/mind-map-glyph";
+import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { fromNow } from "@/lib/date";
 import { readPalette } from "@/lib/mind-map-palette";
 import { defaultPalette, MIND_MAP_META, MIND_MAP_ORDER, mindMapColor } from "@/lib/mind-maps";
 import { cn, deaccent } from "@/lib/utils";
+import { clearMindMaps, deleteMindMap } from "@/server/actions/mind-map";
 
 export type MapListEntry = {
   id: string;
@@ -45,13 +50,51 @@ function paletteOf(map: MapListEntry) {
 
 export function MindMapList({
   workspaceSlug,
+  workspaceId,
   maps,
+  canDelete,
 }: {
   workspaceSlug: string;
+  workspaceId: string;
   maps: MapListEntry[];
+  /** Whether this reader may delete maps — `project:delete`, decided server-side. */
+  canDelete: boolean;
 }) {
+  const router = useRouter();
+  const { confirm, dialog } = useConfirm();
   const [query, setQuery] = React.useState("");
   const [only, setOnly] = React.useState<MindMapType | null>(null);
+
+  /**
+   * Deleting one map, and clearing them all — both behind a confirmation.
+   *
+   * The row is a real anchor so middle-click and ⌘-click open a map, which means
+   * the delete control cannot live inside it: a button nested in an `<a>` is
+   * invalid, and the click would fight the navigation. It sits beside the link
+   * instead. `router.refresh()` after a success re-reads the server list rather
+   * than trusting this component to keep a mirror of it in step.
+   */
+  async function removeOne(map: MapListEntry) {
+    const result = await deleteMindMap(map.id);
+    if (result.success) {
+      toast.success(`Deleted “${map.title || "Untitled"}”.`);
+      router.refresh();
+    } else {
+      toast.error(result.error);
+    }
+  }
+
+  async function clearAll() {
+    const result = await clearMindMaps(workspaceId);
+    if (result.success) {
+      toast.success(
+        result.data.count === 1 ? "Deleted the map." : `Deleted all ${result.data.count} maps.`,
+      );
+      router.refresh();
+    } else {
+      toast.error(result.error);
+    }
+  }
 
   /**
    * Whether the history is showing at all.
@@ -125,19 +168,44 @@ export function MindMapList({
           <span className="font-normal text-muted-foreground">({maps.length})</span>
         </h2>
 
-        {/* No search box over a list that is not showing. */}
-        {open ? (
-          <div className="relative w-full sm:w-64">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search by title"
-              aria-label="Search your maps by title"
-              className="pl-8"
-            />
-          </div>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {/* No search box over a list that is not showing. */}
+          {open ? (
+            <div className="relative w-full sm:w-64">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search by title"
+                aria-label="Search your maps by title"
+                className="pl-8"
+              />
+            </div>
+          ) : null}
+
+          {/* Clear everything, behind a confirmation. Only for someone who may
+              delete, and it always names the count so the press is deliberate. */}
+          {canDelete ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 text-destructive hover:text-destructive"
+              onClick={() =>
+                confirm({
+                  title: `Clear all ${maps.length} maps?`,
+                  description:
+                    "This permanently deletes every map in this workspace, along with their comments. This cannot be undone.",
+                  confirmLabel: "Delete all",
+                  destructive: true,
+                  onConfirm: clearAll,
+                })
+              }
+            >
+              <Trash2 className="size-4" />
+              Clear
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {/* Counts on the chips, so the page says how many of each there are without
@@ -167,17 +235,20 @@ export function MindMapList({
       ) : (
         <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {shown.map((map) => (
-            <li key={map.id}>
+            <li
+              key={map.id}
+              className="group relative flex items-center rounded-lg border transition-colors hover:bg-muted/60"
+              style={{ borderColor: mindMapColor(paletteOf(map), 0.3) }}
+            >
               {/*
-               * A plain link, and the whole row is it. The type card next to this
-               * one has to be a div because it contains its own controls; a row
-               * that only opens a map has no such excuse, and a real anchor is
-               * what gives middle-click, ⌘-click and "open in new tab" for free.
+               * A plain link over the body of the row — a real anchor, so
+               * middle-click, ⌘-click and "open in new tab" all work. The delete
+               * button is a sibling rather than nested inside it: a button in an
+               * `<a>` is invalid markup and its click fights the navigation.
                */}
               <Link
                 href={`/w/${workspaceSlug}/maps/${map.id}`}
-                className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/60"
-                style={{ borderColor: mindMapColor(paletteOf(map), 0.3) }}
+                className="flex min-w-0 flex-1 items-center gap-3 p-3"
               >
                 {/* The glyph wears the map's colour, not its type's. Two circle
                     maps side by side are two drawings, and the colour is the
@@ -197,10 +268,31 @@ export function MindMapList({
                   </span>
                 </span>
               </Link>
+
+              {canDelete ? (
+                <button
+                  type="button"
+                  aria-label={`Delete ${map.title || "Untitled"}`}
+                  onClick={() =>
+                    confirm({
+                      title: "Delete this map?",
+                      description: `“${map.title || "Untitled"}” and its comments will be permanently deleted. This cannot be undone.`,
+                      confirmLabel: "Delete",
+                      destructive: true,
+                      onConfirm: () => removeOne(map),
+                    })
+                  }
+                  className="mr-2 shrink-0 rounded-md p-2 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive focus:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              ) : null}
             </li>
           ))}
         </ul>
       )}
+
+      {dialog}
     </section>
   );
 }

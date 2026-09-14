@@ -118,6 +118,37 @@ export async function deleteMindMap(mapId: string): Promise<ActionResult> {
   });
 }
 
+/**
+ * Deletes every map in a workspace at once — the "Clear" the maps list offers,
+ * behind its own confirmation.
+ *
+ * Keyed by workspace and checked the same way a single delete is: membership
+ * first so a stranger cannot tell a workspace exists, then `project:delete`,
+ * which is the permission one map's delete already asks for. `deleteMany`
+ * returns how many rows went, so the toast can say what happened rather than
+ * guess. The comment rows cascade with their maps, as they do for one delete.
+ */
+export async function clearMindMaps(workspaceId: string): Promise<ActionResult<{ count: number }>> {
+  return withErrorHandling(async () => {
+    const user = await requireUser();
+
+    const membership = await getMembership(user.id, workspaceId);
+    if (!membership) return fail(NOT_FOUND);
+    if (!can(membership.role, "project:delete")) throw new ForbiddenError();
+
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { slug: true },
+    });
+    if (!workspace) return fail(NOT_FOUND);
+
+    const { count } = await prisma.mindMap.deleteMany({ where: { workspaceId } });
+
+    revalidatePath(`/w/${workspace.slug}/maps`);
+    return ok({ count });
+  });
+}
+
 const renameSchema = z.object({
   mapId: z.string().min(1),
   title: z.string().trim().min(1, "Give the map a title").max(120),

@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Maps" };
 
 export default async function MapsPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const { workspace } = await requireWorkspace(slug);
+  const { workspace, can } = await requireWorkspace(slug);
 
   const maps = await prisma.mindMap.findMany({
     where: { workspaceId: workspace.id },
@@ -45,7 +45,12 @@ export default async function MapsPage({ params }: { params: Promise<{ slug: str
 
       <div className="p-4 sm:p-6">
         <MindMapGallery workspaceSlug={slug} workspaceId={workspace.id} />
-        <MindMapList workspaceSlug={slug} maps={entries} />
+        <MindMapList
+          workspaceSlug={slug}
+          workspaceId={workspace.id}
+          maps={entries}
+          canDelete={can("project:delete")}
+        />
       </div>
     </div>
   );
