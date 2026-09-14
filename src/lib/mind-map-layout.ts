@@ -36,6 +36,17 @@ import { nodeSize, type CanvasNode } from "@/lib/mind-map-canvas";
 const COL_GAP = 110;
 /** Space between two nodes sharing a column. */
 const ROW_GAP = 46;
+/**
+ * Space between two whole trees when a map holds more than one main item.
+ *
+ * A structured map can carry several roots now — "add a main item" makes a
+ * second tree, a second brace — and they are laid out side by side (a tree
+ * grows downward, so its neighbours sit to its right) or stacked (a brace grows
+ * rightward, so its neighbours sit below). This is the clear space between one
+ * whole tree's bounding box and the next, measured the same way every other gap
+ * here is: between the boxes, never centre to centre.
+ */
+const ROOT_GAP = 140;
 
 /** A cycle in `parentId` cannot be reached from the root, but self-parenting can. */
 const GUARD = 200;
@@ -66,6 +77,51 @@ export function isStructured(type: MindMapType) {
 }
 
 type Point = { x: number; y: number };
+
+/**
+ * Whether a laid-out type still lets a node be dragged.
+ *
+ * Laid out and draggable are not opposites. A tree arranges itself from its
+ * structure, which is what keeps it tidy as branches are added, and the owner
+ * also wants to pull a node somewhere by hand. So a drag there writes an *offset*
+ * on top of the layout (`ox`/`oy`) rather than a position — see `applyOffsets`.
+ * Brace keeps its fixed arrangement: its bracket is the whole notation.
+ */
+export function isMovableLayout(type: MindMapType) {
+  return type === MindMapType.TREE;
+}
+
+/**
+ * Laid-out positions with each node's hand-dragged offset added — its own plus
+ * every ancestor's, so pulling a branch carries everything hanging off it.
+ *
+ * Memoised per node, and the walk up the parents is bounded, because rows can
+ * arrive with a loop in `parentId` from an older build or a restore; a walk that
+ * assumes there are none hangs the render that finds one.
+ */
+export function applyOffsets(placed: Map<string, Point>, nodes: CanvasNode[]): Map<string, Point> {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const totals = new Map<string, Point>();
+
+  const offsetOf = (id: string, depth: number): Point => {
+    const hit = totals.get(id);
+    if (hit) return hit;
+    const node = byId.get(id);
+    if (!node || depth > GUARD) return { x: 0, y: 0 };
+    const above =
+      node.parentId && node.parentId !== id ? offsetOf(node.parentId, depth + 1) : { x: 0, y: 0 };
+    const value = { x: above.x + (node.ox ?? 0), y: above.y + (node.oy ?? 0) };
+    totals.set(id, value);
+    return value;
+  };
+
+  const out = new Map<string, Point>();
+  for (const [id, point] of placed) {
+    const offset = offsetOf(id, 0);
+    out.set(id, { x: point.x + offset.x, y: point.y + offset.y });
+  }
+  return out;
+}
 
 function childrenOf(nodes: CanvasNode[], id: string | null) {
   return nodes.filter((node) => node.parentId === id);
@@ -137,9 +193,8 @@ function stackColumn(
  * ability to compute one.
  */
 export function layoutNodes(type: MindMapType, nodes: CanvasNode[]): Map<string, Point> {
-  const placed = new Map<string, Point>();
-  const root = nodes.find((node) => node.parentId === null);
-  if (!root) return placed;
+  const roots = nodes.filter((node) => node.parentId === null);
+  if (!roots.length) return new Map();
 
   const cache = new Map<string, { w: number; h: number }>();
   const size = (id: string) => {
@@ -150,6 +205,67 @@ export function layoutNodes(type: MindMapType, nodes: CanvasNode[]): Map<string,
     cache.set(id, value);
     return value;
   };
+
+  /*
+   * Each root's tree is laid out on its own — root at the origin — and then the
+   * trees are placed beside one another so several main items can share a
+   * canvas without overlapping. A map with one root reproduces the old output
+   * exactly: the loop runs once, the first tree is never shifted, and the final
+   * recentring inside `layoutSingleRoot` leaves its root at the origin.
+   *
+   * A tree grows downward, so its neighbours go to its right (the trees are
+   * stacked along x); a brace and a multi-flow grow sideways, so theirs go below
+   * (stacked along y). The axis is perpendicular to the way the type spreads, so
+   * two trees never reach into each other.
+   */
+  const stackAxis: "x" | "y" = type === MindMapType.TREE ? "x" : "y";
+  const placed = new Map<string, Point>();
+  let used = -Infinity;
+
+  roots.forEach((root, index) => {
+    const local = layoutSingleRoot(type, nodes, root, size);
+    if (!local.size) local.set(root.id, { x: 0, y: 0 });
+
+    // The tree's bounding box, boxes included, in the stacking axis.
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const [id, point] of local) {
+      const half = (stackAxis === "x" ? size(id).w : size(id).h) / 2;
+      const c = stackAxis === "x" ? point.x : point.y;
+      lo = Math.min(lo, c - half);
+      hi = Math.max(hi, c + half);
+    }
+
+    // The first tree is placed exactly where it laid itself out; each later one
+    // is shifted so its near edge clears the last by `ROOT_GAP`.
+    const shift = index === 0 ? 0 : used + ROOT_GAP - lo;
+    for (const [id, point] of local) {
+      placed.set(id, {
+        x: stackAxis === "x" ? point.x + shift : point.x,
+        y: stackAxis === "y" ? point.y + shift : point.y,
+      });
+    }
+    used = index === 0 ? hi : hi + shift;
+  });
+
+  return placed;
+}
+
+/**
+ * One root's tree, laid out with that root at the origin.
+ *
+ * This is the per-type arrangement — everything `layoutNodes` used to do for the
+ * single root it assumed. Pulled out so a map with several roots can call it once
+ * per root and place the results side by side; a map with one root gets the same
+ * answer it always did.
+ */
+function layoutSingleRoot(
+  type: MindMapType,
+  nodes: CanvasNode[],
+  root: CanvasNode,
+  size: (id: string) => { w: number; h: number },
+): Map<string, Point> {
+  const placed = new Map<string, Point>();
 
   switch (type) {
     case MindMapType.TREE: {
@@ -260,36 +376,72 @@ export function layoutNodes(type: MindMapType, nodes: CanvasNode[]): Map<string,
     }
 
     case MindMapType.BRACE: {
-      // The whole on the left, its parts stacked to the right, their sub-parts
-      // further right again — the bracket reads outward from the thing. The
-      // stack is centred on the whole, rather than the whole being moved to the
-      // middle of the stack: the root is the origin of the map.
-      placed.set(root.id, { x: 0, y: 0 });
-      const parts = childrenOf(nodes, root.id).filter((node) => node.id !== root.id);
-      if (!parts.length) break;
+      /*
+       * The whole on the left, its parts to the right, their sub-parts further
+       * right again — and *their* parts further still, to whatever depth the map
+       * goes. This is the tree layout turned on its side: a node owns a vertical
+       * block as tall as its whole subtree needs (or as tall as itself), sits at
+       * the middle of it, and its children stack down inside it. Columns are
+       * spaced by the widest node at each depth.
+       *
+       * It used to place exactly two levels — parts, then sub-parts — by hand,
+       * so a part's own children landed on the origin, stacked on top of each
+       * other and unreadable. Anything past a sub-part was, in effect, a limit on
+       * how deep a brace could go. Allocating blocks the way the tree does removes
+       * the limit: every parent with children gets its bracket (drawn by
+       * `notationFor`, which already walks the whole map), at any depth.
+       */
+      const span = new Map<string, number>();
+      const measure = (id: string, depth: number): number => {
+        if (depth > GUARD) return size(id).h;
+        const kids = childrenOf(nodes, id).filter((kid) => kid.id !== id);
+        let total = 0;
+        kids.forEach((kid, index) => {
+          total += measure(kid.id, depth + 1) + (index ? ROW_GAP : 0);
+        });
+        const value = Math.max(size(id).h, total);
+        span.set(id, value);
+        return value;
+      };
+      measure(root.id, 0);
 
-      const partWidth = Math.max(...parts.map((p) => size(p.id).w));
-      const subParts = parts.flatMap((p) => childrenOf(nodes, p.id));
-      const subWidth = subParts.length ? Math.max(...subParts.map((s) => size(s.id).w)) : 0;
-
-      const x1 = size(root.id).w / 2 + COL_GAP + partWidth / 2;
-      const x2 = x1 + partWidth / 2 + COL_GAP + subWidth / 2;
-
-      const { rows, height } = stackColumn(nodes, parts, size);
-      const shift = -height / 2;
-
-      for (const row of rows) {
-        placed.set(row.id, { x: x1, y: row.y + shift });
-        for (const kid of row.kids) placed.set(kid.id, { x: x2, y: kid.y + shift });
+      // Columns spaced by the widest node on each of the two they separate, so
+      // one wide node pushes its whole column across rather than into the next.
+      const widest: number[] = [];
+      walk(nodes, root.id, (id, depth) => {
+        widest[depth] = Math.max(widest[depth] ?? 0, size(id).w);
+      });
+      const levelX: number[] = [0];
+      for (let depth = 1; depth < widest.length; depth += 1) {
+        levelX[depth] =
+          levelX[depth - 1] + widest[depth - 1] / 2 + COL_GAP + widest[depth] / 2;
       }
+
+      const assign = (id: string, top: number, depth: number) => {
+        if (depth > GUARD) return;
+        const block = span.get(id) ?? size(id).h;
+        placed.set(id, { x: levelX[depth] ?? 0, y: top + block / 2 });
+
+        const kids = childrenOf(nodes, id).filter((kid) => kid.id !== id);
+        const total = kids.reduce(
+          (sum, kid, index) => sum + (span.get(kid.id) ?? size(kid.id).h) + (index ? ROW_GAP : 0),
+          0,
+        );
+        let cursor = top + (block - total) / 2;
+        for (const kid of kids) {
+          assign(kid.id, cursor, depth + 1);
+          cursor += (span.get(kid.id) ?? size(kid.id).h) + ROW_GAP;
+        }
+      };
+      assign(root.id, 0, 0);
       break;
     }
 
   }
 
-  // The centre node is the origin of the map — the view opens looking at it.
-  // Layouts are free to build from a corner and get recentred here rather than
-  // each one having to remember.
+  // The root is the origin of its own tree — the view opens looking at it, and
+  // `layoutNodes` stacks trees relative to it. Layouts are free to build from a
+  // corner and get recentred here rather than each one having to remember.
   const origin = placed.get(root.id);
   if (origin && (origin.x !== 0 || origin.y !== 0)) {
     for (const [id, point] of placed) {

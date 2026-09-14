@@ -46,8 +46,33 @@ export const DEFAULT_THICKNESS = 110;
  * write a node the parser then refuses to read back.
  */
 export const RANK_RATIO = 1.22;
-export const RANK_MIN = -40;
+/**
+ * The range of rank the *schema* reads back.
+ *
+ * Wider than anything the editor will now write, on purpose. For one pass the
+ * shrink limit was removed and nodes were saved as small as −200; narrowing the
+ * schema to match the new floor would make `parseCanvas` drop every one of them
+ * — silently, by design. So the parser stays lenient and `RANK_FLOOR` below is
+ * what the drawing and the editor obey. The upper bound is the real one:
+ * `RANK_RATIO ** rank` is a growth curve and past +40 it overflows what a `Json`
+ * column and a browser transform can hold.
+ */
+export const RANK_MIN = -200;
 export const RANK_MAX = 40;
+
+/**
+ * The smallest a node is drawn, and the smallest it can be made — about 30% of
+ * normal.
+ *
+ * With no floor a node shrank past legibility into a speck, taking its label and
+ * its controls with it, and the drag kept going. The owner asked for a minimum
+ * that the drag simply stops at. It is a floor on the *node*: because a node is
+ * drawn at its normal size and scaled as one unit, its words and its buttons at
+ * this size keep exactly the proportions they have at normal size. A node saved
+ * smaller than this by the earlier pass is drawn at the floor, and the first
+ * resize writes it back inside the range.
+ */
+export const RANK_FLOOR = -6;
 
 export const canvasNodeSchema = z.object({
   id: z.string().min(1).max(64),
@@ -133,6 +158,35 @@ export const canvasNodeSchema = z.object({
    * this existed, where it falls back to `radial.start`.
    */
   spin: z.number().finite().nullish(),
+  /**
+   * How far a laid-out node has been dragged from where the layout put it.
+   *
+   * A tree map computes every position from its structure, so its stored `x`/`y`
+   * are not read — and they hold leftovers from `addChild` besides, which is why
+   * dragging cannot simply start writing them. An offset on top of the layout
+   * keeps the tree arranging itself as branches are added, while letting a node
+   * be pulled somewhere else by hand. Offsets accumulate down the tree, so
+   * dragging a branch carries its children with it. Absent means "where the
+   * layout says".
+   */
+  ox: z.number().finite().min(-LIMIT).max(LIMIT).nullish(),
+  oy: z.number().finite().min(-LIMIT).max(LIMIT).nullish(),
+  /**
+   * How the words are set: bold, italic, underline, a font and a size relative
+   * to the node's own.
+   *
+   * All `nullish`, all absent by default, so a node that was never styled carries
+   * nothing extra. `font` is a *key* into a fixed list, not a family string —
+   * it is looked up before it reaches `font-family`, so a document anybody with
+   * edit rights can post cannot smuggle a value into CSS. `fontScale` multiplies
+   * the size the node's rank already sets, and is bounded so it cannot write a
+   * label taller than the map.
+   */
+  bold: z.boolean().nullish(),
+  italic: z.boolean().nullish(),
+  underline: z.boolean().nullish(),
+  font: z.string().max(40).nullish(),
+  fontScale: z.number().finite().min(0.4).max(4).nullish(),
 });
 
 /**
@@ -319,34 +373,17 @@ export function parseCanvas(raw: unknown): ParsedCanvas {
  * a small one.
  */
 export function rankScale(rank: number) {
-  return Math.pow(RANK_RATIO, rank);
+  // Clamped, so a node stored below the floor is drawn *at* it and everything
+  // measured from this — the box, the router, the resize drag — agrees.
+  return Math.pow(RANK_RATIO, clampRank(rank));
 }
 
-/**
- * How much bigger the controls hanging off a node are drawn.
- *
- * These are overlays — the `+`, the `…`, the comment badge, the resize grip —
- * and the rule they must obey is that they grow *slower* than the node they hang
- * off. Fixed-size, they shrink to specks on a large node. One-for-one, they grow
- * until they cover it: a 10× node wore a 10× cluster that sat over the shape,
- * hid the grip in its corner and gave the `…` a bounding box so large that its
- * menu opened somewhere the pointer could not follow. Both failures have been
- * reported, in that order.
- *
- * It was a square root for exactly that reason, and the owner has since asked for
- * the opposite: controls that follow the node's size. So they do, one for one —
- * and the cap is what remains of the old argument rather than a preference. Past
- * it the failure above is real and was reported: a control large enough to be
- * measured in hundreds of pixels stops reading as a control, hides the resize
- * grip under itself, and anchors its menu somewhere the pointer is not.
- *
- * Six is where that starts, not where it was going to look untidy. The floor
- * keeps them clickable on a node somebody has shrunk to a dot.
- */
-export function controlScale(rank: number): number {
-  const scale = rankScale(Number.isFinite(rank) ? rank : 0);
-  return Math.min(Math.max(0.85, scale), 6);
-}
+// `controlScale` lived here: how big the `+`, the `…`, the comment badge and the
+// grip were drawn. It was wrong four times — frozen, square-root, capped, floored
+// — because it scaled the controls separately from a node whose padding, border,
+// ring and font each scaled (or did not) by their own rules. The node is now
+// drawn at its normal size and scaled as one unit, so every part of it keeps its
+// proportion by construction and there is nothing left to tune.
 
 /**
  * The rank that draws a node `ratio` times the size `from` draws it — the inverse
@@ -367,10 +404,15 @@ export function rankFromRatio(from: number, ratio: number) {
   return clampRank(from + Math.log(ratio) / Math.log(RANK_RATIO));
 }
 
-/** Held inside the range the schema will read back. */
+/**
+ * Held inside the range a node may be drawn and set at — the floor, not the
+ * schema's wider read bound. Every write of a rank goes through here (the resize
+ * drag, the size buttons, the keys), which is what makes the drag stop at the
+ * minimum rather than running on past it.
+ */
 export function clampRank(rank: number) {
   if (!Number.isFinite(rank)) return 0;
-  return Math.min(RANK_MAX, Math.max(RANK_MIN, rank));
+  return Math.min(RANK_MAX, Math.max(RANK_FLOOR, rank));
 }
 
 /**

@@ -16,16 +16,18 @@ import {
   HUB_RADIUS,
   insetRing,
   labelPlacement,
+  paddedSectorPath,
   radialLayout,
   radialReach,
-  sectorPath,
   shareBetween,
   shortestTurn,
   type Sector,
 } from "@/lib/mind-map-radial";
 import type { MapPalette, MapTone } from "@/lib/mind-map-palette";
+import { EmojiSubmenu, NodeTextControls } from "@/components/mind-map/mind-map-node-format";
 import { fillBorder, fillCss, fillInk, gradientEnds } from "@/lib/mind-map-fill";
-import { NODE_EMOJI, radialShade } from "@/lib/mind-maps";
+import { fontScaleOf, textFaceCss } from "@/lib/mind-map-text";
+import { radialShade } from "@/lib/mind-maps";
 import { cn } from "@/lib/utils";
 
 /**
@@ -100,7 +102,10 @@ export function MindMapWheel({
   siblingsOf,
   center = { x: 0, y: 0 },
   onMoveStart,
+  fresh,
 }: {
+  /** Nodes added since the page loaded — the only ones that animate in. */
+  fresh?: Set<string>;
   /** Where this wheel's hub sits in the canvas. One map can hold several. */
   center?: { x: number; y: number };
   /** Begins dragging the whole wheel by its hub. Absent = not movable. */
@@ -176,13 +181,16 @@ export function MindMapWheel({
   );
 
   /**
-   * Delete removes the selected branch — the key the free canvas already used
-   * and the wheel had no handler for at all.
+   * Delete removes the selected branch — and now the selected hub too, which is
+   * how a whole wheel is deleted: click its centre, press Delete. The canvas is
+   * what refuses to delete the last remaining root, so this hands every hub to
+   * `onRemove` and lets the one rule live in one place.
    *
-   * Never the hub: it is the map's title, not a branch, and deleting it would
-   * take the whole map. Never while a label is being typed, where Delete and
-   * Backspace mean "delete a character" — the same guard the free canvas carries
-   * so the key does not eat the node instead of the letter.
+   * Guarded to *this* wheel: `byId` holds only this wheel's own nodes, and a map
+   * can now carry several wheels, each with this same window listener. Without
+   * the guard one Delete press would fire every wheel's handler, and the calls
+   * after the first would act on a node their wheel does not own. Never while a
+   * label is being typed, where Delete and Backspace mean "delete a character".
    */
   React.useEffect(() => {
     if (!canEdit) return;
@@ -190,14 +198,14 @@ export function MindMapWheel({
       if (event.key !== "Delete" && event.key !== "Backspace") return;
       const target = event.target as HTMLElement | null;
       if (target?.closest("input, textarea, [contenteditable='true']")) return;
-      if (!focusedNodeId || focusedNodeId === root?.id) return;
+      if (!focusedNodeId || !byId.has(focusedNodeId)) return;
       event.preventDefault();
       onRemove(focusedNodeId);
       onFocusNode(null);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [canEdit, focusedNodeId, root?.id, onRemove, onFocusNode]);
+  }, [canEdit, focusedNodeId, byId, onRemove, onFocusNode]);
 
   const svgRef = React.useRef<SVGSVGElement>(null);
 
@@ -331,6 +339,7 @@ export function MindMapWheel({
             tone={palette.tone}
             focusedNodeId={focusedNodeId}
             onFocusNode={onFocusNode}
+            fresh={fresh}
           />
 
           {canEdit && selectedSector && selectedNode ? (
@@ -411,16 +420,29 @@ export function MindMapWheel({
         // attaches at the root and stops the native event too, and Radix's menu
         // listens on `document` — so the press is stopped selectively.
         onPointerDown={(event) => {
-          if ((event.target as HTMLElement).closest("button, textarea, [role='menuitem']")) {
+          // Only a real button keeps its own press. The title box does not: a
+          // press on it starts a pending wheel move that becomes a drag on
+          // movement and a plain click otherwise — so the hub is draggable by its
+          // whole face, not only the ring around the title, while the title can
+          // still be clicked into and typed.
+          if ((event.target as HTMLElement).closest("button, [role='menuitem']")) {
             event.stopPropagation();
             return;
           }
+          // Select the hub so Delete acts on it — this is what makes "click the
+          // centre, press Delete" remove the whole wheel. Selecting on press,
+          // before any drag begins, so a plain click (press then release) still
+          // leaves the hub selected.
+          onFocusNode(root.id);
           if (canEdit && onMoveStart) onMoveStart(root.id, event);
           else event.stopPropagation();
         }}
         className={cn(
           "absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border-2 text-center",
           canEdit && onMoveStart ? "cursor-move" : undefined,
+          // A wheel just added pops in the way a box node does — the same
+          // keyframe, which restates this element's centring translate.
+          fresh?.has(root.id) && "tf-map-node-in",
         )}
         style={{
           left: 0,
@@ -433,6 +455,14 @@ export function MindMapWheel({
           // colour.
           background: root.fill ? fillCss(root.fill) : `hsl(${mapHue} 60% 16%)`,
           borderColor: root.fill ? fillBorder(root.fill) : `hsl(${mapHue} 85% 62%)`,
+          // Lit when the hub is the selected node, so it is obvious which wheel a
+          // Delete would remove — the hub has no other selected state, and
+          // "click then press Delete" needs the click to show it landed.
+          boxShadow:
+            focusedNodeId === root.id
+              ? `0 0 0 3px hsl(${mapHue} 90% 65%), 0 0 20px 3px hsl(${mapHue} 90% 65% / 0.45)`
+              : undefined,
+          transition: "box-shadow 160ms ease",
         }}
       >
         {/* Centred in the hub. The box is only three-quarters as wide and a
@@ -505,21 +535,37 @@ export function MindMapWheel({
                 className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
                 style={{ left: place.x, top: place.y }}
               >
-                {/* The label, editable in place — the wheel's segments had no
-                    text box at all, only the hub did, so a branch could never be
-                    named. Shown for the selected segment, which is why the SVG
-                    label of that one segment is hidden underneath: two of the
-                    same words, one of them stale as you type, is worse than one.
-                    A Viewer sees the words but cannot change them. */}
-                <input
-                  value={node.text}
-                  readOnly={!canEdit}
-                  maxLength={120}
-                  placeholder="Name this branch"
-                  aria-label="Branch text"
-                  onChange={(event) => onUpdate(node.id, { text: event.target.value })}
-                  className="w-36 rounded-md border bg-background px-2 py-1 text-center text-xs shadow-sm outline-none focus:ring-2 focus:ring-primary"
-                />
+                {/* The label, edited straight on the segment. It was a bordered
+                    box with a "Name this branch" prompt floating over the wheel;
+                    the owner asked for the box gone — click the segment and a
+                    caret blinks in the words themselves. So this is transparent
+                    and unadorned, sat exactly where the drawn label is (which is
+                    hidden underneath while selected, or the same words would show
+                    twice, one going stale as you type), autofocused so the caret
+                    is there the moment the segment is picked. White with a shadow
+                    rather than the segment's own ink, because it has to stay
+                    legible over whatever colour the branch is. A Viewer sees the
+                    words but the box is read-only. */}
+                {canEdit || node.text ? (
+                  <input
+                    // Keyed on the segment so switching selection remounts the
+                    // box — `autoFocus` only fires on mount, and without this the
+                    // caret would not follow to the next branch you click.
+                    key={node.id}
+                    value={node.text}
+                    readOnly={!canEdit}
+                    maxLength={120}
+                    autoFocus={canEdit}
+                    placeholder=""
+                    aria-label="Branch text"
+                    onChange={(event) => onUpdate(node.id, { text: event.target.value })}
+                    className="w-40 select-text bg-transparent text-center text-white caret-white outline-none [text-shadow:_0_1px_3px_rgb(0_0_0/0.75)]"
+                    // The branch's own face and size, so editing looks like the
+                    // label it becomes. `font-semibold` is dropped from the class
+                    // above so `bold` alone decides the weight.
+                    style={{ ...textFaceCss(node), fontSize: `${0.9 * fontScaleOf(node)}rem` }}
+                  />
+                ) : null}
 
                 <div className="flex items-center gap-1">
                 {renderWatchers(node.id)}
@@ -551,44 +597,36 @@ export function MindMapWheel({
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="w-60">
-                      <DropdownMenuLabel>Split</DropdownMenuLabel>
-                      {[2, 3, 4, 5].map((count) => (
-                        <DropdownMenuItem key={count} onSelect={() => onSplit(node, count)}>
-                          <Split /> Into {count}
-                        </DropdownMenuItem>
-                      ))}
-
-                      <DropdownMenuSeparator />
+                      {/* Two ways to grow the wheel, both on every segment. "Split
+                          into 2/3/4/5" was here and the owner asked for it gone —
+                          picking a number up front is a decision the drawing
+                          should not demand. A branch beside adds a sibling in the
+                          same ring; a branch outward adds a child in the next ring
+                          out, one at a time, which is what split-into-1 is. */}
                       <DropdownMenuItem onSelect={() => onAddBranch(node)}>
                         <PlusCircle /> Add a branch beside this
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => onSplit(node, 1)}>
+                        <Split /> Add a branch outward from this
                       </DropdownMenuItem>
 
                       {/* Size is not here. A branch is made wider by dragging
                           the boundary it shares with its neighbour and longer by
                           dragging its outer rim, and both grips are on the
-                          drawing. Four menu rows restating two visible handles is
-                          clutter on a menu with real choices left. */}
+                          drawing. */}
 
                       <DropdownMenuSeparator />
-                      <DropdownMenuLabel>Emoji</DropdownMenuLabel>
-                      <div className="grid grid-cols-8 gap-0.5 px-1.5 pb-1">
-                        {NODE_EMOJI.map((glyph) => (
-                          <button
-                            key={glyph}
-                            type="button"
-                            aria-label={`Mark with ${glyph}`}
-                            onClick={() =>
-                              onUpdate(node.id, { emoji: node.emoji === glyph ? null : glyph })
-                            }
-                            className={cn(
-                              "rounded p-1 text-base leading-none hover:bg-accent",
-                              node.emoji === glyph && "bg-accent",
-                            )}
-                          >
-                            {glyph}
-                          </button>
-                        ))}
-                      </div>
+                      {/* The same Word-style controls and folded emoji as the box
+                          menu, so a branch is styled and marked exactly as a box
+                          node is. */}
+                      <DropdownMenuLabel>Text</DropdownMenuLabel>
+                      <NodeTextControls node={node} onChange={(patch) => onUpdate(node.id, patch)} />
+
+                      <DropdownMenuSeparator />
+                      <EmojiSubmenu
+                        emoji={node.emoji}
+                        onPick={(glyph) => onUpdate(node.id, { emoji: glyph })}
+                      />
 
                       <DropdownMenuSeparator />
                       {/* The same panel the boxes on a free canvas open. A
@@ -657,6 +695,7 @@ const Segments = React.memo(function Segments({
   tone,
   focusedNodeId,
   onFocusNode,
+  fresh,
 }: {
   ordered: Sector[];
   byId: Map<string, CanvasNode>;
@@ -665,6 +704,7 @@ const Segments = React.memo(function Segments({
   tone: MapTone;
   focusedNodeId: string | null;
   onFocusNode: (id: string | null) => void;
+  fresh?: Set<string>;
 }) {
   return (
     <>
@@ -679,6 +719,7 @@ const Segments = React.memo(function Segments({
             palette={{ hue: hueOf(sector.id), tone }}
             selected={focusedNodeId === sector.id}
             onSelect={() => onFocusNode(sector.id)}
+            isNew={fresh?.has(sector.id) ?? false}
           />
         );
       })}
@@ -780,15 +821,20 @@ function Segment({
   palette,
   selected,
   onSelect,
+  isNew,
 }: {
   sector: Sector;
   node: CanvasNode;
   palette: MapPalette;
   selected: boolean;
   onSelect: () => void;
+  /** Added since the page loaded, so it grows out from the hub as it arrives. */
+  isNew: boolean;
 }) {
+  // `ring` still places the label and the emoji; the outline itself is drawn
+  // with a constant-width gap on every side, so every slot on the wheel matches.
   const ring = insetRing(sector, SEGMENT_PAD);
-  const d = sectorPath(ring);
+  const d = paddedSectorPath(sector, SEGMENT_PAD);
   if (!d) return null;
 
   const { fill, ink, outline } = radialShade(palette, sector.depth);
@@ -808,7 +854,9 @@ function Segment({
   const paint = custom ? (gradientId ? `url(#${gradientId})` : custom.colors[0]) : fill;
   const edge = custom ? fillBorder(custom) : outline;
   const label = custom ? fillInk(custom) : ink;
-  const size = sector.depth === 1 ? 15 : 12;
+  // The branch's chosen size folded into the base, so the fit calc below and the
+  // drawn `fontSize` agree — a bigger label reserves the room it needs.
+  const size = (sector.depth === 1 ? 15 : 12) * fontScaleOf(node);
   const text = node.text;
   const place = labelPlacement(ring, text.length * size * LABEL_FUDGE);
 
@@ -825,7 +873,11 @@ function Segment({
     : null;
 
   return (
-    <g className="cursor-pointer" onPointerDown={(event) => event.stopPropagation()} onClick={onSelect}>
+    <g
+      className={cn("cursor-pointer", isNew && "tf-wheel-seg-in")}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={onSelect}
+    >
       {/* Every segment carries its own outline, not only the selected one.
 
           The padding between segments is a *gap*, and a gap only separates two
@@ -880,9 +932,10 @@ function Segment({
           transform={`rotate(${place.rotation.toFixed(2)} ${place.x.toFixed(2)} ${place.y.toFixed(2)})`}
           fontSize={size}
           fill={label}
-          // The segment answers the pointer, not the words on it — otherwise
-          // clicking a label is a different act from clicking the branch.
-          style={{ pointerEvents: "none", userSelect: "none" }}
+          // The branch's face — bold, italic, underline, font — on the drawn
+          // label. The segment answers the pointer, not the words on it, or
+          // clicking a label would be a different act from clicking the branch.
+          style={{ ...textFaceCss(node), pointerEvents: "none", userSelect: "none" }}
         >
           {text}
         </text>

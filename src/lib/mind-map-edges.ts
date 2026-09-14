@@ -78,6 +78,55 @@ export function segments(points: Point[]): [Point, Point][] {
   return out;
 }
 
+/** One short piece of a tapered connector: a line with its own stroke width. */
+export type TaperPiece = { x1: number; y1: number; x2: number; y2: number; width: number };
+
+/**
+ * A connector as a run of short segments whose stroke width tapers from `w0` at
+ * the parent end to `w1` at the child end, in step with the distance travelled.
+ *
+ * SVG has no variable-width stroke, so a line that is thick where it meets a big
+ * node and thin where it meets a small one has to be built rather than declared.
+ * A filled ribbon would give a perfectly smooth taper but cannot be dashed and
+ * carries no arrowhead; chopping the polyline into short constant-width pieces
+ * keeps both — each piece is an ordinary stroke, so dashes and markers still
+ * work — and with round caps the joins read as one smooth line rather than a
+ * staircase. The width is sampled at each piece's midpoint by arc length, so it
+ * follows the *route*, not the straight-line distance: an elbow tapers evenly
+ * along its bends. Works for a two-point straight line and a many-point
+ * orthogonal route alike, which is why every map can use it.
+ */
+export function taperedPieces(points: Point[], w0: number, w1: number, maxLen = 22): TaperPiece[] {
+  if (points.length < 2) return [];
+  const segs = segments(points);
+  const lens = segs.map(([a, b]) => Math.hypot(b.x - a.x, b.y - a.y));
+  const total = lens.reduce((sum, len) => sum + len, 0);
+  if (total === 0) return [];
+
+  const pieces: TaperPiece[] = [];
+  let travelled = 0;
+  segs.forEach(([a, b], index) => {
+    const len = lens[index];
+    // Whole vertices are always piece boundaries, so a corner is never cut
+    // across — only the straight run between two vertices is subdivided.
+    const steps = Math.max(1, Math.ceil(len / maxLen));
+    for (let k = 0; k < steps; k += 1) {
+      const t0 = k / steps;
+      const t1 = (k + 1) / steps;
+      const frac = (travelled + len * ((k + 0.5) / steps)) / total;
+      pieces.push({
+        x1: a.x + (b.x - a.x) * t0,
+        y1: a.y + (b.y - a.y) * t0,
+        x2: a.x + (b.x - a.x) * t1,
+        y2: a.y + (b.y - a.y) * t1,
+        width: w0 + (w1 - w0) * frac,
+      });
+    }
+    travelled += len;
+  });
+  return pieces;
+}
+
 /**
  * Does an axis-aligned segment pass through a box?
  *

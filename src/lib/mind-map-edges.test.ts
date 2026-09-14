@@ -14,9 +14,16 @@ import {
   pathLength,
   routeEdge,
   segments,
+  taperedPieces,
+  type Point,
   type Rect,
 } from "@/lib/mind-map-edges";
-import { isStructured, layoutNodes } from "@/lib/mind-map-layout";
+import {
+  applyOffsets,
+  isMovableLayout,
+  isStructured,
+  layoutNodes,
+} from "@/lib/mind-map-layout";
 
 /**
  * Edge routing, as geometry rather than as a look.
@@ -202,6 +209,97 @@ describe("routeEdge", () => {
   });
 });
 
+describe("applyOffsets", () => {
+  it("moves a dragged tree node and carries its whole branch with it", () => {
+    const nodes = [
+      node("root", null, 1),
+      { ...node("a", "root"), ox: 30, oy: -10 },
+      node("a1", "a"),
+      node("b", "root"),
+    ];
+    const placed = layoutNodes(MindMapType.TREE, nodes);
+    const moved = applyOffsets(placed, nodes);
+
+    const at = (id: string) => placed.get(id)!;
+    expect(moved.get("a")).toEqual({ x: at("a").x + 30, y: at("a").y - 10 });
+    // The child was never dragged itself, and still goes where its parent went.
+    expect(moved.get("a1")).toEqual({ x: at("a1").x + 30, y: at("a1").y - 10 });
+    // Nothing else moves.
+    expect(moved.get("b")).toEqual(at("b"));
+    expect(moved.get("root")).toEqual(at("root"));
+  });
+
+  it("adds a child's own drag on top of its parent's", () => {
+    const nodes = [node("root", null), { ...node("a", "root"), ox: 20 }, { ...node("a1", "a"), ox: 5, oy: 7 }];
+    const placed = layoutNodes(MindMapType.TREE, nodes);
+    const moved = applyOffsets(placed, nodes);
+    expect(moved.get("a1")).toEqual({ x: placed.get("a1")!.x + 25, y: placed.get("a1")!.y + 7 });
+  });
+
+  it("finishes on a loop in parentId instead of hanging", () => {
+    const loop = [{ ...node("x", "y"), ox: 5 }, { ...node("y", "x"), ox: 5 }];
+    const placed = new Map([
+      ["x", { x: 0, y: 0 }],
+      ["y", { x: 0, y: 0 }],
+    ]);
+    const out = applyOffsets(placed, loop);
+    expect(Number.isFinite(out.get("x")!.x)).toBe(true);
+  });
+
+  it("lets a tree be dragged and keeps a brace exactly as laid out", () => {
+    expect(isMovableLayout(MindMapType.TREE)).toBe(true);
+    expect(isMovableLayout(MindMapType.BRACE)).toBe(false);
+  });
+});
+
+describe("taperedPieces", () => {
+  it("runs the width from w0 to w1 along the route", () => {
+    const pieces = taperedPieces([{ x: 0, y: 0 }, { x: 100, y: 0 }], 4, 12);
+    expect(pieces.length).toBeGreaterThan(1);
+    // First piece's width is near w0, last near w1, and it only ever grows.
+    expect(pieces[0].width).toBeLessThan(6);
+    expect(pieces[pieces.length - 1].width).toBeGreaterThan(10);
+    for (let i = 1; i < pieces.length; i += 1) {
+      expect(pieces[i].width).toBeGreaterThan(pieces[i - 1].width);
+    }
+  });
+
+  it("covers the whole route end to end without a gap", () => {
+    const route: Point[] = [
+      { x: 0, y: 0 },
+      { x: 0, y: 80 },
+      { x: 120, y: 80 },
+    ];
+    const pieces = taperedPieces(route, 6, 2);
+    expect(pieces[0].x1).toBeCloseTo(0);
+    expect(pieces[0].y1).toBeCloseTo(0);
+    expect(pieces[pieces.length - 1].x2).toBeCloseTo(120);
+    expect(pieces[pieces.length - 1].y2).toBeCloseTo(80);
+    // Each piece begins exactly where the previous one ended — no seam.
+    for (let i = 1; i < pieces.length; i += 1) {
+      expect(pieces[i].x1).toBeCloseTo(pieces[i - 1].x2);
+      expect(pieces[i].y1).toBeCloseTo(pieces[i - 1].y2);
+    }
+  });
+
+  it("keeps every original corner as a piece boundary", () => {
+    // The bend at (0,80) must be a vertex of some piece, or the elbow is cut.
+    const route: Point[] = [
+      { x: 0, y: 0 },
+      { x: 0, y: 80 },
+      { x: 120, y: 80 },
+    ];
+    const pieces = taperedPieces(route, 5, 5);
+    const hitsCorner = pieces.some((p) => Math.abs(p.x2) < 1e-6 && Math.abs(p.y2 - 80) < 1e-6);
+    expect(hitsCorner).toBe(true);
+  });
+
+  it("gives nothing for a degenerate route", () => {
+    expect(taperedPieces([{ x: 5, y: 5 }], 4, 4)).toEqual([]);
+    expect(taperedPieces([{ x: 5, y: 5 }, { x: 5, y: 5 }], 4, 4)).toEqual([]);
+  });
+});
+
 describe("pathFromPoints", () => {
   it("writes a straight run as a single line", () => {
     const d = pathFromPoints([
@@ -280,6 +378,70 @@ describe("laid-out maps", () => {
 
     expect(crossings).toEqual([]);
   });
+
+  it("lays a brace out to any depth without overlap", () => {
+    // The brace used to place exactly two levels by hand — parts and their
+    // sub-parts — so a part's own children landed on the origin, stacked on top
+    // of each other. This nests four deep, which is the case the block layout
+    // exists for and the hand-placed version could not draw.
+    const nodes = [
+      node("whole", null, 1),
+      node("p1", "whole"),
+      node("p1a", "p1", 2),
+      node("p1a1", "p1a"),
+      node("p1a2", "p1a", 3),
+      node("p1a2x", "p1a2"),
+      node("p1b", "p1"),
+      node("p2", "whole"),
+    ];
+    const rects = [...rectsFor(MindMapType.BRACE, nodes).entries()];
+
+    const collisions: string[] = [];
+    for (let i = 0; i < rects.length; i += 1) {
+      for (let j = i + 1; j < rects.length; j += 1) {
+        const [idA, a] = rects[i];
+        const [idB, b] = rects[j];
+        const overlapX = Math.abs(a.x - b.x) < (a.w + b.w) / 2 - 1;
+        const overlapY = Math.abs(a.y - b.y) < (a.h + b.h) / 2 - 1;
+        if (overlapX && overlapY) collisions.push(`${idA}/${idB}`);
+      }
+    }
+
+    expect(collisions).toEqual([]);
+  });
+
+  it.each([MindMapType.TREE, MindMapType.BRACE] as const)(
+    "keeps several roots' trees clear of one another on a %s",
+    (type) => {
+      // "Add a main item" makes a second root, and a structured map lays its
+      // roots out side by side. Two whole trees must not reach into each other —
+      // the reason `layoutNodes` stacks them along the axis a tree does not grow.
+      const nodes = [
+        node("r1", null, 1),
+        node("r1a", "r1", 2),
+        node("r1a1", "r1a"),
+        node("r1b", "r1", 3),
+        node("r2", null, 1),
+        node("r2a", "r2"),
+        node("r2a1", "r2a", 4),
+        node("r2b", "r2"),
+      ];
+      const rects = [...rectsFor(type, nodes).entries()];
+
+      const collisions: string[] = [];
+      for (let i = 0; i < rects.length; i += 1) {
+        for (let j = i + 1; j < rects.length; j += 1) {
+          const [idA, a] = rects[i];
+          const [idB, b] = rects[j];
+          const overlapX = Math.abs(a.x - b.x) < (a.w + b.w) / 2 - 1;
+          const overlapY = Math.abs(a.y - b.y) < (a.h + b.h) / 2 - 1;
+          if (overlapX && overlapY) collisions.push(`${idA}/${idB}`);
+        }
+      }
+
+      expect(collisions).toEqual([]);
+    },
+  );
 
   it("treats bubble as a free canvas, and circle as no canvas of this kind at all", () => {
     // Circle answers "free" but nothing asks it: it is a radial wheel drawn by

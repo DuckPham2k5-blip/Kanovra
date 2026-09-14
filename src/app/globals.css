@@ -341,25 +341,34 @@
   /* ---------------------------------------------------------------------
      Mind map canvas
 
-     A new branch arrives in two beats: the connector draws from parent to
-     child, and only then does the node appear. Reversed, or run together, it
-     reads as two unrelated things happening at once; in this order the line
-     is what brings the node in, which is what the drawing is meant to say.
-
-     The dash length is handed in per edge because it is the pixel distance
-     between two nodes and cannot be known in CSS.
+     A new item arrives in one motion, not two. It used to be two beats: the
+     connector drew itself from parent to child and the node waited 340ms for
+     it before popping. When connectors became a run of tapered pieces the
+     draw-on went and the wait stayed, so a new node sat invisible for a third
+     of a second and then snapped in — the stutter that was reported. Now the
+     node, its connector and a new wheel segment all start at once.
      --------------------------------------------------------------------- */
-  .tf-map-edge {
-    stroke-dasharray: var(--tf-edge-length);
-    stroke-dashoffset: var(--tf-edge-length);
-    animation: tf-map-draw 360ms ease-out forwards;
+
+  /* Both translates are restated in the keyframes because an animated
+     `transform` replaces the centring one entirely. A small overshoot and a
+     slow tail, so the node reads as arriving rather than being stamped down. */
+  .tf-map-node-in {
+    animation: tf-map-node-pop 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
-  /* The delay is the length of the line animation: the node waits for the
-     connector to reach it. Both translates are repeated in the keyframes
-     because an animated `transform` replaces the centring one entirely. */
-  .tf-map-node-in {
-    animation: tf-map-node-pop 320ms cubic-bezier(0.2, 1.5, 0.4, 1) 340ms both;
+  /* The connector fades up with its node rather than drawing on: a tapered
+     line is many short strokes, and a dash animation per piece would crawl. */
+  .tf-map-edge-in {
+    animation: tf-map-edge-fade 360ms ease-out both;
+  }
+
+  /* A new wheel segment grows out of the hub. With `view-box` the origin is
+     the wheel's own centre (the SVG's user-space 0,0), so the segment swells
+     outward along its radius instead of from a corner of its bounding box. */
+  .tf-wheel-seg-in {
+    transform-box: view-box;
+    transform-origin: 0 0;
+    animation: tf-wheel-grow 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   /* A node's label, centred in its shape both ways.
@@ -937,9 +946,23 @@
   }
 }
 
-@keyframes tf-map-draw {
+@keyframes tf-map-edge-fade {
+  from {
+    opacity: 0;
+  }
   to {
-    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes tf-wheel-grow {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
@@ -1013,11 +1036,12 @@
 
 @keyframes tf-map-node-pop {
   from {
-    transform: translate(-50%, -50%) scale(0.4);
+    transform: translate(-50%, -50%) scale(0.6);
     opacity: 0;
   }
-  60% {
-    transform: translate(-50%, -50%) scale(1.08);
+  55% {
+    transform: translate(-50%, -50%) scale(1.04);
+    opacity: 1;
   }
   to {
     transform: translate(-50%, -50%) scale(1);

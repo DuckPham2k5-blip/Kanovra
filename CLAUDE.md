@@ -315,14 +315,25 @@ slow glyph breathe stay on; the ripple, which scales across the screen, does
 not. The owner's machine has reduced motion enabled, which silently disabled
 three requested effects until this was split.
 
-**A node's controls grow slower than the node.** `controlScale` in
-`mind-map-canvas.ts`, with a test that asserts the invariant rather than the
-formula. The `+`, the `…`, the comment badge and the resize grip are *overlays*,
-and this has been wrong twice in opposite directions: fixed-size froze them into
-specks on a large node, and scaling one-for-one grew them until they covered the
-node — hiding the grip in its corner and giving the `…` a bounding box so large
-that Radix opened its menu out of the pointer's reach. A square root, floored and
-capped, sits between the two.
+**A node is drawn at its normal size and scaled as one unit.** Its outer element
+is the drawn size and takes the pointer; an inner element holds the box, the
+words, the emoji, the controls and the grip at rank 0 and is scaled from its
+top-left corner into it. This replaced `controlScale`, which was wrong four times
+— fixed, square root, capped, floored — because it scaled the controls by one rule
+while the font, padding, border and offsets each followed another: a shrunk node
+lost its label to its own fixed padding while its controls piled over it. With
+one scale every part keeps its proportion by construction. Two elements rather
+than one because the outer one is centred with a translate and entered with a
+`transform` keyframe, and a scale on it would compose with both and pull it off
+its point. The selection ring's lengths are divided by the scale so it stays the
+same width on screen.
+
+**The rank floor and the schema's rank bound are different numbers.**
+`RANK_FLOOR` (−6, about 30%) is what `clampRank` holds, so the drag, the size
+buttons and the keys all stop there, and `rankScale` draws anything below it at
+it. `RANK_MIN` (−200) is only what `parseCanvas` accepts: one pass removed the
+limit and nodes were saved that small, and narrowing the schema to the floor
+would have dropped every one of them silently.
 
 **A Radix menu trigger keeps its own `pointerdown`.** The rule that every control
 over the canvas must swallow its press applies to plain buttons; a trigger's
@@ -1958,6 +1969,64 @@ the thing the page exists for — not an anomaly, and not worth splitting a page
 whose content *is* the charts. Recorded so this is not measured a third time:
 after the icon registry and the Clerk dictionary, there is no third find of that
 kind waiting.
+
+## Built after the twelfth pass (2026-09-10 → 14) — maps, driven by the owner
+
+Four rounds of requests, the owner testing between each.
+
+- **Roots.** A map may hold several; a root is deleted with its whole subtree by
+  selecting it (on a wheel, click the hub) and pressing Delete, and the last one
+  refuses. "Main item" adds one on every type. `layoutNodes` lays each root's
+  tree out alone and stacks the trees along the axis the type does not grow in;
+  the first tree is never shifted, so a one-root map lays out exactly as before.
+- **A brace nests to any depth** — the tree's block allocation turned on its side.
+  It placed two levels by hand, and a third landed on the origin.
+- **A press on a node's text starts a drag.** The textarea fills the node and was
+  treated as a control, so only the padding ring could be grabbed — a sliver on a
+  large node. A press is now *pending* until the pointer moves 4px; a press that
+  never moves is still a click into the text.
+- **Connectors taper** from the parent's width to the child's (`taperedPieces`):
+  short round-capped strokes, because SVG has no variable-width stroke and a
+  filled ribbon cannot be dashed. Arrowheads are drawn triangles — a marker is a
+  multiple of stroke width and would be enormous at the child end.
+- **A tree can be dragged.** The drag writes `ox`/`oy`, an offset on top of the
+  layout, not `x`/`y`: stored positions on a tree hold leftovers from `addChild`,
+  and an offset keeps the tree arranging itself as branches arrive. Offsets
+  accumulate down the tree so a branch moves with its parent; "Put back in the
+  layout" clears one. Brace stays fixed.
+- **The wheel is closed again and every slot is the same width.** The 10° opening
+  was a wedge far wider than the other gaps, and those were wedges too — one angle
+  trimmed at the inner radius. `paddedSectorPath` trims `asin(pad / r)` at each
+  radius, which keeps every edge exactly `pad` from its boundary.
+- **Nothing waits to appear.** A new node waited 340ms for a connector draw-on
+  that stopped existing when connectors were tapered; that wait was the reported
+  stutter. Node pop, connector fade and a new wheel segment growing from the hub
+  now start together.
+- **Maps list:** a delete per row and a Clear for the workspace, both confirmed;
+  `clearMindMaps` asks `project:delete`, as a single delete does.
+- **Deleting a node takes its whole branch.** It used to re-parent a middle
+  node's children onto their grandparent; the owner reported that as the bug it
+  is — delete the joint between a left branch and several right ones and the
+  right side jumped left onto the nearest survivor. Undo is what a mis-click has.
+- **One resize handle, again.** Two step buttons stood in for the drag for a
+  round and the owner asked for the single grip back — visible now (a handle on
+  the corner) rather than an invisible zone.
+- **Text is styled from one place.** `mind-map-text.ts` turns a node's `bold`,
+  `italic`, `underline`, `font` and `fontScale` into CSS a textarea, an input and
+  an SVG `<text>` all take, so the box canvas and the wheel set their labels
+  alike. `font` is a **key** looked up in a fixed list, never a family string, so
+  the JSON document cannot smuggle a value into `font-family` — the icon
+  registry's reason. The `NodeTextControls` and the folded `EmojiSubmenu` are one
+  component shared by both menus.
+- **A spectrum picker sits behind "More colours".** HSV square and a hue bar,
+  emitting the `#rrggbb` the fill model already stores, so it drops into the same
+  `onPick` the swatches use; the hex field keeps its own text so a half-typed
+  value never reaches the map.
+
+**Verified:** typecheck, lint and the unit suite; the tapered connectors rendered
+to a picture and looked at. **Not verified in a browser** — the assistant's has
+no Clerk session — so every pointer behaviour above, and the entrance animations,
+are the owner's to confirm.
 
 ## Working style the owner expects
 

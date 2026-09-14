@@ -227,12 +227,60 @@ export function sectorPath(ring: Ring): string {
 }
 
 /**
- * The same segment shrunk by a few pixels on every side, which is what gets
- * drawn.
+ * A segment's outline with a gap of exactly `pad` inside every edge — so the
+ * slot between any two neighbours is the same width, hub to rim, everywhere on
+ * the wheel.
  *
- * The gap is a fixed *distance*, converted to degrees at each radius rather than
- * being a fixed angle. A constant angular gap is a hairline next to the hub and a
- * chasm out at the rim, so the wheel stops reading as one object.
+ * `insetRing` trims one *angle* per segment, worked out at the inner radius. An
+ * angle is a distance that grows with the radius, so every gap was a wedge: a
+ * hairline at the hub and several times that at the rim, and the opening the
+ * wheel used to leave at its start was a far wider wedge again. The owner asked
+ * for the slots to match. Here each corner is trimmed by the angle that `pad`
+ * subtends at *its own* radius (`asin(pad / r)`), which puts every side edge
+ * exactly `pad` from the boundary line it borders — parallel to its neighbour's.
+ *
+ * A segment too narrow to lose that much at the hub is clamped to a point there
+ * rather than turned inside out.
+ */
+export function paddedSectorPath(ring: Ring, pad: number): string {
+  const r0 = ring.r0 + pad;
+  const r1 = Math.max(r0, ring.r1 - pad);
+  const span = ring.a1 - ring.a0;
+
+  if (Math.abs(span) >= 359.999) return sectorPath({ ...ring, r0, r1 });
+  if (Math.abs(span) < 1e-6 || r1 - r0 < 1e-6) return "";
+
+  const dir = span > 0 ? 1 : -1;
+  const half = Math.abs(span) / 2 - 0.001;
+  const trim = (r: number) =>
+    Math.min(r > 0 ? Math.asin(Math.min(1, pad / r)) * (180 / Math.PI) : 0, half);
+
+  const inner = trim(r0);
+  const outer = trim(r1);
+  const i0 = ring.a0 + dir * inner;
+  const i1 = ring.a1 - dir * inner;
+  const o0 = ring.a0 + dir * outer;
+  const o1 = ring.a1 - dir * outer;
+  const sweep = span > 0 ? 1 : 0;
+
+  return [
+    `M ${point(r0, i0)}`,
+    `L ${point(r1, o0)}`,
+    `A ${round2(r1)} ${round2(r1)} 0 ${Math.abs(o1 - o0) > 180 ? 1 : 0} ${sweep} ${point(r1, o1)}`,
+    `L ${point(r0, i1)}`,
+    `A ${round2(r0)} ${round2(r0)} 0 ${Math.abs(i1 - i0) > 180 ? 1 : 0} ${sweep ? 0 : 1} ${point(r0, i0)}`,
+    "Z",
+  ].join(" ");
+}
+
+/**
+ * The same segment shrunk by a few pixels on every side, as one ring — what the
+ * label and the emoji are placed inside.
+ *
+ * One angle is trimmed, worked out at the inner radius, so this is only an
+ * approximation of the drawn outline: its side edges fan outward. That is fine
+ * for choosing where words go and is why the outline itself comes from
+ * `paddedSectorPath`, whose gaps are the same width all the way out.
  */
 export function insetRing(ring: Ring, pad: number): Ring {
   const r0 = ring.r0 + pad;

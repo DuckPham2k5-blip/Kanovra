@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import { type CanvasNode, type RadialSettings } from "@/lib/mind-map-canvas";
 import {
   HUB_RADIUS,
+  insetRing,
   labelPlacement,
+  paddedSectorPath,
   radialLayout,
   radialReach,
   sectorPath,
@@ -309,5 +311,46 @@ describe("sectorPath", () => {
   it("produces nothing for a segment with no thickness or no angle", () => {
     expect(sectorPath({ a0: 10, a1: 10, r0: 100, r1: 200 })).toBe("");
     expect(sectorPath({ a0: 0, a1: 90, r0: 200, r1: 200 })).toBe("");
+  });
+});
+
+/**
+ * Every slot on a wheel is the same width.
+ *
+ * A segment starting at 0° borders the radial line along the x axis, so how far
+ * its side edge sits from that boundary is simply `|y|` of its corners. With a
+ * constant gap both the corner at the hub and the corner at the rim are `pad`
+ * away; with the angle trimmed once, as `insetRing` does, the rim corner is
+ * several times further out — the wedge that was reported.
+ */
+describe("paddedSectorPath", () => {
+  const corners = (d: string) =>
+    [...d.matchAll(/[ML] (-?[\d.]+) (-?[\d.]+)/g)].map((m) => ({ x: Number(m[1]), y: Number(m[2]) }));
+  const ring = { a0: 0, a1: 60, r0: 100, r1: 400 };
+  const pad = 3;
+
+  it("keeps its edge the same distance from the boundary at the hub and at the rim", () => {
+    const [atHub, atRim] = corners(paddedSectorPath(ring, pad));
+    expect(Math.abs(atHub.y)).toBeCloseTo(pad, 1);
+    expect(Math.abs(atRim.y)).toBeCloseTo(pad, 1);
+  });
+
+  it("is not the wedge a single trimmed angle makes", () => {
+    // The check above would pass for any outline if `corners` read the wrong
+    // numbers, so prove the old shape actually fails it.
+    const inset = insetRing(ring, pad);
+    const rimDistance = inset.r1 * Math.sin((inset.a0 * Math.PI) / 180);
+    expect(rimDistance).toBeGreaterThan(pad * 3);
+  });
+
+  it("does not turn a segment narrower than its gap inside out", () => {
+    const d = paddedSectorPath({ a0: 0, a1: 1, r0: 100, r1: 300 }, pad);
+    expect(d).not.toBe("");
+    expect(d).not.toContain("NaN");
+  });
+
+  it("draws a whole ring when one branch fills the wheel", () => {
+    const d = paddedSectorPath({ a0: 0, a1: 360, r0: 100, r1: 300 }, pad);
+    expect((d.match(/A /g) ?? []).length).toBeGreaterThanOrEqual(4);
   });
 });

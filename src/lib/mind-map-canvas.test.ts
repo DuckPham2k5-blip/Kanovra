@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   NODE_LIMIT,
+  RANK_FLOOR,
   RANK_MAX,
   RANK_MIN,
   RANK_RATIO,
   clampRank,
-  controlScale,
   nodeSize,
   parseCanvas,
   rankFromRatio,
@@ -201,6 +201,18 @@ describe("rankScale", () => {
     expect(rankScale(0)).toBe(1);
     expect(rankScale(2) * rankScale(-2)).toBeCloseTo(1, 10);
   });
+
+  /*
+   * A node saved below the floor — the pass that removed the limit wrote some —
+   * is drawn *at* the floor, and still reads back rather than being dropped.
+   */
+  it("draws anything below the floor at the floor, without losing the node", () => {
+    expect(rankScale(RANK_FLOOR - 20)).toBe(rankScale(RANK_FLOOR));
+    expect(nodeSize(MindMapType.TREE, -30).w).toBe(nodeSize(MindMapType.TREE, RANK_FLOOR).w);
+
+    const node = { id: "a", text: "", x: 0, y: 0, parentId: null, rank: RANK_MIN };
+    expect(parseCanvas({ nodes: [node] }).nodes).toHaveLength(1);
+  });
 });
 
 /**
@@ -218,8 +230,10 @@ describe("rankFromRatio", () => {
   });
 
   it("grows the node by exactly the proportion the pointer moved out", () => {
-    for (const start of [-6, 0, 3.4]) {
-      for (const ratio of [0.4, 1.5, 3]) {
+    // Kept inside the drawn range: below the floor the drag stops, which is the
+    // next test, not a failure of this one.
+    for (const start of [-1, 0, 3.4]) {
+      for (const ratio of [0.5, 1.5, 3]) {
         const before = nodeSize(MindMapType.TREE, start).w;
         const after = nodeSize(MindMapType.TREE, rankFromRatio(start, ratio)).w;
         expect(after / before).toBeCloseTo(ratio, 6);
@@ -244,12 +258,15 @@ describe("rankFromRatio", () => {
    * then refuse, because the node would come back as one dropped node — and
    * `parseCanvas` drops nodes silently by design.
    */
-  it("cannot be dragged outside the range the schema reads back", () => {
+  it("stops at the floor and the ceiling, and writes nothing the schema refuses", () => {
     expect(rankFromRatio(RANK_MAX - 1, 1e6)).toBe(RANK_MAX);
-    expect(rankFromRatio(RANK_MIN + 1, 1e-6)).toBe(RANK_MIN);
+    // Dragging the grip right into the centre: the node shrinks to the floor and
+    // no further, however far the pointer goes.
+    expect(rankFromRatio(0, 1e-9)).toBe(RANK_FLOOR);
+    expect(rankFromRatio(RANK_FLOOR, 0.5)).toBe(RANK_FLOOR);
 
     const node = { id: "a", text: "", x: 0, y: 0, parentId: null };
-    for (const rank of [rankFromRatio(RANK_MAX, 1e6), rankFromRatio(RANK_MIN, 1e-6)]) {
+    for (const rank of [rankFromRatio(RANK_MAX, 1e6), rankFromRatio(RANK_FLOOR, 1e-6)]) {
       expect(parseCanvas({ nodes: [{ ...node, rank }] }).nodes).toHaveLength(1);
     }
   });
@@ -284,43 +301,13 @@ describe("rankFromRatio", () => {
  *
  * So the invariant, rather than the formula, is what these hold.
  */
-describe("controlScale", () => {
-  it("grows with the node, so it never freezes into a speck", () => {
-    expect(controlScale(6)).toBeGreaterThan(controlScale(0));
-    expect(controlScale(12)).toBeGreaterThan(controlScale(6));
-  });
-
-  /*
-   * The one that matters now. A control has to stay the same *fraction* of its
-   * node between the floor and the cap, or it reads as belonging to the canvas
-   * rather than to the node it hangs off — which is what was reported.
-   */
-  it("keeps pace with the node between the floor and the cap", () => {
-    for (const rank of [1, 2, 4, 6]) {
-      const node = rankScale(rank);
-      if (node > 6 || node < 0.85) continue;
-      expect(controlScale(rank)).toBeCloseTo(node, 6);
-    }
-  });
-
-  it("stays clickable on a node shrunk to a dot, and bounded on a huge one", () => {
-    for (const rank of [-40, -12, -1, 0, 1, 12, 40]) {
-      const scale = controlScale(rank);
-      expect(scale).toBeGreaterThanOrEqual(0.85);
-      expect(scale).toBeLessThanOrEqual(6);
-      expect(Number.isFinite(scale)).toBe(true);
-    }
-  });
-
-  it("answers nonsense with the ordinary size rather than NaN", () => {
-    expect(controlScale(Number.NaN)).toBe(controlScale(0));
-  });
-});
-
 describe("clampRank", () => {
   it("holds the schema's own bounds", () => {
     expect(clampRank(RANK_MAX + 10)).toBe(RANK_MAX);
-    expect(clampRank(RANK_MIN - 10)).toBe(RANK_MIN);
+    // The floor, not the schema's wider read bound: this is what every write of a
+    // rank passes through, so it is what stops the drag and the buttons.
+    expect(clampRank(RANK_FLOOR - 10)).toBe(RANK_FLOOR);
+    expect(clampRank(RANK_MIN)).toBe(RANK_FLOOR);
     expect(clampRank(2.5)).toBe(2.5);
     expect(clampRank(Number.NaN)).toBe(0);
   });

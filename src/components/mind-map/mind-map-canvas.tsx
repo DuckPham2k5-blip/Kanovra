@@ -7,6 +7,7 @@ import {
   Plus,
   PlusCircle,
   Redo2,
+  Scaling,
   Trash2,
   TriangleAlert,
   Undo2,
@@ -32,7 +33,6 @@ import { MindMapWheel } from "@/components/mind-map/mind-map-wheel";
 import {
   DEFAULT_WEIGHT,
   clampRank,
-  controlScale,
   newNodeId,
   nodeSize,
   rankFromRatio,
@@ -42,27 +42,24 @@ import {
   type RadialSettings,
 } from "@/lib/mind-map-canvas";
 import { MindMapColorPanel } from "@/components/mind-map/mind-map-color-panel";
+import { EmojiSubmenu, NodeTextControls } from "@/components/mind-map/mind-map-node-format";
 import { fillBorder, fillCss, fillInk, rememberFill, type NodeFill } from "@/lib/mind-map-fill";
+import { fontScaleOf, textFaceCss } from "@/lib/mind-map-text";
 import { HUB_RADIUS, radialLayout, radialReach, RING_THICKNESS } from "@/lib/mind-map-radial";
 import { MAP_MOVED_ON } from "@/lib/mind-map-version";
 import {
   edgeAxis,
-  pathFromPoints,
-  pathLength,
   routeEdge,
+  taperedPieces,
   trimStraight,
+  type Point,
   type Rect,
 } from "@/lib/mind-map-edges";
-import { isStructured, layoutNodes } from "@/lib/mind-map-layout";
+import { applyOffsets, isMovableLayout, isStructured, layoutNodes } from "@/lib/mind-map-layout";
 import { notationFor, replacesEdges } from "@/lib/mind-map-notation";
 import { setPresenceFocus, useFocusGroups } from "@/lib/presence";
 import { emptyHistory, record, redo, undo } from "@/lib/undo-history";
-import {
-  mindMapColor,
-  mindMapStyle,
-  nodeBorderColor,
-  NODE_EMOJI,
-} from "@/lib/mind-maps";
+import { mindMapColor, mindMapStyle, nodeBorderColor } from "@/lib/mind-maps";
 import type { MapPalette } from "@/lib/mind-map-palette";
 import { cn, colorFromString } from "@/lib/utils";
 import { markNodeCommentsRead } from "@/server/actions/mind-map-comment";
@@ -85,16 +82,19 @@ import { updateMindMapData } from "@/server/actions/mind-map";
 const MIN_SCALE = 0.02;
 const MAX_SCALE = 40;
 
+// A circle wheel used to be left open by a 10° gap at its start angle. An angle
+// is a wedge — narrow at the hub, wide at the rim — so that one opening was far
+// wider than every other slot on the wheel, and the owner asked for the slots to
+// match. The wheel is closed again, and every slot, the seam included, is the
+// same constant-width gap drawn by `paddedSectorPath`.
+
 /**
- * The gap left open in a circle wheel, in degrees.
- *
- * A closed wheel meets itself at a seam where the first and last branch touch,
- * and that seam is fixed — it is where rotation is anchored — so neither of
- * those two branches can trade width across it. Leaving a small gap gives each
- * of them a real outer edge instead, and keeps the wheel reading as an open fan
- * rather than a pie with an invisible join. Centred on the wheel's start angle.
+ * How far the pointer must travel, in screen pixels, before a press on a node
+ * counts as a drag rather than a click. Small enough that a deliberate drag
+ * starts at once, large enough that the tremor in a click to edit the text does
+ * not move the node.
  */
-const WHEEL_GAP = 10;
+const DRAG_THRESHOLD = 4;
 
 /** What one undo step restores: the whole document, nodes and wheel together. */
 type Snapshot = { nodes: CanvasNode[]; radial: RadialSettings };
@@ -403,26 +403,30 @@ export function MindMapCanvas({
    * point of the ring is being seen.
    */
   const ringFor = React.useCallback(
-    (nodeId: string, mine: boolean) => {
+    (nodeId: string, mine: boolean, scale = 1) => {
       const here = watchersByRecency.get(nodeId) ?? [];
       if (!mine && !here.length) return undefined;
 
+      // The ring is drawn on a node that is itself scaled, so every length is
+      // divided by that scale: the ring stays the same width on screen whether
+      // the node is a speck or a slab, rather than vanishing on a small one.
+      const px = (value: number) => `${round2(value / scale)}px`;
       const rings: string[] = [];
       let spread = 2;
 
       if (mine) {
-        rings.push(`0 0 0 ${spread + 1}px rgba(0, 0, 0, 0.28)`);
-        rings.push(`0 0 0 ${spread}px var(--tf-ring-self)`);
+        rings.push(`0 0 0 ${px(spread + 1)} rgba(0, 0, 0, 0.28)`);
+        rings.push(`0 0 0 ${px(spread)} var(--tf-ring-self)`);
         spread += 4;
       }
       for (const id of here) {
-        rings.push(`0 0 0 ${spread}px ${colorFromString(id)}`);
+        rings.push(`0 0 0 ${px(spread)} ${colorFromString(id)}`);
         spread += 4;
       }
 
       // The bloom that makes it read as lit rather than as one more border.
       const glow = mine ? "var(--tf-ring-self)" : colorFromString(here[0]);
-      rings.push(`0 0 ${spread * 2}px ${Math.round(spread / 2)}px ${glow}`);
+      rings.push(`0 0 ${px(spread * 2)} ${px(Math.round(spread / 2))} ${glow}`);
       return rings.join(", ");
     },
     [watchersByRecency],
@@ -478,7 +482,38 @@ export function MindMapCanvas({
   const [offset, setOffset] = React.useState({ x: 0, y: 0 });
 
   const viewportRef = React.useRef<HTMLDivElement>(null);
-  const dragging = React.useRef<{ id: string; dx: number; dy: number } | null>(null);
+  /**
+   * A node drag in progress — or one pending, waiting to see if the press
+   * becomes a drag or stays a click.
+   *
+   * The node is almost entirely covered by its own text box, and a text box is
+   * something you also want to click into and type. So a press does not grab the
+   * pointer straight away: it is `pending` until it moves past a few pixels, and
+   * only then does it capture and start moving the node. A press that never moves
+   * falls through to the text box as an ordinary click. Without this only the
+   * thin ring of padding around the text box could start a drag — a sliver on an
+   * ordinary node and, on one enlarged several steps, impossible to hit at all,
+   * which is what was reported as "I can't move it".
+   */
+  const dragging = React.useRef<{
+    id: string;
+    /**
+     * What the drag writes: a free node's own position, or a tree node's offset
+     * from where the layout put it. The drag itself is the same either way — the
+     * pointer's travel since the press, added to the value stored at the press —
+     * so neither case needs to know where the node is actually drawn.
+     */
+    fields: "position" | "offset";
+    fromA: number;
+    fromB: number;
+    /** The pointer in map coordinates when the press landed. */
+    worldX: number;
+    worldY: number;
+    pending: boolean;
+    startX: number;
+    startY: number;
+    pointerId: number;
+  } | null>(null);
   const panning = React.useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
   /**
    * A resize in progress: which node, the rank it had when the press landed, how
@@ -501,15 +536,18 @@ export function MindMapCanvas({
 
   const style = mindMapStyle(type);
   const structured = isStructured(type);
+  // Whether a node can be dragged: every free canvas, and a tree — where a drag
+  // is an offset on top of the layout rather than a position. See `applyOffsets`.
+  const movable = !structured || isMovableLayout(type);
 
   /**
-   * For the five structured types the position of a node is computed from the
-   * shape, not stored. Dragging is off for them: moving a node in a tree map
-   * can only make it a worse tree map, and the arrangement is the one thing the
-   * type is for.
+   * For the structured types the position of a node is computed from the shape,
+   * not stored. A tree then adds whatever each node has been dragged by, so it
+   * keeps arranging itself as branches arrive while still letting a node be put
+   * somewhere by hand; a brace has no offsets and stays exactly as laid out.
    */
   const layout = React.useMemo(
-    () => (structured ? layoutNodes(type, nodes) : null),
+    () => (structured ? applyOffsets(layoutNodes(type, nodes), nodes) : null),
     [structured, type, nodes],
   );
 
@@ -552,7 +590,7 @@ export function MindMapCanvas({
     if (markedOnly) return [];
 
     const all = [...rects.entries()];
-    const out: { id: string; d: string; length: number }[] = [];
+    const out: { id: string; points: Point[]; w0: number; w1: number }[] = [];
 
     for (const node of nodes) {
       if (!node.parentId) continue;
@@ -560,25 +598,18 @@ export function MindMapCanvas({
       const to = rects.get(node.id);
       if (!from || !to) continue;
 
-      /*
-       * A flow map's explanations hang *below* their step, so their connector
-       * leaves the bottom edge and not the side. Everything else on that map runs
-       * along the sequence, which is horizontal.
-       *
-       * Decided per edge rather than per type because a flow map is the one type
-       * with two kinds of connection in it — the arrow that means "and then" and
-       * the stub that means "about this". Handing the whole map to `edgeAxis` to
-       * work that out was tried once for the bridge map and is what got that
-       * signature simplified back again; the node already knows which it is.
-       */
+      // The connector is as thick as the node at each of its ends, so it tapers
+      // between a small node and a big one — thick where it meets the big one,
+      // thin where it meets the small. Tied to each node's own drawn size, so it
+      // grows and shrinks with the node under zoom as well as under resize, which
+      // is what "the line matches the item" asks for.
+      const wFrom = edgeWidthFor(from);
+      const wTo = edgeWidthFor(to);
+
       const axis = edgeAxis(type);
       if (axis === "free") {
         const [a, b] = trimStraight(from, to, style.node === "circle");
-        out.push({
-          id: node.id,
-          d: pathFromPoints([a, b]),
-          length: Math.hypot(b.x - a.x, b.y - a.y),
-        });
+        out.push({ id: node.id, points: [a, b], w0: wFrom, w1: wTo });
         continue;
       }
 
@@ -601,7 +632,14 @@ export function MindMapCanvas({
       const causeSide = type === MindMapType.MULTI_FLOW && to.x < from.x;
       const drawn = causeSide ? [...points].reverse() : points;
 
-      out.push({ id: node.id, d: pathFromPoints(drawn), length: pathLength(drawn) });
+      // The widths follow the drawn order: reversing the points to point the
+      // arrow the other way swaps which end is thick.
+      out.push({
+        id: node.id,
+        points: drawn,
+        w0: causeSide ? wTo : wFrom,
+        w1: causeSide ? wFrom : wTo,
+      });
     }
 
     return out;
@@ -733,19 +771,50 @@ export function MindMapCanvas({
   }, [remember]);
 
   const remove = React.useCallback((id: string) => {
+    const target = nodes.find((n) => n.id === id);
+    if (!target) return;
+
+    /*
+     * A node takes its whole branch with it — itself and everything hanging off
+     * it — whatever level it sits at.
+     *
+     * It used to re-parent a middle node's children onto their grandparent, to
+     * save a branch from a mis-click. The owner reported that as the bug it also
+     * is: delete the node joining a left branch to several right ones, and the
+     * whole right side jumped left onto the nearest surviving node instead of
+     * leaving with the node that was removed. Deleting a thing deletes what hangs
+     * off it; undo is what a mis-click has.
+     *
+     * The one guard left is on a root: at least one has to remain, or the map has
+     * nothing to hang anything off (and on a wheel it is the hub that holds the
+     * title), so the last one refuses.
+     */
+    if (target.parentId === null) {
+      const roots = nodes.filter((n) => n.parentId === null);
+      if (roots.length <= 1) {
+        toast.error("This is the only main item — a map needs at least one.");
+        return;
+      }
+    }
+
     remember(`remove:${id}`);
-    // Children are re-parented to their grandparent rather than deleted with
-    // it. Losing a branch because its middle node went is the kind of thing
-    // people only notice after they have saved.
-    setNodes((prev) => {
-      const target = prev.find((n) => n.id === id);
-      if (!target || target.parentId === null) return prev;
-      return prev
-        .filter((n) => n.id !== id)
-        .map((n) => (n.parentId === id ? { ...n, parentId: target.parentId } : n));
-    });
+    // The node and every descendant. Walked here rather than through `subtreeOf`,
+    // which is declared further down the component — a dependency on it from this
+    // callback would read it in its temporal dead zone.
+    const doomed = new Set<string>([id]);
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const n of nodes) {
+        if (n.parentId && doomed.has(n.parentId) && !doomed.has(n.id)) {
+          doomed.add(n.id);
+          grew = true;
+        }
+      }
+    }
+    setNodes((prev) => prev.filter((n) => !doomed.has(n.id)));
     setDirty(true);
-  }, [remember]);
+  }, [nodes, remember]);
 
   /** One step back or forward, from the shortcut or from the buttons. */
   const stepHistory = React.useCallback((forward: boolean) => {
@@ -981,22 +1050,37 @@ export function MindMapCanvas({
   }, [isRadial, nodes, subtreeOf]);
 
   /**
-   * A second parent — a whole new wheel — in the same map.
+   * A second main item in the same map — a whole new root.
    *
-   * Just a root, the way a fresh circle map starts: a hub with no branches yet,
-   * which the `+` on it grows. Placed clear to the right of every existing
-   * wheel — past the far edge of the widest one — then free to be dragged
-   * anywhere. Selected on creation so it is obvious which of several is new.
+   * On a circle map that is a new wheel: a hub with no branches yet, which the
+   * `+` on it grows. On every other map it is a new top-level node, the same
+   * kind the map opened with. Either way it is placed clear to the right of
+   * everything already drawn and selected on creation, so it is obvious which of
+   * several is the new one.
+   *
+   * The free canvases (bubble, multi-flow) then let it be dragged anywhere; the
+   * structured ones (tree, brace) lay their roots out side by side — see
+   * `layoutNodes`, which places one tree per root. A map needs at least one root,
+   * which is why `remove` refuses to delete the last; this is the other end of
+   * that, and there is no upper limit.
    */
   function addRoot() {
     remember("add");
     const roots = nodes.filter((n) => n.parentId === null);
+
+    // Past the far edge of everything on the canvas. A wheel measures its reach
+    // from the geometry; a box map reads it off the drawn rectangles, which
+    // already know each node's position and size whether it is laid out or free.
     let rightEdge = 0;
-    for (const r of roots) {
-      const reach = radialReach(radialLayout(subtreeOf(r.id), radial));
-      rightEdge = Math.max(rightEdge, r.x + reach);
+    if (isRadial) {
+      for (const r of roots) {
+        const reach = radialReach(radialLayout(subtreeOf(r.id), radial));
+        rightEdge = Math.max(rightEdge, r.x + reach);
+      }
+    } else {
+      for (const rect of rects.values()) rightEdge = Math.max(rightEdge, rect.x + rect.w / 2);
     }
-    const x = roots.length ? rightEdge + 140 + HUB_RADIUS : 0;
+    const x = roots.length ? rightEdge + 140 + (isRadial ? HUB_RADIUS : 0) : 0;
 
     const rootId = newNodeId();
     const root: CanvasNode = {
@@ -1005,11 +1089,14 @@ export function MindMapCanvas({
       x,
       y: 0,
       parentId: null,
-      rank: 0,
+      // A wheel's hub is sized by `HUB_RADIUS`, not by rank; a box root looks
+      // like the main node the map started with, which is one step up.
+      rank: isRadial ? 0 : 1,
       weight: DEFAULT_WEIGHT,
       thickness: RING_THICKNESS,
     };
     setNodes((prev) => [...prev, root]);
+    setFresh((prev) => new Set(prev).add(rootId));
     setSelected(rootId);
     setDirty(true);
   }
@@ -1028,10 +1115,23 @@ export function MindMapCanvas({
     if (!canEdit) return;
     const node = nodes.find((n) => n.id === rootId);
     if (!node) return;
-    remember(`move:${rootId}`);
-    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    // Pending like a box node, so a plain click on the hub still lands in the
+    // title box to edit it and only a real drag moves the wheel. The undo step
+    // is recorded by the first `update` in `onPointerMove`, not here, so a click
+    // that never becomes a drag leaves no empty step behind.
     const point = toWorld(event);
-    dragging.current = { id: rootId, dx: point.x - node.x, dy: point.y - node.y };
+    dragging.current = {
+      id: rootId,
+      fields: "position",
+      fromA: node.x,
+      fromB: node.y,
+      worldX: point.x,
+      worldY: point.y,
+      pending: true,
+      startX: event.clientX,
+      startY: event.clientY,
+      pointerId: event.pointerId,
+    };
   }
 
   function onNodePointerDown(event: React.PointerEvent, node: CanvasNode) {
@@ -1060,9 +1160,17 @@ export function MindMapCanvas({
      * Nothing is lost by letting it through: the viewport declines any press that
      * started on a control, which is what the swallowing was protecting against.
      */
+    /*
+     * A *button* or menu item keeps its own press — the `+`, the `…`, the
+     * comment badge — and so must reach Radix on `document`. The text box does
+     * not: it used to be lumped in with them, which meant a press anywhere on the
+     * node (it is nearly all text box) never started a drag, and only the thin
+     * ring of padding around the text could move the node. The threshold below
+     * is what lets the text box both drag and edit — a click still lands in it.
+     */
     const target = event.target as HTMLElement;
-    const onControl = Boolean(target.closest("button, textarea, [role='menuitem']"));
-    if (!onControl) event.stopPropagation();
+    const onButton = Boolean(target.closest("button, [role='menuitem']"));
+    if (!onButton) event.stopPropagation();
 
     /*
      * Selected before any question about permission or type, because selection
@@ -1072,11 +1180,25 @@ export function MindMapCanvas({
      */
     setSelected(node.id);
 
-    if (!canEdit || structured || onControl) return;
+    if (!canEdit || !movable || onButton) return;
 
-    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    // Pending, not captured. No pointer capture and no `preventDefault` yet, so a
+    // press that turns out to be a click still focuses the text box; the capture
+    // is taken in `onPointerMove` once the pointer has actually moved.
     const point = toWorld(event);
-    dragging.current = { id: node.id, dx: point.x - node.x, dy: point.y - node.y };
+    const offset = structured;
+    dragging.current = {
+      id: node.id,
+      fields: offset ? "offset" : "position",
+      fromA: offset ? (node.ox ?? 0) : node.x,
+      fromB: offset ? (node.oy ?? 0) : node.y,
+      worldX: point.x,
+      worldY: point.y,
+      pending: true,
+      startX: event.clientX,
+      startY: event.clientY,
+      pointerId: event.pointerId,
+    };
   }
 
   /**
@@ -1097,6 +1219,12 @@ export function MindMapCanvas({
     // viewport, which captures the pointer to pan and eats the click.
     event.stopPropagation();
     if (!canEdit) return;
+
+    // Selected as the resize begins, so the node it belongs to rises to the top
+    // of the stack (selected nodes sort above everything). A node grown until it
+    // overlaps a neighbour would otherwise stay buried beneath it — the small
+    // node sorts on top — and could not be grabbed again to move it.
+    setSelected(node.id);
 
     const centre = positionOf(node);
     const point = toWorld(event);
@@ -1159,8 +1287,27 @@ export function MindMapCanvas({
 
     const drag = dragging.current;
     if (!drag) return;
+    // Still deciding whether this is a drag or a click: wait for real movement,
+    // then take the capture on the viewport — so the drag keeps working when the
+    // pointer leaves the node, however far it goes — and stop deciding.
+    if (drag.pending) {
+      const moved = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+      if (moved < DRAG_THRESHOLD) return;
+      drag.pending = false;
+      try {
+        viewportRef.current?.setPointerCapture(drag.pointerId);
+      } catch {
+        // A pointer that has already been released has no capture to take.
+      }
+    }
     const point = toWorld(event);
-    update(drag.id, { x: point.x - drag.dx, y: point.y - drag.dy }, `move:${drag.id}`);
+    const a = drag.fromA + (point.x - drag.worldX);
+    const b = drag.fromB + (point.y - drag.worldY);
+    update(
+      drag.id,
+      drag.fields === "offset" ? { ox: a, oy: b } : { x: a, y: b },
+      `move:${drag.id}`,
+    );
   }
 
   function endDrag() {
@@ -1393,17 +1540,17 @@ export function MindMapCanvas({
           </span>
         ) : null}
 
-        {/* A whole new wheel in this map. Radial only — a free canvas already
-            adds independent nodes by other means — and only for an editor. */}
-        {isRadial && canEdit ? (
+        {/* A whole new main item in this map — a new wheel on a circle map, a
+            new top-level node on every other. For an editor, on every type. */}
+        {canEdit ? (
           <button
             type="button"
             onClick={addRoot}
             className="pointer-events-auto flex items-center gap-1 rounded-full border bg-background/90 px-2.5 py-1 text-xs text-muted-foreground backdrop-blur hover:text-foreground"
-            title="Add a separate wheel to this map"
+            title={isRadial ? "Add a separate wheel to this map" : "Add a separate main item to this map"}
           >
             <PlusCircle className="size-3.5" />
-            Wheel
+            {isRadial ? "Wheel" : "Main item"}
           </button>
         ) : null}
 
@@ -1510,18 +1657,12 @@ export function MindMapCanvas({
               center={wheel.center}
               onMoveStart={onHubMoveStart}
               nodes={wheel.nodes}
-              // Each wheel turns on its own axis (its root's `spin`) and is left
-              // open by a small gap rather than closed into a full circle, so the
-              // first and last branch have a real edge each instead of meeting at
-              // a fixed seam. The gap is *not* folded into `start` here: `start`
-              // is exactly the rotation the commit reads back, and adding half a
-              // gap to it made every rotation store a start half a gap larger
-              // than the last, drifting the wheel round by 5° a turn.
-              radial={{
-                ...radial,
-                start: wheel.root.spin ?? radial.start,
-                sweep: 360 - WHEEL_GAP,
-              }}
+              // Each wheel turns on its own axis (its root's `spin`). `start` is
+              // exactly the rotation the commit reads back, so nothing may be
+              // folded into it — adding half of the old gap once drifted every
+              // wheel round by 5° a turn.
+              radial={{ ...radial, start: wheel.root.spin ?? radial.start }}
+              fresh={fresh}
               canEdit={canEdit}
               canComment={canComment}
               mounted={mounted}
@@ -1558,20 +1699,6 @@ export function MindMapCanvas({
           {isRadial ? null : (
           <>
           <svg className="pointer-events-none absolute overflow-visible" aria-hidden="true">
-            <defs>
-              <marker
-                id={`tf-arrow-${type}`}
-                viewBox="0 0 10 10"
-                refX="9"
-                refY="5"
-                markerWidth="6"
-                markerHeight="6"
-                orient="auto-start-reverse"
-              >
-                <path d="M0 0 L10 5 L0 10 z" fill={mindMapColor(palette, 0.75)} />
-              </marker>
-            </defs>
-
             {/* Notation first, so a node always paints over its own mark rather
                 than a bracket cutting across the words it is bracketing. */}
             {/* One kind of mark left. A bridge map's long line, a double bubble's
@@ -1590,61 +1717,69 @@ export function MindMapCanvas({
               />
             ))}
 
-            {routes.map((route) => (
-              <path
-                key={route.id}
-                d={route.d}
-                fill="none"
-                stroke={mindMapColor(palette, 0.5)}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeDasharray={style.edge === "dashed" ? "7 6" : undefined}
-                markerEnd={style.edge === "arrow" ? `url(#tf-arrow-${type})` : undefined}
-                className={fresh.has(route.id) && style.edge !== "dashed" ? "tf-map-edge" : undefined}
-                // Dash lengths are in user units, so the draw-on animation needs
-                // the length along the corners — an elbow is longer than the
-                // line between its ends.
-                style={
-                  fresh.has(route.id) && style.edge !== "dashed"
-                    ? ({ "--tf-edge-length": `${Math.round(route.length)}` } as React.CSSProperties)
-                    : undefined
-                }
-              />
-            ))}
+            {/* Each connector is a run of short round-capped segments whose width
+                tapers from the parent end to the child end, so a line between two
+                nodes of different sizes is thick at the big one and thin at the
+                small one — and grows and shrinks with them. An arrow type gets a
+                filled head at the child end, sized to that end's width, in place
+                of a marker: a marker scales as a multiple of stroke width and at
+                these widths would be enormous. */}
+            {routes.map((route) => {
+              const arrow =
+                style.edge === "arrow" ? arrowHead(route.points, route.w1) : null;
+              return (
+                <g key={route.id} className={fresh.has(route.id) ? "tf-map-edge-in" : undefined}>
+                  {taperedPieces(route.points, route.w0, route.w1).map((piece, index) => (
+                    <line
+                      key={index}
+                      x1={round2(piece.x1)}
+                      y1={round2(piece.y1)}
+                      x2={round2(piece.x2)}
+                      y2={round2(piece.y2)}
+                      stroke={mindMapColor(palette, 0.5)}
+                      strokeWidth={round2(piece.width)}
+                      strokeLinecap="round"
+                      strokeDasharray={style.edge === "dashed" ? "7 6" : undefined}
+                    />
+                  ))}
+                  {arrow ? <polygon points={arrow} fill={mindMapColor(palette, 0.6)} /> : null}
+                </g>
+              );
+            })}
           </svg>
 
           {nodes.map((node) => {
             const isCentre = node.parentId === null;
             const point = positionOf(node);
             const round = style.node === "circle";
-            // Chosen when the node was made, not inferred from where it sits.
-            const shrink = rankScale(node.rank);
             // The same numbers the router used. Anything else here and a line
             // that provably misses a box misses the wrong box.
             const { w, h } = nodeSize(type, node.rank);
+            /*
+             * The node is drawn at its *normal* size and then scaled, as one
+             * unit, to the size its rank asks for.
+             *
+             * Every part of it used to size itself by its own rule: the font by a
+             * floored percentage, the controls by `controlScale`, the padding,
+             * border and offsets not at all. So a node shrunk a few steps lost its
+             * label — the fixed padding ate the whole box — while its controls
+             * piled up over it, and a node grown a few steps wore specks. One
+             * scale on one wrapper keeps the words, the emoji, the `+` and `…`,
+             * the comment badge and the grip in the proportion they have at normal
+             * size, at every size, by construction.
+             *
+             * Two elements, because the outer one is positioned with Tailwind's
+             * translate and entered with a `transform` keyframe, and a scale on
+             * that same element would compose with both and pull it off its point.
+             * The outer box is the drawn size and takes the pointer; the inner is
+             * the normal size, scaled from its top-left corner into that box.
+             */
+            const base = nodeSize(type, 0);
+            const scaled = rankScale(node.rank);
             const threadSize = commentCounts.get(node.id) ?? 0;
             // Cleared optimistically the moment the panel opens; the server call
             // that persists it deliberately does not revalidate.
             const unread = seenNow.has(node.id) ? 0 : (unreadCounts.get(node.id) ?? 0);
-            /*
-             * The hover controls are a fixed pixel size while the node they hang
-             * off is not, so on a node dragged several ranks up they shrink into
-             * specks in its corner and on a small one they swamp it.
-             *
-             * Scaling the wrapper keeps every icon, border, padding and gap
-             * inside in proportion without restating a single one of them. The
-             * CSS `scale` property rather than a `transform`, because these
-             * elements are already positioned with Tailwind's translate
-             * utilities and an inline `transform` would replace those outright —
-             * which centres nothing and moves every control off its corner.
-             *
-             * The rule lives in `controlScale`, with a test, because it has
-             * been wrong twice in opposite directions — frozen at a hard
-             * ceiling, then growing one-for-one until the controls covered the
-             * node they belong to.
-             */
-            const furniture = `${controlScale(node.rank)}`;
             return (
               <div
                 key={node.id}
@@ -1658,19 +1793,8 @@ export function MindMapCanvas({
                 // is only reading, or who has no permission to edit, invisible.
                 onPointerDownCapture={() => setPresenceFocus(`map:${mapId}:${node.id}`)}
                 className={cn(
-                  // No `overflow-hidden` here, however tempting: the hover
-                  // controls hang outside the box on purpose, and clipping the
-                  // node clips them. Overflowing *text* is the textarea's own
-                  // problem, and it scrolls.
-                  "group absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-1 border",
-                  round
-                    ? "rounded-full p-3 text-center"
-                    : style.node === "pill"
-                      ? "rounded-full px-5 py-2"
-                      : style.corner === "sharp"
-                        ? "rounded-none px-3 py-2"
-                        : "rounded-md px-3 py-2",
-                  canEdit && !structured && "cursor-grab active:cursor-grabbing",
+                  "group absolute -translate-x-1/2 -translate-y-1/2",
+                  canEdit && movable && "cursor-grab active:cursor-grabbing",
                   fresh.has(node.id) && "tf-map-node-in",
                 )}
                 style={{
@@ -1695,7 +1819,28 @@ export function MindMapCanvas({
                    */
                   zIndex:
                     selected === node.id ? 900 : Math.round(800 - Math.min(w, 780)),
-                  fontSize: `${Math.max(0.68, shrink) * 100}%`,
+                }}
+              >
+              <div
+                className={cn(
+                  // No `overflow-hidden` here, however tempting: the hover
+                  // controls hang outside the box on purpose, and clipping the
+                  // node clips them. Overflowing *text* is the textarea's own
+                  // problem, and it scrolls.
+                  "absolute left-0 top-0 flex items-center justify-center gap-1 border",
+                  round
+                    ? "rounded-full p-3 text-center"
+                    : style.node === "pill"
+                      ? "rounded-full px-5 py-2"
+                      : style.corner === "sharp"
+                        ? "rounded-none px-3 py-2"
+                        : "rounded-md px-3 py-2",
+                )}
+                style={{
+                  width: base.w,
+                  height: base.h,
+                  scale: `${scaled}`,
+                  transformOrigin: "0 0",
                   // A bubble map's children are not subordinate to its centre —
                   // the centre is the thing and every bubble round it is one of
                   // its qualities, all of equal standing. Fading them was reading
@@ -1726,7 +1871,7 @@ export function MindMapCanvas({
                   // A box-shadow rather than an extra element, so it follows the
                   // node's own corner radius without anything restating it — and
                   // so it cannot sit over the node and swallow a click.
-                  boxShadow: ringFor(node.id, selected === node.id),
+                  boxShadow: ringFor(node.id, selected === node.id, scaled),
                   transition: "box-shadow 160ms ease",
                 }}
               >
@@ -1754,7 +1899,13 @@ export function MindMapCanvas({
                     // with no acknowledgement that anything happened.
                     key={node.emoji}
                     className="tf-pop-in pointer-events-none absolute -left-1 -top-2 select-none rounded-full bg-background/85 px-1 leading-tight shadow-sm backdrop-blur"
-                    style={{ fontSize: `${Math.max(0.8, shrink) * 90}%` }}
+                    // A plain size. The whole node is scaled as one unit, so the
+                    // glyph keeps its proportion at every size without a rule of
+                    // its own — it once had `Math.max(0.8, shrink) * 90%`, which
+                    // applied the rank's scale a second time on top of the node's
+                    // and grew the glyph as the square of the node until it
+                    // swallowed the box.
+                    style={{ fontSize: "0.9em" }}
                   >
                     {node.emoji}
                   </span>
@@ -1792,7 +1943,15 @@ export function MindMapCanvas({
                   // them dark — on their own dark chips, which is invisible
                   // rather than merely wrong. The one element that has to answer
                   // to the fill is the one drawn on top of it.
-                  style={{ color: node.fill ? fillInk(node.fill) : undefined }}
+                  //
+                  // The face — bold, italic, underline, font — and the size
+                  // multiplier are the node's text style. Size as `em` so it
+                  // rides on the `1em` the node's rank already sets.
+                  style={{
+                    ...textFaceCss(node),
+                    fontSize: fontScaleOf(node) !== 1 ? `${fontScaleOf(node)}em` : undefined,
+                    color: node.fill ? fillInk(node.fill) : undefined,
+                  }}
                 />
 
                 {/* Who else is on this node, and how much has been said about
@@ -1801,7 +1960,6 @@ export function MindMapCanvas({
                     box is a fixed size the router depends on. */}
                 <span
                   className="absolute -bottom-3 left-1"
-                  style={{ scale: furniture, transformOrigin: "bottom left" }}
                 >
                   {renderWatchers(node.id)}
                 </span>
@@ -1833,13 +1991,7 @@ export function MindMapCanvas({
                       // Something here has been said since you last looked.
                       unread > 0 && "tf-unread",
                     )}
-                    style={{
-                      borderColor: mindMapColor(palette, 0.5),
-                      scale: furniture,
-                      // Pinned by its left edge, so growing with the node pushes
-                      // it outward rather than back under the node's own border.
-                      transformOrigin: "left center",
-                    }}
+                    style={{ borderColor: mindMapColor(palette, 0.5) }}
                   >
                     <MessageSquare className="size-3" />
                     {/* The unread count while there is one, the whole thread
@@ -1873,7 +2025,6 @@ export function MindMapCanvas({
                 {canEdit && mounted ? (
                   <div
                     className="absolute -right-2 -top-2 flex gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
-                    style={{ scale: furniture, transformOrigin: "top right" }}
                   >
                     {/* One press, one node. This was a menu of three sizes for
                         the child about to be created, and it was the wrong place
@@ -1914,37 +2065,21 @@ export function MindMapCanvas({
                           <MoreHorizontal className="size-3.5" />
                         </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="w-60">
-                        {/* Size is not on this menu. It is the grip on the
-                            node's corner, and on the keyboard it is `+` and `-`
-                            with the node selected. Two menu items saying what a
-                            visible handle already says is clutter on a menu that
-                            has real choices to offer. */}
-                        <DropdownMenuLabel>Emoji</DropdownMenuLabel>
-                        {/* A grid inside the menu rather than a submenu per
-                            emoji: twenty-four items as menu rows is a scroll,
-                            and marking a node is meant to be one glance and one
-                            click. */}
-                        <div className="grid grid-cols-8 gap-0.5 px-1.5 pb-1">
-                          {NODE_EMOJI.map((glyph) => (
-                            <button
-                              key={glyph}
-                              type="button"
-                              aria-label={`Mark with ${glyph}`}
-                              onClick={() =>
-                                update(node.id, {
-                                  emoji: node.emoji === glyph ? null : glyph,
-                                })
-                              }
-                              className={cn(
-                                "rounded p-1 text-base leading-none hover:bg-accent",
-                                node.emoji === glyph && "bg-accent",
-                              )}
-                            >
-                              {glyph}
-                            </button>
-                          ))}
-                        </div>
+                      <DropdownMenuContent align="start" className="w-64">
+                        {/* The Word-style text controls, and the emoji folded into
+                            one submenu — both shared with the wheel's menu, so a
+                            box and a branch are styled and marked the same way. */}
+                        <DropdownMenuLabel>Text</DropdownMenuLabel>
+                        <NodeTextControls
+                          node={node}
+                          onChange={(patch) => update(node.id, patch, `style:${node.id}`)}
+                        />
+
+                        <DropdownMenuSeparator />
+                        <EmojiSubmenu
+                          emoji={node.emoji}
+                          onPick={(glyph) => update(node.id, { emoji: glyph })}
+                        />
 
                         <DropdownMenuSeparator />
                         {/* Every item on these menus fires `onSelect`, not
@@ -1992,6 +2127,22 @@ export function MindMapCanvas({
                           </>
                         ) : null}
 
+                        {/* A tree node dragged away from its place can be sent
+                            back. Without this, the only way to undo a drag made
+                            an hour ago is to line it up again by eye. */}
+                        {isMovableLayout(type) && (node.ox || node.oy) ? (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                update(node.id, { ox: null, oy: null }, `move:${node.id}`)
+                              }
+                            >
+                              <Undo2 /> Put back in the layout
+                            </DropdownMenuItem>
+                          </>
+                        ) : null}
+
                         {!isCentre ? (
                           <>
                             <DropdownMenuSeparator />
@@ -2005,37 +2156,39 @@ export function MindMapCanvas({
                   </div>
                 ) : null}
 
-                {/* Drag the corner to resize.
+                {/* The one resize control: drag it out to enlarge, in to shrink.
 
-                    No visible handle any more. It was a bordered button with a
-                    diagonal arrow in it, and it read as one more thing cluttering
-                    a corner that already has three — the shape itself is what you
-                    reach for, the way you resize a window or a textarea, and the
-                    `nwse-resize` cursor is the affordance that says so.
+                    A visible handle again, on its own. Two step buttons stood
+                    here for a while and the owner asked for the single draggable
+                    grip back — the gesture is the whole affordance, and a handle
+                    you can see is one you know to grab. Shown on hover like the
+                    rest of the cluster so a corner at rest stays clean.
 
-                    Still an element rather than a hit test inside the node's own
-                    `pointerdown`, for two reasons that have both cost time here:
-                    it takes the pointer capture, and it swallows the press before
-                    the viewport can turn it into a pan. Invisible, not absent.
+                    An element rather than a hit test inside the node's own
+                    `pointerdown` for two reasons that have each cost time here: it
+                    takes the pointer capture, and it swallows the press before the
+                    viewport can turn it into a pan.
 
-                    A round node's bounding-box corner is outside the circle, so
-                    the zone would sit in the gap where there is nothing to grab.
-                    It goes on the shape instead — 45° round the rim, which is
-                    that same corner pulled in to where the ink actually is. */}
+                    A round node's bounding-box corner sits outside the circle, so
+                    the handle is pulled in to 45° round the rim, where the ink
+                    actually is. */}
                 {canEdit ? (
                   <span
                     role="presentation"
+                    aria-label="Drag to resize this node"
+                    title="Kéo ra để phóng to, kéo vào để thu nhỏ"
                     onPointerDown={(event) => onResizePointerDown(event, node)}
-                    className="absolute size-6 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize touch-none"
+                    className="absolute flex size-5 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize touch-none items-center justify-center rounded-full border bg-background text-muted-foreground opacity-0 shadow-sm transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
                     style={{
                       left: round ? "85.4%" : "100%",
                       top: round ? "85.4%" : "100%",
-                      // Grows with the node, so the reach stays the same
-                      // proportion of the shape at every size.
-                      scale: furniture,
+                      borderColor: mindMapColor(palette, 0.5),
                     }}
-                  />
+                  >
+                    <Scaling className="size-3" />
+                  </span>
                 ) : null}
+              </div>
               </div>
             );
           })}
@@ -2103,4 +2256,60 @@ export function MindMapCanvas({
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+/**
+ * A coordinate rounded for an SVG attribute, so the string is identical on the
+ * server and the client. A full-precision float can serialise a unit in the last
+ * place apart between the two, which hydration reports as a mismatch it will not
+ * patch; hundredths are far finer than a pixel and the same either side. The
+ * wheel rounds its own coordinates for exactly this reason.
+ */
+function round2(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+/**
+ * How thick a connector is where it meets a node — a fraction of the node's own
+ * drawn size, so the line is proportional to the box it touches and the whole
+ * edge tapers between a small node and a big one. The shorter side, so a wide
+ * box and a round node of the same rank read alike; floored so the thinnest edge
+ * is still visible and capped so a huge node cannot draw a slab.
+ */
+const EDGE_WIDTH_FACTOR = 0.05;
+function edgeWidthFor(rect: Rect) {
+  return clamp(EDGE_WIDTH_FACTOR * Math.min(rect.w, rect.h), 1.5, 60);
+}
+
+/**
+ * A filled arrowhead at the last point of a route, pointing along its final
+ * segment, sized to the width the connector has there.
+ *
+ * Drawn rather than left to an SVG `marker`, because a marker is measured in
+ * multiples of the stroke width and the tapered stroke can be tens of pixels
+ * wide at the child end — a marker would be enormous. Returns the three points of
+ * the triangle, or null when the route is too short to have a direction.
+ */
+function arrowHead(points: Point[], endWidth: number): string | null {
+  if (points.length < 2) return null;
+  const tip = points[points.length - 1];
+  const prev = points[points.length - 2];
+  const dx = tip.x - prev.x;
+  const dy = tip.y - prev.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 0.001) return null;
+
+  const ux = dx / dist;
+  const uy = dy / dist;
+  const half = Math.max(4, endWidth * 1.5);
+  const length = half * 1.9;
+  const baseX = tip.x - ux * length;
+  const baseY = tip.y - uy * length;
+  // Perpendicular to the direction of travel.
+  const nx = -uy;
+  const ny = ux;
+
+  const left = `${round2(baseX + nx * half)},${round2(baseY + ny * half)}`;
+  const right = `${round2(baseX - nx * half)},${round2(baseY - ny * half)}`;
+  return `${round2(tip.x)},${round2(tip.y)} ${left} ${right}`;
 }
