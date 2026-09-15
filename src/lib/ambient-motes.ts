@@ -32,15 +32,15 @@ const FADE_OUT = 0.3;
  */
 const PEAK_DARK = 0.95;
 /*
- * Light is much fainter than dark, not merely a little.
+ * Fainter than dark, but no longer timid.
  *
- * At 0.5 the black specks read as dirt on the screen rather than as anything
- * deliberate — reported in exactly those words. Black on a pale page is the
- * highest-contrast mark there is, so the number that looks restrained on a dark
- * backdrop is aggressive here; the two themes need different figures, not one
- * shared figure with a small adjustment.
+ * It started at 0.2, on the reasoning that black on a pale page is the
+ * highest-contrast mark there is; the owner then found the specks too faint to
+ * see and asked for them bolder. 0.35 is that — clearly darker than before and
+ * still well under the 0.5 that once read as dirt on the screen, so it is a
+ * point of ink rather than a smudge.
  */
-const PEAK_LIGHT = 0.2;
+const PEAK_LIGHT = 0.35;
 
 /** How deep inside the bloom the outward-bound motes begin. */
 const INNER = 0.18;
@@ -142,15 +142,17 @@ export function moteInk(dark: boolean, accent: string): string {
 export function moteRadius(roll: number, dark: boolean): number {
   const clamped = Number.isFinite(roll) ? Math.max(0, Math.min(1, roll)) : 0.5;
   const curve = Math.pow(clamped, 2.4);
-  return dark ? 0.7 + curve * 2.6 : 0.4 + curve * 0.9;
+  return dark ? 0.7 + curve * 2.6 : 0.5 + curve * 0.9;
 }
 
 /**
  * How many motes a viewport of this size gets.
  *
  * By area and capped, because a 4K screen should not cost four times a laptop's
- * worth of work for something nobody looks at directly.
+ * worth of work for something nobody looks at directly. Denser than it first
+ * shipped, twice now on the owner's word that the field looked sparse — still a
+ * field rather than a blizzard, so the divisor moved rather than the shape.
  */
 export function moteCount(width: number, height: number): number {
-  return Math.max(40, Math.min(200, Math.round((width * height) / 9500)));
+  return Math.max(60, Math.min(300, Math.round((width * height) / 7000)));
 }

@@ -77,6 +77,15 @@ export function AmbientParticles() {
       phase: number;
       /** Its own twinkle rate, so the field does not pulse as one. */
       twinkle: number;
+      /**
+       * How far the twinkle swings, and the level it swings around. Two kinds of
+       * mote share the sky: a deep blinker that all but winks out and back, and a
+       * faint one that only shimmers — a real sky is mostly the second with a
+       * scattering of the first, which is what keeps the field from reading as one
+       * flat pulsing sheet.
+       */
+      twAmp: number;
+      twMid: number;
     };
 
     let motes: Mote[] = [];
@@ -105,6 +114,16 @@ export function AmbientParticles() {
       mote.roll = Math.random();
       mote.phase = Math.random() * Math.PI * 2;
       mote.twinkle = 0.6 + Math.random() * 1.1;
+      // About a third blink deeply (down to ~0.1 and back), the rest only
+      // shimmer (staying near full). Amplitude and midpoint together, so a deep
+      // blinker's floor cannot dip below zero.
+      if (Math.random() < 0.35) {
+        mote.twAmp = 0.45;
+        mote.twMid = 0.55;
+      } else {
+        mote.twAmp = 0.12;
+        mote.twMid = 0.88;
+      }
     }
 
     /**
@@ -145,6 +164,8 @@ export function AmbientParticles() {
           roll: 0,
           phase: 0,
           twinkle: 1,
+          twAmp: 0.12,
+          twMid: 0.88,
         };
         spawn(mote, true);
         return mote;
@@ -199,10 +220,11 @@ export function AmbientParticles() {
         const at = moteAt(mote.path, t);
 
         // The twinkle: each mote on its own rate, or the whole sky pulses as one
-        // object and reads as a single flashing thing rather than as many. Under
-        // reduced motion this is all that is left of the animation, which is why
-        // it goes deep enough to be worth watching on its own.
-        const twinkle = 0.55 + 0.45 * Math.sin((now / 900) * mote.twinkle + mote.phase);
+        // object and reads as a single flashing thing rather than as many. Its
+        // own depth too — a deep blinker or a faint shimmer — set once at spawn.
+        // Under reduced motion this is all that is left of the animation, which is
+        // why the deep ones go deep enough to be worth watching on their own.
+        const twinkle = mote.twMid + mote.twAmp * Math.sin((now / 900) * mote.twinkle + mote.phase);
 
         const radius = moteRadius(mote.roll, dark);
 

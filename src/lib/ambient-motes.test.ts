@@ -119,14 +119,13 @@ describe("moteAlpha", () => {
   });
 
   /*
-   * The light theme's first attempt was half the dark theme's brightness, and it
-   * was reported as looking like dirt on the screen. Black on a pale page is the
-   * strongest mark available, so it needs to be far fainter than that — not a
-   * little under. Pinned as a ratio so a later "let us even these up" cannot
-   * quietly undo it.
+   * The light theme stays clearly fainter than the dark one — the owner asked
+   * for the dots bolder, not for the two themes evened up, so it is still under
+   * half of dark. Pinned as a ratio so a later change cannot quietly close that
+   * gap and bring back the "dirt on the screen" the first, brighter attempt had.
    */
-  it("keeps the light theme far fainter, not slightly", () => {
-    expect(moteAlpha(0.5, false)).toBeLessThan(moteAlpha(0.5, true) * 0.3);
+  it("keeps the light theme clearly fainter than dark", () => {
+    expect(moteAlpha(0.5, false)).toBeLessThan(moteAlpha(0.5, true) * 0.45);
   });
 
   it("answers a nonsense position with nothing rather than NaN", () => {
@@ -187,17 +186,17 @@ describe("moteRadius", () => {
 
 describe("moteCount", () => {
   it("scales with area but refuses to run away with a big screen", () => {
-    expect(moteCount(390, 780)).toBe(40);
-    expect(moteCount(1440, 900)).toBeGreaterThan(40);
-    expect(moteCount(3840, 2160)).toBe(200);
+    expect(moteCount(390, 780)).toBe(60);
+    expect(moteCount(1440, 900)).toBeGreaterThan(60);
+    expect(moteCount(3840, 2160)).toBe(300);
   });
 
-  // Denser than it started, on the owner's word that it looked sparse — but a
-  // field, not a blizzard. Pinned as a range so neither a later thinning nor a
-  // later doubling passes unnoticed.
-  it("puts a laptop screen in the low hundreds, not the low tens", () => {
+  // Denser than it started, twice now, on the owner's word that it looked
+  // sparse — but a field, not a blizzard. Pinned as a range so neither a later
+  // thinning nor a later doubling passes unnoticed.
+  it("puts a laptop screen in the low-to-mid hundreds, not the low tens", () => {
     const laptop = moteCount(1440, 900);
-    expect(laptop).toBeGreaterThan(120);
-    expect(laptop).toBeLessThan(180);
+    expect(laptop).toBeGreaterThan(160);
+    expect(laptop).toBeLessThan(240);
   });
 });
