@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { Assistant } from "@/components/ai/assistant";
 import { listConversations, openConversation } from "@/lib/ai-conversations";
-import { providerStatus, defaultModel, capabilityAvailable } from "@/lib/ai-providers";
+import { providerStatus, defaultModel } from "@/lib/ai-providers";
 import { requireWorkspace } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Assistant" };
@@ -57,7 +57,6 @@ export default async function AssistantPage({
       workspaceId={workspace.id}
       providers={statuses}
       defaultModelId={defaultModel(statuses)}
-      canMakeImages={capabilityAvailable(statuses, "images")}
       conversations={conversations.map((c) => ({
         id: c.id,
         title: c.title,
