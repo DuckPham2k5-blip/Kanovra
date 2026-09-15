@@ -58,6 +58,20 @@ const config: Config = {
           4: "hsl(var(--chart-4))",
           5: "hsl(var(--chart-5))",
         },
+        /* Project header — a semantic light/dark palette of its own, so the
+           header can read well on the pale lavender it sits on without the
+           components naming a colour. See the `--ph-*` tokens in globals.css. */
+        ph: {
+          primary: "hsl(var(--ph-primary))",
+          secondary: "hsl(var(--ph-secondary))",
+          muted: "hsl(var(--ph-muted))",
+          surface: "hsl(var(--ph-surface))",
+          border: "hsl(var(--ph-border))",
+          accent: "hsl(var(--ph-accent))",
+          icon: "hsl(var(--ph-icon))",
+          status: "hsl(var(--ph-status))",
+          "status-surface": "hsl(var(--ph-status-surface))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -20,10 +20,13 @@ export const runtime = "nodejs";
  * script on our origin.
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ projectId: string }> },
 ) {
   const { projectId } = await params;
+  // `?theme=dark` serves the dark-theme picture; anything else serves the light
+  // one. The header, which knows the viewer's theme, appends it.
+  const dark = new URL(request.url).searchParams.get("theme") === "dark";
 
   const user = await getCurrentUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
@@ -31,12 +34,13 @@ export async function GET(
   // Same answer for "no such project" and "not yours" — this never confirms an
   // id exists to someone who cannot see it.
   const ctx = await getProjectContext(user.id, projectId);
-  if (!ctx?.project.bannerImageId) return new Response("Not found", { status: 404 });
+  const imageId = dark ? ctx?.project.bannerImageIdDark : ctx?.project.bannerImageId;
+  if (!imageId) return new Response("Not found", { status: 404 });
 
-  const mime = ctx.project.bannerImageMime;
+  const mime = dark ? ctx?.project.bannerImageMimeDark : ctx?.project.bannerImageMime;
   if (!mime || !BANNER_MIME_TYPES.has(mime)) return new Response("Not found", { status: 404 });
 
-  const file = await readAttachment(ctx.project.bannerImageId);
+  const file = await readAttachment(imageId);
   if (!file) return new Response("Not found", { status: 404 });
 
   return new Response(file.stream as unknown as ReadableStream, {

@@ -60,6 +60,10 @@ export default async function ProjectLayout({
           bannerImageId: project.bannerImageId,
           bannerImageUrl: project.bannerImageUrl,
           bannerPositionY: project.bannerPositionY,
+          bannerPresetDark: project.bannerPresetDark,
+          bannerImageIdDark: project.bannerImageIdDark,
+          bannerImageUrlDark: project.bannerImageUrlDark,
+          bannerPositionYDark: project.bannerPositionYDark,
         }}
         members={project.members.map((m) => ({
           id: m.user.id,

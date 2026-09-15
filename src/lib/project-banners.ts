@@ -14,6 +14,16 @@ export type BannerPreset = {
   id: string;
   label: string;
   css: string;
+  /**
+   * A pale pastel rather than a dark gradient.
+   *
+   * It changes only how the header veils it: a dark preset is *whitened* in
+   * light mode so dark text reads and *barely* touched in dark mode; a light one
+   * is the opposite — shown almost bare in light mode and *darkened* in dark mode
+   * so the light header text reads on it. The luminance the veil has to move
+   * toward is different, so the header needs to know which family a banner is.
+   */
+  light?: boolean;
 };
 
 export const BANNER_PRESETS: BannerPreset[] = [
@@ -47,11 +57,55 @@ export const BANNER_PRESETS: BannerPreset[] = [
     label: "Slate",
     css: "linear-gradient(125deg, #0b0f16 0%, #1f2937 45%, #334155 72%, #0b0f16 100%)",
   },
+
+  // Brand-inspired pastels — light by design, for a bright header.
+  {
+    id: "indigo-light",
+    label: "Indigo Light",
+    css: "linear-gradient(120deg, #e0e7ff 0%, #a5b4fc 58%, #c7d2fe 100%)",
+    light: true,
+  },
+  {
+    id: "violet-light",
+    label: "Violet Light",
+    css: "linear-gradient(120deg, #ede9fe 0%, #c4b5fd 55%, #f0abfc 100%)",
+    light: true,
+  },
+  {
+    id: "blue-light",
+    label: "Blue Light",
+    css: "linear-gradient(120deg, #dbeafe 0%, #93c5fd 55%, #bae6fd 100%)",
+    light: true,
+  },
+  {
+    id: "pink-light",
+    label: "Pink Light",
+    css: "linear-gradient(120deg, #fce7f3 0%, #f9a8d4 55%, #fbcfe8 100%)",
+    light: true,
+  },
+  {
+    id: "teal-light",
+    label: "Teal Light",
+    css: "linear-gradient(120deg, #ccfbf1 0%, #5eead4 55%, #a7f3d0 100%)",
+    light: true,
+  },
+  {
+    id: "amber-light",
+    label: "Amber Light",
+    css: "linear-gradient(120deg, #fef3c7 0%, #fcd34d 55%, #fdba74 100%)",
+    light: true,
+  },
 ];
 
 export function bannerPresetCss(id: string | null | undefined): string | null {
   if (!id) return null;
   return BANNER_PRESETS.find((preset) => preset.id === id)?.css ?? null;
+}
+
+/** Whether a banner id names one of the pale, light-family presets. */
+export function isLightBanner(id: string | null | undefined): boolean {
+  if (!id) return false;
+  return BANNER_PRESETS.find((preset) => preset.id === id)?.light === true;
 }
 
 /**

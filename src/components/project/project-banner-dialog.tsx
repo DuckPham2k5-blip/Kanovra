@@ -31,6 +31,7 @@ export function ProjectBannerDialog({
   open,
   onOpenChange,
   projectId,
+  theme,
   currentPreset,
   hasImage,
   imageUrl,
@@ -39,6 +40,8 @@ export function ProjectBannerDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
+  /** Which theme's backdrop is being set — the header opens this in its own. */
+  theme: "light" | "dark";
   currentPreset: string | null;
   hasImage: boolean;
   imageUrl: string | null;
@@ -65,6 +68,9 @@ export function ProjectBannerDialog({
     try {
       const form = new FormData();
       form.set("projectId", projectId);
+      // The theme this backdrop belongs to. The server writes only that theme's
+      // columns, so the other theme's choice is left untouched.
+      form.set("theme", theme);
       build(form);
 
       const result = await setProjectBanner(form);
@@ -110,7 +116,9 @@ export function ProjectBannerDialog({
         <DialogHeader>
           <DialogTitle>Project backdrop</DialogTitle>
           <DialogDescription>
-            Sits behind the project title. Everyone on the project sees it.
+            Sits behind the project title. Everyone on the project sees it. You are setting the{" "}
+            <span className="font-medium text-foreground">{theme} mode</span> backdrop — the other
+            theme keeps its own, so switch themes to give each a different one.
           </DialogDescription>
         </DialogHeader>
 

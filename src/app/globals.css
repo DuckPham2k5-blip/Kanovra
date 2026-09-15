@@ -57,6 +57,35 @@
        with the ring in `mind-map-canvas.tsx` rather than here, because it is part
        of the stack and not part of the colour. */
     --tf-ring-self: #ffffff;
+
+    /* Project header — its own small semantic palette.
+
+       The header sits on a pale lavender wash (a banner, or the white-to-lavender
+       surface below), and the app's default foreground is a near-black navy that
+       reads as a hard stamp on it. These tokens give the header a calmer light
+       scheme instead: a dark-violet title, gray-violet body and muted text, a
+       subtle lavender surface and border, a violet accent, and a refined green
+       Active pill. The `.dark` block points every one of them back at an existing
+       app token, so dark mode is unchanged — only these light values are new. */
+
+    /* Every light token below is built on one hue, so the whole header can take
+       a project's own colour by setting a single value. The header sets
+       `--ph-hue` inline from its project — a pink project gets a pink header, a
+       blue one a blue header — while the saturation and lightness per role stay
+       fixed, which is what keeps every tone a *calm pastel* rather than each
+       project inventing its own contrast. The default is the app violet, for a
+       project whose colour has no usable hue (a grey) and anywhere the header is
+       not. Status stays green whatever the hue: it is a state, not a tone. */
+    --ph-hue: 258;
+    --ph-primary: var(--ph-hue) 44% 24%;
+    --ph-secondary: var(--ph-hue) 16% 44%;
+    --ph-muted: var(--ph-hue) 13% 56%;
+    --ph-surface: var(--ph-hue) 60% 98%;
+    --ph-border: var(--ph-hue) 32% 91%;
+    --ph-accent: var(--ph-hue) 68% 56%;
+    --ph-icon: var(--ph-hue) 68% 56%;
+    --ph-status: 158 58% 31%;
+    --ph-status-surface: 152 52% 93%;
   }
 
   .dark {
@@ -101,6 +130,22 @@
     --chart-3: 32 95% 44%;
     --chart-4: 200 98% 39%;
     --chart-5: 333 71% 51%;
+
+    /* Project header in dark — every token points back at an existing app token,
+       so the header keeps the dark appearance it already had. Status is the one
+       pair given explicit values: a green close to the `emerald-300` the badge
+       used, on a faint dark-green fill. */
+    --ph-primary: var(--foreground);
+    --ph-secondary: var(--muted-foreground);
+    --ph-muted: var(--muted-foreground);
+    /* The header wash: `--background` so the no-banner header stays the flat
+       dark panel it was, rather than gaining a gradient. */
+    --ph-surface: var(--background);
+    --ph-border: var(--border);
+    --ph-accent: var(--primary);
+    --ph-icon: var(--primary);
+    --ph-status: 156 60% 64%;
+    --ph-status-surface: 156 28% 15%;
   }
 }
 
@@ -316,6 +361,19 @@
      either, which keeps the two paths from needing two sets of rules that can
      drift apart.
      --------------------------------------------------------------------- */
+  /* The header with no banner: a very subtle white-to-lavender wash rather than
+     a flat panel, so the header reads as its own calm surface. Built from
+     tokens — `--background` (white in light) down to `--ph-surface` (a faint
+     lavender) — so in dark, where `--ph-surface` is the card colour, it is an
+     almost-flat dark gradient and the header looks as it did. */
+  .tf-project-header {
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--background)) 0%,
+      hsl(var(--ph-surface)) 100%
+    );
+  }
+
   .tf-project-banner {
     background-color: hsl(var(--background));
     background-image: var(--tf-banner);
@@ -326,16 +384,77 @@
 
   /* The floor under the text. An uploaded photograph can be any brightness —
      a white sky behind white type is unreadable — so rather than hope, this
-     puts a known dark layer over whatever was chosen. Heavier at the bottom,
-     where the tab row sits and contrast matters most. */
+     puts a known layer over whatever was chosen. Heavier at the bottom, where
+     the tab row sits and contrast matters most.
+
+     There are two banner families and the veil is not the same for either.
+
+     A *dark* preset is whitened in light mode (so the dark header text reads on
+     a bright pastel) and only lightly darkened in dark mode (its own darkness
+     already carries the light text) — the owner asked for the dark-mode strip a
+     little brighter, so that veil is pulled back.
+
+     A *light* preset (`.tf-banner-light`) is the mirror: shown almost bare in
+     light mode, since it is already pale and the dark text reads straight on it,
+     and darkened in dark mode so the light text has a floor. Every value here
+     leans a shade brighter than before, in both modes, as asked. */
+  /* The veils are a shade lighter than before so the banner reads *crisper* —
+     more of its own colour, less wash — while still leaving the header text a
+     floor. */
   .tf-project-banner-scrim {
     @apply pointer-events-none absolute inset-0 z-0;
     background: linear-gradient(
       to bottom,
-      hsl(var(--background) / 0.55) 0%,
+      hsl(var(--background) / 0.64) 0%,
       hsl(var(--background) / 0.7) 55%,
-      hsl(var(--background) / 0.88) 100%
+      hsl(var(--background) / 0.78) 100%
     );
+  }
+  .dark .tf-project-banner-scrim {
+    background: linear-gradient(
+      to bottom,
+      hsl(var(--background) / 0.34) 0%,
+      hsl(var(--background) / 0.46) 55%,
+      hsl(var(--background) / 0.62) 100%
+    );
+  }
+  .tf-project-banner-scrim.tf-banner-light {
+    background: linear-gradient(
+      to bottom,
+      hsl(var(--background) / 0.08) 0%,
+      hsl(var(--background) / 0.15) 55%,
+      hsl(var(--background) / 0.28) 100%
+    );
+  }
+  .dark .tf-project-banner-scrim.tf-banner-light {
+    background: linear-gradient(
+      to bottom,
+      hsl(var(--background) / 0.46) 0%,
+      hsl(var(--background) / 0.56) 55%,
+      hsl(var(--background) / 0.7) 100%
+    );
+  }
+
+  /* A drift of two highlights, so the banner is alive rather than a flat strip.
+     Brighter and quicker than the first pass, on the owner's word that the
+     motion should read more clearly. It rides the scrim (above the gradient,
+     below the header text at z-10), and the header's own `overflow-hidden` clips
+     the travel. Off under reduced motion, like every other movement bar the map
+     surface. */
+  .tf-project-banner-scrim::before {
+    content: "";
+    position: absolute;
+    inset: -30%;
+    pointer-events: none;
+    background:
+      radial-gradient(40% 66% at 22% 20%, hsl(0 0% 100% / 0.28), transparent 70%),
+      radial-gradient(34% 58% at 80% 76%, hsl(0 0% 100% / 0.18), transparent 70%);
+    animation: tf-banner-drift 12s ease-in-out infinite alternate;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tf-project-banner-scrim::before {
+      animation: none;
+    }
   }
 
   /* ---------------------------------------------------------------------
@@ -839,6 +958,17 @@
   to {
     transform: scale(2.4);
     opacity: 0;
+  }
+}
+
+/* The banner's two highlights, drifting. Small amplitude over a long duration —
+   a project header is read, not watched, so the motion is a hint of life. */
+@keyframes tf-banner-drift {
+  from {
+    transform: translate3d(-4%, -3%, 0) scale(1.05);
+  }
+  to {
+    transform: translate3d(5%, 4%, 0) scale(1.16);
   }
 }
 

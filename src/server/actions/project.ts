@@ -1,6 +1,6 @@
 "use server";
 
-import { Role } from "@prisma/client";
+import { Prisma, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 import { z } from "zod";
@@ -313,6 +313,35 @@ export async function toggleProjectMember(
  * a row pointing at bytes that are gone shows a broken header, while bytes
  * with no row are merely an orphan nobody sees.
  */
+/** One theme's banner columns, so a write targets the light set or the dark. */
+function bannerData(
+  theme: "light" | "dark",
+  values: {
+    preset?: string | null;
+    imageId?: string | null;
+    imageMime?: string | null;
+    imageUrl?: string | null;
+    positionY?: number;
+  },
+): Prisma.ProjectUpdateInput {
+  if (theme === "dark") {
+    const d: Prisma.ProjectUpdateInput = {};
+    if ("preset" in values) d.bannerPresetDark = values.preset;
+    if ("imageId" in values) d.bannerImageIdDark = values.imageId;
+    if ("imageMime" in values) d.bannerImageMimeDark = values.imageMime;
+    if ("imageUrl" in values) d.bannerImageUrlDark = values.imageUrl;
+    if (values.positionY !== undefined) d.bannerPositionYDark = values.positionY;
+    return d;
+  }
+  const d: Prisma.ProjectUpdateInput = {};
+  if ("preset" in values) d.bannerPreset = values.preset;
+  if ("imageId" in values) d.bannerImageId = values.imageId;
+  if ("imageMime" in values) d.bannerImageMime = values.imageMime;
+  if ("imageUrl" in values) d.bannerImageUrl = values.imageUrl;
+  if (values.positionY !== undefined) d.bannerPositionY = values.positionY;
+  return d;
+}
+
 export async function setProjectBanner(formData: FormData): Promise<ActionResult> {
   return withErrorHandling(async () => {
     const user = await requireUser();
@@ -322,22 +351,24 @@ export async function setProjectBanner(formData: FormData): Promise<ActionResult
       z.enum(["preset", "upload", "clear", "position", "link"]),
       formData.get("mode"),
     );
+    // Which theme's banner this sets. The dialog is opened in the viewer's
+    // current theme and sends it, so setting a backdrop in dark mode leaves the
+    // light one alone and vice versa.
+    const theme: "light" | "dark" = formData.get("theme") === "dark" ? "dark" : "light";
 
     const ctx = await getProjectContext(user.id, projectId);
     if (!ctx) return fail(NOT_FOUND);
     if (!can(ctx.role, "project:update")) throw new ForbiddenError();
 
-    const previousImageId = ctx.project.bannerImageId;
+    // The uploaded picture this theme is replacing — the *other* theme's picture
+    // is a separate row and must not be deleted.
+    const previousImageId =
+      theme === "dark" ? ctx.project.bannerImageIdDark : ctx.project.bannerImageId;
 
     if (mode === "clear") {
       await prisma.project.update({
         where: { id: projectId },
-        data: {
-          bannerPreset: null,
-          bannerImageId: null,
-          bannerImageMime: null,
-          bannerImageUrl: null,
-        },
+        data: bannerData(theme, { preset: null, imageId: null, imageMime: null, imageUrl: null }),
       });
       if (previousImageId) await deleteAttachment(previousImageId);
     }
@@ -350,12 +381,7 @@ export async function setProjectBanner(formData: FormData): Promise<ActionResult
       // disk that nothing references and nobody can reach.
       await prisma.project.update({
         where: { id: projectId },
-        data: {
-          bannerPreset: preset,
-          bannerImageId: null,
-          bannerImageMime: null,
-          bannerImageUrl: null,
-        },
+        data: bannerData(theme, { preset, imageId: null, imageMime: null, imageUrl: null }),
       });
       if (previousImageId) await deleteAttachment(previousImageId);
     }
@@ -373,14 +399,14 @@ export async function setProjectBanner(formData: FormData): Promise<ActionResult
 
       await prisma.project.update({
         where: { id: projectId },
-        data: {
-          bannerImageUrl: url,
-          bannerImageId: null,
-          bannerImageMime: null,
-          bannerPreset: null,
-          // A different picture entirely, so the old framing means nothing.
-          bannerPositionY: 50,
-        },
+        // A different picture entirely, so the old framing means nothing.
+        data: bannerData(theme, {
+          imageUrl: url,
+          imageId: null,
+          imageMime: null,
+          preset: null,
+          positionY: 50,
+        }),
       });
       if (previousImageId) await deleteAttachment(previousImageId);
     }
@@ -391,7 +417,7 @@ export async function setProjectBanner(formData: FormData): Promise<ActionResult
       const y = parse(z.coerce.number().int().min(0).max(100), formData.get("positionY"));
       await prisma.project.update({
         where: { id: projectId },
-        data: { bannerPositionY: y },
+        data: bannerData(theme, { positionY: y }),
       });
     }
 
@@ -418,13 +444,13 @@ export async function setProjectBanner(formData: FormData): Promise<ActionResult
           where: { id: projectId },
           // A fresh picture starts centred; the previous framing belonged to a
           // different image and would crop this one at random.
-          data: {
-            bannerImageId: id,
-            bannerImageMime: file.type,
-            bannerPreset: null,
-            bannerImageUrl: null,
-            bannerPositionY: 50,
-          },
+          data: bannerData(theme, {
+            imageId: id,
+            imageMime: file.type,
+            preset: null,
+            imageUrl: null,
+            positionY: 50,
+          }),
         });
       } catch (error) {
         await deleteAttachment(id);

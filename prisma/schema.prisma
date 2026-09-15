@@ -244,6 +244,16 @@ model Project {
   /// far wider than it is tall, so almost every picture is cropped top and
   /// bottom and the only interesting question is which band to keep.
   bannerPositionY Int           @default(50)
+  /// The dark-theme backdrop, kept apart from the light one so a project can
+  /// carry a different banner in each theme. The fields above are the light
+  /// theme's; these mirror them, and the header picks the set that matches the
+  /// viewer's current theme. Null on either side means that theme has none set,
+  /// and the header falls back to the plain surface.
+  bannerPresetDark    String?
+  bannerImageIdDark   String?
+  bannerImageMimeDark String?
+  bannerImageUrlDark  String?
+  bannerPositionYDark Int       @default(50)
   /// Monotonic counter used to allocate the numeric part of a task reference.
   taskCounter     Int           @default(0)
   createdById     String

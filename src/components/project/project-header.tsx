@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSelectedLayoutSegment } from "next/navigation";
+import { useTheme } from "next-themes";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -38,7 +39,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { formatDate } from "@/lib/date";
-import { bannerPresetCss } from "@/lib/project-banners";
+import { bannerPresetCss, isLightBanner } from "@/lib/project-banners";
 import { cn } from "@/lib/utils";
 import { deleteProject, setProjectArchived } from "@/server/actions/project";
 import type { MemberDTO, UserDTO } from "@/types";
@@ -59,6 +60,10 @@ type ProjectInfo = {
   bannerImageId: string | null;
   bannerImageUrl: string | null;
   bannerPositionY: number;
+  bannerPresetDark: string | null;
+  bannerImageIdDark: string | null;
+  bannerImageUrlDark: string | null;
+  bannerPositionYDark: number;
 };
 
 const TABS = [
@@ -66,6 +71,34 @@ const TABS = [
   { segment: "list", label: "List", icon: List },
   { segment: "calendar", label: "Calendar", icon: CalendarDays },
 ] as const;
+
+/**
+ * The hue of a `#rrggbb` colour, 0–359, or null when it has none to give.
+ *
+ * This is what lets the header wear its own project's tone: the light `ph-*`
+ * tokens are all built on one `--ph-hue`, and the header sets that from the
+ * project's colour — a pink project gets a pink header, a blue one blue. A grey
+ * (no chroma) returns null so the header keeps the default violet rather than
+ * snapping to an arbitrary hue that a rounding error picked.
+ */
+function hueOf(color: string): number | null {
+  const match = /^#?([0-9a-f]{6})$/i.exec(color.trim());
+  if (!match) return null;
+  const n = parseInt(match[1], 16);
+  const r = ((n >> 16) & 255) / 255;
+  const g = ((n >> 8) & 255) / 255;
+  const b = (n & 255) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  if (d < 0.01) return null;
+  let h = 0;
+  if (max === r) h = ((g - b) / d) % 6;
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  h = Math.round(h * 60);
+  return h < 0 ? h + 360 : h;
+}
 
 export function ProjectHeader({
   workspaceSlug,
@@ -122,37 +155,84 @@ export function ProjectHeader({
     router.push(`/w/${workspaceSlug}/projects`);
   }
 
-  // Only one source is ever set — each mode clears the others — so this is a
-  // preference order for reading, not a contest.
-  const bannerImage = project.bannerImageId
-    ? `/api/project-banner/${project.id}`
-    : project.bannerImageUrl;
-  const bannerCss = bannerPresetCss(project.bannerPreset);
+  /*
+   * The banner is stored per theme, so the header shows the set that matches
+   * the viewer's current one. `resolvedTheme` is only known after mount, so the
+   * server and the first client render both use the light set (no hydration
+   * mismatch) and it switches to the dark set a frame later if the viewer is in
+   * dark mode.
+   */
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+  const isDark = mounted && resolvedTheme === "dark";
+
+  const activeBanner = isDark
+    ? {
+        preset: project.bannerPresetDark,
+        imageId: project.bannerImageIdDark,
+        imageUrl: project.bannerImageUrlDark,
+        positionY: project.bannerPositionYDark,
+      }
+    : {
+        preset: project.bannerPreset,
+        imageId: project.bannerImageId,
+        imageUrl: project.bannerImageUrl,
+        positionY: project.bannerPositionY,
+      };
+
+  // Only one source is ever set per theme — each mode clears the others — so
+  // this is a preference order for reading, not a contest.
+  const bannerImage = activeBanner.imageId
+    ? `/api/project-banner/${project.id}${isDark ? "?theme=dark" : ""}`
+    : activeBanner.imageUrl;
+  const bannerCss = bannerPresetCss(activeBanner.preset);
   const hasBanner = Boolean(bannerImage || bannerCss);
+
+  // The header's light palette follows the project's own hue; `--ph-hue` drives
+  // every `ph-*` token. Merged with whatever banner variables are set, so the
+  // tone applies whether or not the header carries a backdrop.
+  const headerHue = hueOf(project.color);
+  const headerStyle: React.CSSProperties = {
+    ...(headerHue !== null ? ({ "--ph-hue": String(headerHue) } as React.CSSProperties) : {}),
+    ...(bannerImage
+      ? ({
+          "--tf-banner": `url("${bannerImage}")`,
+          // Only meaningful for a picture: a gradient has no band to choose.
+          "--tf-banner-position": `center ${activeBanner.positionY}%`,
+        } as React.CSSProperties)
+      : bannerCss
+        ? ({ "--tf-banner": bannerCss } as React.CSSProperties)
+        : {}),
+  };
 
   return (
     <div
       className={cn(
-        "relative shrink-0 overflow-hidden border-b px-4 pt-4 sm:px-6",
-        hasBanner ? "tf-project-banner" : "bg-background",
+        // Colours come from the `ph-*` header palette (globals.css / tailwind
+        // config), never named here — light gets a calm lavender scheme, dark is
+        // mapped back to the app tokens and unchanged.
+        "relative shrink-0 overflow-hidden border-b border-ph-border px-4 pt-4 sm:px-6",
+        hasBanner ? "tf-project-banner" : "tf-project-header",
       )}
-      style={
-        bannerImage
-          ? ({
-              "--tf-banner": `url("${bannerImage}")`,
-              // Only meaningful for a picture: a gradient has no band to choose.
-              "--tf-banner-position": `center ${project.bannerPositionY}%`,
-            } as React.CSSProperties)
-          : bannerCss
-            ? ({ "--tf-banner": bannerCss } as React.CSSProperties)
-            : undefined
-      }
+      style={headerStyle}
     >
       {/* A scrim, not a fade. An uploaded photograph can be any brightness, and
           white text over an unknown picture is a coin toss; this puts a known
           floor under it. Gradients are dark by construction and get the same
           treatment for consistency rather than need. */}
-      {hasBanner ? <div className="tf-project-banner-scrim" aria-hidden="true" /> : null}
+      {hasBanner ? (
+        <div
+          className={cn(
+            "tf-project-banner-scrim",
+            // A pale preset is veiled the other way round — see the CSS. Only a
+            // known light *preset*; an uploaded picture keeps the default veil,
+            // since its brightness is unknown.
+            isLightBanner(activeBanner.preset) && "tf-banner-light",
+          )}
+          aria-hidden="true"
+        />
+      ) : null}
 
       <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
@@ -165,15 +245,22 @@ export function ProjectHeader({
 
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-lg font-semibold tracking-tight sm:text-xl">
+              <h1 className="truncate text-lg font-semibold tracking-tight text-ph-primary sm:text-xl">
                 {project.name}
               </h1>
-              <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+              <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-ph-muted">
                 {project.key}
               </span>
-              <ProjectStatusBadge status={project.status} />
+              {/* The Active pill takes the header's refined green in light; the
+                  merge drops the badge's default emerald and the dark variant is
+                  left in place, so dark stays as it was. Other statuses keep
+                  their own colour. */}
+              <ProjectStatusBadge
+                status={project.status}
+                className={project.status === "ACTIVE" ? "bg-ph-status-surface text-ph-status" : undefined}
+              />
               {project.archived ? (
-                <span className="text-xs text-muted-foreground">(archived)</span>
+                <span className="text-xs text-ph-muted">(archived)</span>
               ) : null}
               {/* A board that is public should look public, on the page itself
                   rather than only inside the dialog that published it. Whoever
@@ -197,11 +284,11 @@ export function ProjectHeader({
               ) : null}
             </div>
 
-            <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">
+            <p className="mt-0.5 line-clamp-1 text-sm text-ph-secondary">
               {project.description || "No description"}
             </p>
 
-            <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-ph-muted">
               <span>{project.taskCount} tasks</span>
               {project.dueDate ? <span>Due: {formatDate(project.dueDate)}</span> : null}
             </div>
@@ -285,8 +372,8 @@ export function ProjectHeader({
               className={cn(
                 "flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors",
                 active
-                  ? "border-primary font-medium text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
+                  ? "border-ph-accent font-medium text-ph-primary"
+                  : "border-transparent text-ph-muted hover:text-ph-primary",
               )}
             >
               <Icon className="size-4" />
@@ -317,10 +404,11 @@ export function ProjectHeader({
         open={bannerOpen}
         onOpenChange={setBannerOpen}
         projectId={project.id}
-        currentPreset={project.bannerPreset}
+        theme={isDark ? "dark" : "light"}
+        currentPreset={activeBanner.preset}
         hasImage={Boolean(bannerImage)}
         imageUrl={bannerImage}
-        positionY={project.bannerPositionY}
+        positionY={activeBanner.positionY}
       />
 
       {canShare ? (
