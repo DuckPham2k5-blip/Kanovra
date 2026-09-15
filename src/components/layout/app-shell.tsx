@@ -21,6 +21,7 @@ import {
   shortcutHref,
   type PrefixState,
 } from "@/lib/shortcuts";
+import { cn } from "@/lib/utils";
 
 export type ShellUser = {
   id: string;
@@ -70,6 +71,33 @@ export function AppShell({
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
   const [helpOpen, setHelpOpen] = React.useState(false);
+
+  /*
+   * Whether the desktop sidebar is collapsed to icons. Kept in `localStorage`
+   * so the choice sticks across every page and every visit — the owner asked
+   * for one toggle that applies everywhere, and the sidebar lives in this shell,
+   * which every page renders inside. Read after mount so the server and the
+   * first client render agree (both start expanded) and there is no mismatch.
+   */
+  const [collapsed, setCollapsed] = React.useState(false);
+  React.useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem("tf-sidebar-collapsed") === "1");
+    } catch {
+      // Private mode or blocked storage: stay expanded.
+    }
+  }, []);
+  const toggleCollapsed = React.useCallback(() => {
+    setCollapsed((value) => {
+      const next = !value;
+      try {
+        localStorage.setItem("tf-sidebar-collapsed", next ? "1" : "0");
+      } catch {
+        // Not persisting is fine; the toggle still works for this session.
+      }
+      return next;
+    });
+  }, []);
 
   /*
    * A ref, not state: an armed prefix is not something the page draws, and
@@ -134,13 +162,20 @@ export function AppShell({
           z-index: this wrapper is positioned but does not create a stacking
           context, so a negative index would drop them into the root context
           and paint them *behind* this element's own opaque background. */}
-      <aside className="relative z-10 hidden w-64 shrink-0 border-r bg-sidebar/70 backdrop-blur-xl lg:block">
+      <aside
+        className={cn(
+          "relative z-10 hidden shrink-0 border-r bg-sidebar/70 backdrop-blur-xl transition-[width] duration-200 lg:block",
+          collapsed ? "w-16" : "w-64",
+        )}
+      >
         <Sidebar
           workspace={workspace}
           workspaces={workspaces}
           projects={projects}
           role={role}
           unreadCount={unreadCount}
+          collapsed={collapsed}
+          onToggleCollapsed={toggleCollapsed}
         />
       </aside>
 

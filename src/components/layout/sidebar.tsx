@@ -13,6 +13,8 @@ import {
   ListChecks,
   Network,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   Settings,
   Sparkles,
@@ -55,6 +57,8 @@ export function Sidebar({
   role,
   unreadCount,
   onNavigate,
+  collapsed = false,
+  onToggleCollapsed,
 }: {
   workspace: ShellWorkspace;
   workspaces: (ShellWorkspace & { role: Role })[];
@@ -62,6 +66,9 @@ export function Sidebar({
   role: Role;
   unreadCount: number;
   onNavigate?: () => void;
+  /** Icon-only mode. Desktop only — the mobile sheet is always full. */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }) {
   const pathname = usePathname();
   const base = `/w/${workspace.slug}`;
@@ -93,26 +100,41 @@ export function Sidebar({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Workspace switcher */}
-      <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-3">
+      {/* Workspace switcher + collapse toggle */}
+      <div
+        className={cn(
+          "flex h-16 items-center border-b border-sidebar-border",
+          collapsed ? "flex-col justify-center gap-1 px-2" : "gap-2 px-3",
+        )}
+      >
         <DropdownMenu>
           {/* Explicit id: Radix's auto-generated one can drift between the
               server render and the client's first hydration pass on pages
               with many dropdown triggers, which then cascades into a
               hydration-mismatch warning for every trigger after it. */}
           <DropdownMenuTrigger asChild id={`workspace-switcher-trigger-${workspace.id}`}>
-            <button className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <button
+              title={collapsed ? workspace.name : undefined}
+              className={cn(
+                "flex items-center rounded-lg text-left transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                collapsed ? "justify-center p-1" : "min-w-0 flex-1 gap-2 px-2 py-1.5",
+              )}
+            >
               <span
                 className="flex size-8 shrink-0 items-center justify-center rounded-lg text-sm font-semibold text-white"
                 style={{ backgroundColor: workspace.color }}
               >
                 {workspace.name.slice(0, 1).toUpperCase()}
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">{workspace.name}</span>
-                <span className="block text-[11px] text-muted-foreground">Workspace</span>
-              </span>
-              <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+              {collapsed ? null : (
+                <>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{workspace.name}</span>
+                    <span className="block text-[11px] text-muted-foreground">Workspace</span>
+                  </span>
+                  <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+                </>
+              )}
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-60">
@@ -139,37 +161,80 @@ export function Sidebar({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* Collapse / expand. Desktop only, and absent on the mobile sheet
+            (no `onToggleCollapsed` passed there). */}
+        {onToggleCollapsed ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onToggleCollapsed}
+            title={collapsed ? "Expand menu" : "Collapse menu"}
+            aria-label={collapsed ? "Expand menu" : "Collapse menu"}
+            className={collapsed ? undefined : "shrink-0"}
+          >
+            {collapsed ? (
+              <PanelLeftOpen className="size-4" />
+            ) : (
+              <PanelLeftClose className="size-4" />
+            )}
+          </Button>
+        ) : null}
       </div>
 
       <ScrollArea className="flex-1">
-        <nav className="space-y-1 p-3">
+        <nav className={cn("space-y-1", collapsed ? "px-2 py-3" : "p-3")}>
           {nav.map((item) => (
-            <SidebarLink key={item.href} item={item} active={isActive(item)} onClick={onNavigate} />
+            <SidebarLink
+              key={item.href}
+              item={item}
+              active={isActive(item)}
+              collapsed={collapsed}
+              onClick={onNavigate}
+            />
           ))}
         </nav>
 
-        <div className="px-3 pb-3">
-          <div className="mb-1 flex items-center justify-between px-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Projects
-            </span>
-            {can(role, "project:create") ? (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setProjectDialogOpen(true)}
-                aria-label="New project"
-              >
-                <Plus className="size-3.5" />
-              </Button>
-            ) : null}
-          </div>
+        <div className={cn("pb-3", collapsed ? "px-2" : "px-3")}>
+          {/* The section header is a label the collapsed rail has no room for;
+              the `+` becomes a centred icon there instead. */}
+          {collapsed ? (
+            can(role, "project:create") ? (
+              <div className="mb-0.5 flex justify-center">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setProjectDialogOpen(true)}
+                  title="New project"
+                  aria-label="New project"
+                >
+                  <Plus className="size-3.5" />
+                </Button>
+              </div>
+            ) : null
+          ) : (
+            <div className="mb-1 flex items-center justify-between px-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Projects
+              </span>
+              {can(role, "project:create") ? (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setProjectDialogOpen(true)}
+                  aria-label="New project"
+                >
+                  <Plus className="size-3.5" />
+                </Button>
+              ) : null}
+            </div>
+          )}
 
           <div className="space-y-0.5">
             {projects.length === 0 ? (
-              <p className="px-2 py-3 text-xs text-muted-foreground">
-                No projects yet.
-              </p>
+              collapsed ? null : (
+                <p className="px-2 py-3 text-xs text-muted-foreground">No projects yet.</p>
+              )
             ) : (
               projects.map((project) => {
                 const href = `${base}/projects/${project.id}/board`;
@@ -179,18 +244,24 @@ export function Sidebar({
                     key={project.id}
                     href={href}
                     onClick={onNavigate}
+                    title={collapsed ? project.name : undefined}
                     className={cn(
-                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                      "flex items-center rounded-md text-sm transition-colors",
+                      collapsed ? "justify-center p-2" : "gap-2 px-2 py-1.5",
                       active
                         ? "bg-sidebar-accent font-medium text-accent-foreground"
                         : "text-sidebar-foreground hover:bg-sidebar-accent/60",
                     )}
                   >
                     <ProjectIcon name={project.icon} color={project.color} />
-                    <span className="min-w-0 flex-1 truncate">{project.name}</span>
-                    <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-                      {project.key}
-                    </span>
+                    {collapsed ? null : (
+                      <>
+                        <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                        <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                          {project.key}
+                        </span>
+                      </>
+                    )}
                   </Link>
                 );
               })
@@ -199,9 +270,15 @@ export function Sidebar({
         </div>
       </ScrollArea>
 
-      <div className="space-y-1 border-t border-sidebar-border p-3">
+      <div className={cn("space-y-1 border-t border-sidebar-border", collapsed ? "px-2 py-3" : "p-3")}>
         {footerNav.map((item) => (
-          <SidebarLink key={item.href} item={item} active={isActive(item)} onClick={onNavigate} />
+          <SidebarLink
+            key={item.href}
+            item={item}
+            active={isActive(item)}
+            collapsed={collapsed}
+            onClick={onNavigate}
+          />
         ))}
 
         {/* Signing out is also available inside the account menu in the top
@@ -210,19 +287,27 @@ export function Sidebar({
         <SignOutButton redirectUrl="/">
           <button
             type="button"
-            className="flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60"
+            title={collapsed ? "Log out" : undefined}
+            className={cn(
+              "flex w-full items-center rounded-md text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60",
+              collapsed ? "justify-center p-2" : "gap-2.5 px-2 py-2",
+            )}
           >
             <LogOut className="size-4 shrink-0" />
-            <span className="flex-1 text-left">Log out</span>
+            {collapsed ? null : <span className="flex-1 text-left">Log out</span>}
           </button>
         </SignOutButton>
 
         <Link
           href="/"
-          className="mt-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          title={collapsed ? "Kanovra" : undefined}
+          className={cn(
+            "mt-2 flex items-center rounded-md text-xs text-muted-foreground transition-colors hover:text-foreground",
+            collapsed ? "justify-center p-1.5" : "gap-2 px-2 py-1.5",
+          )}
         >
           <Logo className="size-5" />
-          <Wordmark className="text-xs" />
+          {collapsed ? null : <Wordmark className="text-xs" />}
         </Link>
       </div>
 
@@ -244,10 +329,12 @@ let rippleId = 0;
 function SidebarLink({
   item,
   active,
+  collapsed = false,
   onClick,
 }: {
   item: NavItem;
   active: boolean;
+  collapsed?: boolean;
   onClick?: () => void;
 }) {
   const { icon: Icon } = item;
@@ -281,8 +368,11 @@ function SidebarLink({
     <Link
       href={item.href}
       onClick={handleClick}
+      title={collapsed ? item.label : undefined}
+      aria-label={collapsed ? item.label : undefined}
       className={cn(
-        "relative flex items-center gap-2.5 overflow-hidden rounded-md px-2 py-2 text-sm transition-colors",
+        "relative flex items-center overflow-hidden rounded-md text-sm transition-colors",
+        collapsed ? "justify-center p-2" : "gap-2.5 px-2 py-2",
         // The active item is tinted with the page accent, so the colour shift
         // is anchored to the thing the user just clicked rather than only
         // happening somewhere off in the background.
@@ -302,13 +392,24 @@ function SidebarLink({
         />
       ))}
 
-      <Icon className="size-4 shrink-0" />
-      <span className="flex-1 truncate">{item.label}</span>
-      {item.badge ? (
-        <Badge variant="default" className="h-5 min-w-5 justify-center px-1.5 text-[10px]">
-          {item.badge > 99 ? "99+" : item.badge}
-        </Badge>
-      ) : null}
+      <span className="relative shrink-0">
+        <Icon className="size-4" />
+        {/* Collapsed, there is no room for a count — a dot says "something is
+            waiting" and the number returns when the rail is expanded. */}
+        {collapsed && item.badge ? (
+          <span className="absolute -right-1 -top-1 size-2 rounded-full bg-primary ring-2 ring-sidebar" />
+        ) : null}
+      </span>
+      {collapsed ? null : (
+        <>
+          <span className="flex-1 truncate">{item.label}</span>
+          {item.badge ? (
+            <Badge variant="default" className="h-5 min-w-5 justify-center px-1.5 text-[10px]">
+              {item.badge > 99 ? "99+" : item.badge}
+            </Badge>
+          ) : null}
+        </>
+      )}
     </Link>
   );
 }
