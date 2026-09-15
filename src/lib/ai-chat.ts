@@ -2,6 +2,7 @@ import "server-only";
 
 import Anthropic from "@anthropic-ai/sdk";
 
+import { builtinChunks, builtinReply } from "@/lib/ai-builtin";
 import { AI_PROVIDERS, findModel, isRealKey } from "@/lib/ai-providers";
 import { guideAsText, guideForPath } from "@/lib/product-guide";
 import { parseJsonFrame, SseDecoder } from "@/lib/sse-parse";
@@ -136,6 +137,14 @@ export async function* streamChat(input: {
   if (!found) throw new AiModelUnknownError(input.modelId);
 
   const { provider, model } = found;
+
+  // The built-in assistant answers here, from the app's own knowledge — no key,
+  // no network. Handled before the key check because it has no key to check.
+  if (provider.id === "builtin") {
+    yield* streamBuiltin(input.turns);
+    return;
+  }
+
   const key = process.env[provider.envVar];
   if (!isRealKey(key)) throw new AiProviderNotConfiguredError(provider.envVar);
 
@@ -151,6 +160,21 @@ export async function* streamChat(input: {
     case "openai":
       yield* streamOpenAi({ ...input, key: key!, thinking });
       return;
+  }
+}
+
+/**
+ * The built-in assistant's answer, streamed in small pieces like a model's.
+ *
+ * It reads the latest question — the system prompt and the earlier turns are for
+ * a real model and this needs neither — matches it to the app's knowledge base,
+ * and emits the reply a few words at a time so the page fills in as it would for
+ * any other provider.
+ */
+async function* streamBuiltin(turns: ChatTurn[]): AsyncGenerator<string> {
+  const question = [...turns].reverse().find((t) => t.role === "user")?.content ?? "";
+  for (const piece of builtinChunks(builtinReply(question))) {
+    yield piece;
   }
 }
 

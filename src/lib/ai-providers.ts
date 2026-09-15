@@ -29,7 +29,7 @@ export type AiModel = {
 };
 
 export type AiProvider = {
-  id: "anthropic" | "google" | "openai";
+  id: "anthropic" | "google" | "openai" | "builtin";
   label: string;
   /** What the picker calls the family, for people who know the product name. */
   familiarName: string;
@@ -37,6 +37,13 @@ export type AiProvider = {
   models: AiModel[];
   /** Where to get a key, shown when the provider is not configured. */
   keyUrl: string;
+  /**
+   * Needs no API key — it answers from the app's own knowledge, in-process. The
+   * built-in assistant is this, and it is why `providerStatus` reports it
+   * configured on an empty environment: there is always at least one assistant
+   * to talk to, free, so the page is never a dead end for want of a key.
+   */
+  keyless?: boolean;
 };
 
 export const AI_PROVIDERS: AiProvider[] = [
@@ -121,6 +128,29 @@ export const AI_PROVIDERS: AiProvider[] = [
       },
     ],
   },
+  {
+    /*
+     * The one that always works. It runs in this process off the product's own
+     * knowledge base — no key, no network, no bill — so a workspace with nothing
+     * configured still has a working assistant. It is last in the list so a
+     * configured paid provider is the default when there is one; when there is
+     * not, `defaultModel` falls through to this rather than to nothing.
+     */
+    id: "builtin",
+    label: "Kanovra guide",
+    familiarName: "Built-in",
+    envVar: "",
+    keyUrl: "",
+    keyless: true,
+    models: [
+      {
+        id: "kanovra-guide",
+        label: "Kanovra guide · free",
+        hint: "Built in, no key needed. Helps with maps and explains the app.",
+        capabilities: ["text"],
+      },
+    ],
+  },
 ];
 
 /**
@@ -169,7 +199,8 @@ export function providerStatus(env: Record<string, string | undefined>): Provide
   return AI_PROVIDERS.map((provider) => ({
     id: provider.id,
     label: provider.label,
-    configured: isRealKey(env[provider.envVar]),
+    // Keyless providers are always available; the rest need a real key.
+    configured: provider.keyless === true || isRealKey(env[provider.envVar]),
     envVar: provider.envVar,
     keyUrl: provider.keyUrl,
     models: provider.models,

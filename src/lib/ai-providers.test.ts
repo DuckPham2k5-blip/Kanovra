@@ -58,10 +58,13 @@ describe("isRealKey", () => {
 });
 
 describe("providerStatus", () => {
-  it("reports nothing configured on an empty environment", () => {
+  it("reports only the keyless built-in configured on an empty environment", () => {
     const statuses = providerStatus({});
     expect(statuses).toHaveLength(AI_PROVIDERS.length);
-    expect(statuses.every((s) => !s.configured)).toBe(true);
+    // The built-in assistant needs no key, so it is always available — that is
+    // the whole point of it. Every keyed provider is off with an empty env.
+    expect(statuses.find((s) => s.id === "builtin")?.configured).toBe(true);
+    expect(statuses.filter((s) => s.id !== "builtin").every((s) => !s.configured)).toBe(true);
   });
 
   it("reports exactly the providers whose key is present", () => {
@@ -69,6 +72,8 @@ describe("providerStatus", () => {
     expect(statuses.find((s) => s.id === "anthropic")?.configured).toBe(true);
     expect(statuses.find((s) => s.id === "openai")?.configured).toBe(false);
     expect(statuses.find((s) => s.id === "google")?.configured).toBe(false);
+    // Keyless, so present regardless of the environment.
+    expect(statuses.find((s) => s.id === "builtin")?.configured).toBe(true);
   });
 
   /*
@@ -87,11 +92,14 @@ describe("providerStatus", () => {
 });
 
 describe("defaultModel", () => {
-  it("is nothing when no provider is configured", () => {
-    expect(defaultModel(providerStatus({}))).toBeNull();
+  it("falls back to the free built-in when no key is set", () => {
+    // Never null now: there is always the keyless assistant to open on, so the
+    // page is never a dead end for want of a key.
+    expect(defaultModel(providerStatus({}))).toBe("kanovra-guide");
   });
 
-  it("is the first chat model of the first configured provider", () => {
+  it("prefers a configured keyed provider over the built-in", () => {
+    // The built-in is last, so a real key wins the default when there is one.
     expect(defaultModel(providerStatus({ ANTHROPIC_API_KEY: REAL }))).toBe("claude-opus-5");
   });
 
@@ -122,9 +130,12 @@ describe("capabilityAvailable", () => {
     expect(capabilityAvailable(providerStatus({ OPENAI_API_KEY: REAL }), "images")).toBe(true);
   });
 
-  it("says nothing is available with no keys at all", () => {
+  it("still offers text through the built-in with no keys at all", () => {
     const statuses = providerStatus({});
-    for (const cap of ["text", "reasoning", "images", "vision"] as const) {
+    // The keyless assistant can hold a conversation, so text is always there;
+    // reasoning, images and vision still need a keyed provider.
+    expect(capabilityAvailable(statuses, "text")).toBe(true);
+    for (const cap of ["reasoning", "images", "vision"] as const) {
       expect(capabilityAvailable(statuses, cap), cap).toBe(false);
     }
   });
