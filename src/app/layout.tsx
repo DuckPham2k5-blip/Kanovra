@@ -2,6 +2,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 
+import { APPEARANCE_INIT_SCRIPT } from "@/components/settings/appearance-init";
 import { Providers } from "@/components/providers";
 import { APP_DESCRIPTION, APP_NAME, APP_TAGLINE } from "@/lib/constants";
 
@@ -79,6 +80,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning className={`${sans.variable} ${mono.variable}`}>
         <body>
+          {/* Applies stored appearance preferences (accent, background, motion,
+              density) before first paint, so switching pages or reloading does
+              not flash the defaults first. The theme's own no-flash script,
+              injected by next-themes, handles dark/light the same way. */}
+          <script dangerouslySetInnerHTML={{ __html: APPEARANCE_INIT_SCRIPT }} />
           <Providers>{children}</Providers>
         </body>
       </html>
