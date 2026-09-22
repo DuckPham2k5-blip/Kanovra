@@ -50,6 +50,11 @@ const ACCENTS = {
   members: accent(190, "members"), // cyan
   settings: accent(220, "settings"), // slate-blue
   marketing: accent(255, "marketing"), // deep violet for the landing page
+  /* The assistant keeps the indigo of Overview — the owner asked only for its
+     background *glyph* to change (to the neural-net that stands for AI), not its
+     colour — so this shares the hue and differs only in name, which is what
+     picks the glyph. */
+  ai: accent(243, "ai"),
 } as const satisfies Record<string, PageAccent>;
 
 export const DEFAULT_ACCENT = ACCENTS.overview;
@@ -87,6 +92,8 @@ export function accentForPath(pathname: string): PageAccent {
       return ACCENTS.members;
     case "settings":
       return ACCENTS.settings;
+    case "ai":
+      return ACCENTS.ai;
     default:
       return DEFAULT_ACCENT;
   }
