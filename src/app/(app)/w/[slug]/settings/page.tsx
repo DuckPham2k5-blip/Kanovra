@@ -201,6 +201,7 @@ export default async function WorkspaceSettingsPage({
     <div className="flex flex-col">
       <PageHeader title="Settings" description={`Your role here: ${ROLE_LABEL[role]}.`} />
       <SettingsView
+        workspaceSlug={slug}
         overview={overview}
         aiModels={aiModels}
         notificationPrefs={notificationPrefs}

@@ -50,12 +50,14 @@ const RAIL = [
 ];
 
 export function SettingsView({
+  workspaceSlug,
   overview,
   aiModels,
   notificationPrefs,
   workspaceSlot,
   organizationSlot,
 }: {
+  workspaceSlug: string;
   overview: SettingsOverview;
   aiModels: { id: string; label: string }[];
   notificationPrefs: Record<NotificationCategory, boolean>;
@@ -90,7 +92,7 @@ export function SettingsView({
                 <NotificationsCard initial={notificationPrefs} />
                 <LanguageCard />
                 <SecurityCard />
-                <DataPrivacyCard />
+                <DataPrivacyCard exportHref={`/api/workspaces/${workspaceSlug}/export`} />
                 <IntegrationsCard />
                 <BillingCard plan={overview.plan} />
               </div>

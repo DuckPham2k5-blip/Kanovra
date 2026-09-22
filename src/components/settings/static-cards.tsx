@@ -3,6 +3,7 @@ import {
   Blocks,
   CreditCard,
   Database,
+  Download,
   Globe,
   Shield,
 } from "lucide-react";
@@ -113,13 +114,7 @@ export function SecurityCard() {
   );
 }
 
-export function DataPrivacyCard() {
-  const rows: { label: string; note: string; soon?: boolean }[] = [
-    { label: "Export my tasks (CSV)", note: "From any task list toolbar" },
-    { label: "Download workspace data", note: "Sắp có", soon: true },
-    { label: "AI data usage", note: "Sắp có", soon: true },
-    { label: "Activity visibility", note: "Sắp có", soon: true },
-  ];
+export function DataPrivacyCard({ exportHref }: { exportHref: string }) {
   return (
     <SettingsCard
       id="privacy"
@@ -128,14 +123,28 @@ export function DataPrivacyCard() {
       description="Manage your data and privacy."
     >
       <ul className="divide-y">
-        {rows.map((row) => (
-          <li key={row.label} className="flex items-center justify-between py-2.5 text-sm">
-            <span>{row.label}</span>
-            {row.soon ? (
-              <ComingSoonBadge />
-            ) : (
-              <span className="text-[11px] text-muted-foreground">{row.note}</span>
-            )}
+        <li className="flex items-center justify-between gap-4 py-2.5 text-sm">
+          <div>
+            <div>Download workspace data</div>
+            <div className="text-[11px] text-muted-foreground">
+              Projects, board structure and every task, as JSON.
+            </div>
+          </div>
+          <Button variant="outline" size="sm" asChild>
+            <a href={exportHref} download>
+              <Download className="size-4" />
+              Download
+            </a>
+          </Button>
+        </li>
+        <li className="flex items-center justify-between py-2.5 text-sm">
+          <span>Export my tasks (CSV)</span>
+          <span className="text-[11px] text-muted-foreground">From any task list toolbar</span>
+        </li>
+        {["AI data usage", "Activity visibility"].map((label) => (
+          <li key={label} className="flex items-center justify-between py-2.5 text-sm">
+            <span>{label}</span>
+            <ComingSoonBadge />
           </li>
         ))}
       </ul>
