@@ -50,11 +50,12 @@ const ACCENTS = {
   members: accent(190, "members"), // cyan
   settings: accent(220, "settings"), // slate-blue
   marketing: accent(255, "marketing"), // deep violet for the landing page
-  /* The assistant keeps the indigo of Overview — the owner asked only for its
-     background *glyph* to change (to the neural-net that stands for AI), not its
-     colour — so this shares the hue and differs only in name, which is what
-     picks the glyph. */
-  ai: accent(243, "ai"),
+  /* The assistant is violet, not the indigo it borrowed at first — that read as
+     the same page as Overview, which keeps indigo as the workspace's home colour
+     (it matches --primary). Violet is 47° off it, clearly a different place, and
+     the brighter, more electric hue suits the AI page — the same violet the
+     assistant's own emblem leans on. */
+  ai: accent(290, "ai"),
 } as const satisfies Record<string, PageAccent>;
 
 export const DEFAULT_ACCENT = ACCENTS.overview;

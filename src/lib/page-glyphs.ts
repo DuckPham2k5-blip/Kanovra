@@ -16,27 +16,22 @@ export type Glyph = {
 };
 
 export const GLYPHS: Record<string, Glyph> = {
-  // Assistant — a small neural network: three layers of nodes wired together,
-  // which reads as "AI" the way the board reads as Projects.
+  // Assistant — an isometric cube: a hexagon silhouette with three edges meeting
+  // at the near corner in the centre. Reads as a glowing 3D wireframe, the shape
+  // the owner asked for.
   ai: {
     paths: [
-      "M42 64 L100 54",
-      "M42 64 L100 100",
-      "M42 64 L100 146",
-      "M42 100 L100 54",
-      "M42 100 L100 100",
-      "M42 100 L100 146",
-      "M42 136 L100 54",
-      "M42 136 L100 100",
-      "M42 136 L100 146",
-      "M100 54 L158 82",
-      "M100 54 L158 118",
-      "M100 100 L158 82",
-      "M100 100 L158 118",
-      "M100 146 L158 82",
-      "M100 146 L158 118",
+      "M100 36 L155 68",
+      "M155 68 L155 132",
+      "M155 132 L100 164",
+      "M100 164 L45 132",
+      "M45 132 L45 68",
+      "M45 68 L100 36",
+      "M100 100 L100 36",
+      "M100 100 L45 132",
+      "M100 100 L155 132",
     ],
-    nodes: [[42, 64], [42, 100], [42, 136], [100, 54], [100, 100], [100, 146], [158, 82], [158, 118]],
+    nodes: [[100, 36], [155, 68], [155, 132], [100, 164], [45, 132], [45, 68], [100, 100]],
   },
   // Overview — a dashboard split into panels.
   overview: {
