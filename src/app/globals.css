@@ -900,11 +900,13 @@
     transform: translate(-50%, -50%);
     /* Base opacity sits on the wrapper so the breathing animation below can be
        one shared keyframe: nested opacities multiply, so the pulse scales
-       whatever the theme's base is instead of overwriting it. */
-    opacity: 0.18;
+       whatever the theme's base is instead of overwriting it. Raised on the
+       owner's word that the outline and its breathing read too faint — a touch
+       bolder in both themes while still sitting behind the content. */
+    opacity: 0.26;
   }
   .dark .tf-glyph {
-    opacity: 0.32;
+    opacity: 0.45;
   }
 
   .tf-glyph-svg {

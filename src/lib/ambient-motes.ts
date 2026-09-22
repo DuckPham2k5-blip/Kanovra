@@ -37,11 +37,12 @@ const PEAK_DARK = 0.95;
  * It went 0.2 → 0.35 → this. The owner asked twice for the light specks to be
  * more visible and finally for each one to be prominent enough to notice on its
  * own, so the earlier "keep it well under half of dark" rule is gone — the two
- * themes are their own decisions now. 0.6 is a firm point of ink that reads
- * clearly on a pale page while still leaving the text the busier mark. Dark is
- * unaffected; it has its own peak above.
+ * themes are their own decisions now. 0.5 is a firm point of ink that reads
+ * clearly on a pale page — bold enough to notice with its aura, eased back a
+ * touch from 0.6 on the owner's word that the specks were a shade too heavy.
+ * Dark is unaffected; it has its own peak above.
  */
-const PEAK_LIGHT = 0.6;
+const PEAK_LIGHT = 0.5;
 
 /** How deep inside the bloom the outward-bound motes begin. */
 const INNER = 0.18;

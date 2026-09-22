@@ -140,18 +140,15 @@ export const GLYPHS: Record<string, Glyph> = {
     ],
     nodes: [[100, 62], [100, 112], [58, 158], [142, 158], [46, 80], [154, 80], [14, 152], [186, 152]],
   },
-  // Settings — sliders. A ringed gear was the obvious choice, but in pure
-  // outline at this weight the teeth read as a sun's rays; sliders say
-  // "settings" without the ambiguity.
+  // Settings — a cog. A gear was avoided before because thin teeth in pure
+  // outline read as a sun's rays; this one is drawn with blocky flat-topped
+  // teeth and a clear centre hole, which the owner asked for and which reads
+  // unambiguously as a gear rather than a sun.
   settings: {
     paths: [
-      "M38 62 H162",
-      "M74 62 m-12 0 a12 12 0 1 0 24 0 a12 12 0 1 0 -24 0",
-      "M38 100 H162",
-      "M120 100 m-12 0 a12 12 0 1 0 24 0 a12 12 0 1 0 -24 0",
-      "M38 138 H162",
-      "M92 138 m-12 0 a12 12 0 1 0 24 0 a12 12 0 1 0 -24 0",
+      "M 85.2 52.2 L 86.9 35.3 L 113.1 35.3 L 114.8 52.2 L 123.3 55.8 L 136.5 45 L 155 63.5 L 144.2 76.7 L 147.8 85.2 L 164.7 86.9 L 164.7 113.1 L 147.8 114.8 L 144.2 123.3 L 155 136.5 L 136.5 155 L 123.3 144.2 L 114.8 147.8 L 113.1 164.7 L 86.9 164.7 L 85.2 147.8 L 76.7 144.2 L 63.5 155 L 45 136.5 L 55.8 123.3 L 52.2 114.8 L 35.3 113.1 L 35.3 86.9 L 52.2 85.2 L 55.8 76.7 L 45 63.5 L 63.5 45 L 76.7 55.8 Z",
+      "M 122 100 A 22 22 0 1 0 78 100 A 22 22 0 1 0 122 100",
     ],
-    nodes: [[38, 62], [162, 62], [74, 62], [38, 100], [162, 100], [120, 100], [38, 138], [162, 138], [92, 138]],
+    nodes: [[100, 36], [145.3, 54.7], [164, 100], [145.3, 145.3], [100, 164], [54.7, 145.3], [36, 100], [54.7, 54.7], [100, 100]],
   },
 };
