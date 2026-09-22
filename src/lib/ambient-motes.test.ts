@@ -119,13 +119,16 @@ describe("moteAlpha", () => {
   });
 
   /*
-   * The light theme stays clearly fainter than the dark one — the owner asked
-   * for the dots bolder, not for the two themes evened up, so it is still under
-   * half of dark. Pinned as a ratio so a later change cannot quietly close that
-   * gap and bring back the "dirt on the screen" the first, brighter attempt had.
+   * The light theme is bold now, its own decision rather than a fraction of
+   * dark: the owner asked for each speck to be prominent enough to notice. It
+   * still sits below dark's peak (dark are stars on near-black; light are ink on
+   * a pale page), but the old "under half of dark" cap is gone on purpose — that
+   * is the rule this change relaxes, pinned here so it is not re-tightened by
+   * reflex.
    */
-  it("keeps the light theme clearly fainter than dark", () => {
-    expect(moteAlpha(0.5, false)).toBeLessThan(moteAlpha(0.5, true) * 0.45);
+  it("is bold on the light theme, and still under dark's peak", () => {
+    expect(moteAlpha(0.5, false)).toBeGreaterThanOrEqual(0.5);
+    expect(moteAlpha(0.5, false)).toBeLessThan(moteAlpha(0.5, true));
   });
 
   it("answers a nonsense position with nothing rather than NaN", () => {
@@ -157,12 +160,14 @@ describe("moteInk", () => {
 });
 
 describe("moteRadius", () => {
-  it("is markedly smaller on the light theme at every roll", () => {
+  it("is prominent on the light theme — its own size, not a fraction of dark", () => {
+    // The owner asked for each light speck to be noticeable, so the old "always
+    // smaller than dark, always under 1.5px" cap is gone. Light now carries a
+    // real floor and a real ceiling of its own, decoupled from dark.
     for (const roll of [0, 0.25, 0.5, 0.75, 1]) {
-      const dark = moteRadius(roll, true);
       const light = moteRadius(roll, false);
-      expect(light).toBeLessThan(dark);
-      expect(light).toBeLessThan(1.5);
+      expect(light).toBeGreaterThanOrEqual(0.9);
+      expect(light).toBeLessThan(3);
     }
   });
 

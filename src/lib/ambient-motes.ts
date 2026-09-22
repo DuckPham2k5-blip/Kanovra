@@ -32,15 +32,16 @@ const FADE_OUT = 0.3;
  */
 const PEAK_DARK = 0.95;
 /*
- * Fainter than dark, but no longer timid.
+ * Bold on purpose, and decoupled from dark.
  *
- * It started at 0.2, on the reasoning that black on a pale page is the
- * highest-contrast mark there is; the owner then found the specks too faint to
- * see and asked for them bolder. 0.35 is that — clearly darker than before and
- * still well under the 0.5 that once read as dirt on the screen, so it is a
- * point of ink rather than a smudge.
+ * It went 0.2 → 0.35 → this. The owner asked twice for the light specks to be
+ * more visible and finally for each one to be prominent enough to notice on its
+ * own, so the earlier "keep it well under half of dark" rule is gone — the two
+ * themes are their own decisions now. 0.6 is a firm point of ink that reads
+ * clearly on a pale page while still leaving the text the busier mark. Dark is
+ * unaffected; it has its own peak above.
  */
-const PEAK_LIGHT = 0.35;
+const PEAK_LIGHT = 0.6;
 
 /** How deep inside the bloom the outward-bound motes begin. */
 const INNER = 0.18;
@@ -130,9 +131,10 @@ export function moteInk(dark: boolean, accent: string): string {
  * How big one mote is drawn, from its own fixed roll of the dice.
  *
  * Biased small in both themes: a sky is mostly faint pinpricks with a few bright
- * ones, and a uniform spread reads as confetti. The light theme is smaller again
- * for the same reason it is fainter — black on a pale page is the strongest mark
- * available, and at the dark theme's sizes it reads as grit.
+ * ones, and a uniform spread reads as confetti. The light theme used to be
+ * smaller *again* to stay unobtrusive; the owner asked for the specks to be
+ * prominent, so it now carries its own sizes — still biased small, but big
+ * enough that each dot registers. Dark is unchanged.
  *
  * Takes the roll rather than returning a random number, so the caller can keep
  * one value per mote and ask again every frame. That is what lets a theme switch
@@ -142,7 +144,7 @@ export function moteInk(dark: boolean, accent: string): string {
 export function moteRadius(roll: number, dark: boolean): number {
   const clamped = Number.isFinite(roll) ? Math.max(0, Math.min(1, roll)) : 0.5;
   const curve = Math.pow(clamped, 2.4);
-  return dark ? 0.7 + curve * 2.6 : 0.5 + curve * 0.9;
+  return dark ? 0.7 + curve * 2.6 : 0.9 + curve * 1.9;
 }
 
 /**
