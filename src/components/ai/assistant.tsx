@@ -580,7 +580,7 @@ function Composer({
   const makingImage = Boolean(selected?.model.capabilities.includes("images"));
 
   return (
-    <div className="rounded-2xl border bg-card p-2 shadow-sm transition-shadow focus-within:border-primary/50 focus-within:shadow-md">
+    <div className="tf-chat-glow rounded-2xl border border-primary/20 bg-card p-2 focus-within:border-primary/50">
       <Textarea
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
@@ -779,7 +779,9 @@ function Landing({ composer }: { composer: React.ReactNode }) {
               {hero.title}
             </span>
           </h1>
-          <p className="text-sm text-muted-foreground sm:text-base">{hero.tagline}</p>
+          <p className="tf-hero-tagline text-sm font-medium text-foreground/85 sm:text-base">
+            {hero.tagline}
+          </p>
         </div>
       </div>
 

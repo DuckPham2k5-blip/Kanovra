@@ -1712,3 +1712,29 @@ html[data-spectrum="on"][data-motion="off"] {
   animation: none;
   --primary: 280 85% 62%;
 }
+
+/* ---------------------------------------------------------------------------
+   AI landing — legibility of the tagline and a glow on the chat box.
+
+   Both are driven by `--primary`, so they read in dark and light alike (the
+   primary is vivid in both themes) and follow the chosen accent, including the
+   cycling Spectrum one. The tagline gets a halo in the page's own background
+   colour, which pushes the busy glyph and star field back behind the words.
+--------------------------------------------------------------------------- */
+.tf-hero-tagline {
+  text-shadow: 0 1px 12px hsl(var(--background) / 0.92);
+}
+
+.tf-chat-glow {
+  box-shadow:
+    0 0 0 1px hsl(var(--primary) / 0.18),
+    0 12px 44px -14px hsl(var(--primary) / 0.38);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.tf-chat-glow:focus-within {
+  box-shadow:
+    0 0 0 1px hsl(var(--primary) / 0.4),
+    0 14px 50px -12px hsl(var(--primary) / 0.55);
+}
+/* AI landing glow + tagline halo. */
