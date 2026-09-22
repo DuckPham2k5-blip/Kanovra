@@ -1,8 +1,10 @@
 "use client";
 
 import {
-  Bot,
   Brain,
+  ChevronDown,
+  ChevronUp,
+  ImagePlus,
   Lightbulb,
   Loader2,
   MoreHorizontal,
@@ -12,18 +14,32 @@ import {
   Sparkles,
   Square,
   Trash2,
+  UserRound,
 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 
 import { AssistantMessage } from "@/components/ai/assistant-message";
+import { EdgeToggle } from "@/components/layout/edge-toggle";
+import { AiOrbitMark } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -37,7 +53,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { ProviderStatus } from "@/lib/ai-providers";
+import { findModel, type ProviderStatus } from "@/lib/ai-providers";
 import { cn } from "@/lib/utils";
 import { clearConversations, deleteConversation, renameConversation } from "@/server/actions/ai-chat";
 
@@ -99,6 +115,57 @@ export function Assistant({
   const [confirmDelete, setConfirmDelete] = React.useState<ConversationSummary | null>(null);
   const [confirmClear, setConfirmClear] = React.useState(false);
 
+  /*
+   * The "About you" note. Kept in the browser (localStorage) rather than the
+   * server: it is private to this person and small, and this avoids a schema
+   * change. It is sent with each question so the assistant can match the
+   * person's tone and interests — which a real model uses, and the free
+   * built-in cannot (it answers from a fixed knowledge base, not the prompt).
+   */
+  const [profile, setProfile] = React.useState("");
+  const [profileOpen, setProfileOpen] = React.useState(false);
+  React.useEffect(() => {
+    try {
+      setProfile(localStorage.getItem("tf-ai-profile") ?? "");
+    } catch {
+      // Blocked storage: no profile this session.
+    }
+  }, []);
+  const saveProfile = React.useCallback((text: string) => {
+    setProfile(text);
+    try {
+      localStorage.setItem("tf-ai-profile", text);
+    } catch {
+      // Not persisting is fine; it still applies for this session.
+    }
+    setProfileOpen(false);
+  }, []);
+
+  /*
+   * Whether the right history column is folded to a thin rail. Kept in
+   * `localStorage` so the choice sticks across visits, and read after mount so
+   * the server and first client render agree (both start expanded).
+   */
+  const [asideCollapsed, setAsideCollapsed] = React.useState(false);
+  React.useEffect(() => {
+    try {
+      setAsideCollapsed(localStorage.getItem("tf-ai-aside-collapsed") === "1");
+    } catch {
+      // Blocked storage: stay expanded.
+    }
+  }, []);
+  const toggleAside = React.useCallback(() => {
+    setAsideCollapsed((value) => {
+      const next = !value;
+      try {
+        localStorage.setItem("tf-ai-aside-collapsed", next ? "1" : "0");
+      } catch {
+        // Not persisting is fine; the toggle still works this session.
+      }
+      return next;
+    });
+  }, []);
+
   const abortRef = React.useRef<AbortController | null>(null);
   const bottomRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -157,6 +224,7 @@ export function Assistant({
           modelId,
           thinking,
           path: previousPath(searchParams),
+          profile: profile.trim() || null,
         }),
       });
 
@@ -167,9 +235,20 @@ export function Assistant({
         throw new Error(body?.error ?? `The assistant could not answer (${response.status}).`);
       }
 
-      // A picture arrives whole, as JSON; an answer arrives as a stream.
+      // A picture and a performed command both arrive whole, as JSON; an answer
+      // arrives as a stream.
       if (response.headers.get("content-type")?.includes("application/json")) {
-        await response.json();
+        const data = (await response.json().catch(() => null)) as { link?: string | null } | null;
+        // A command that created something hands back where it lives — open it,
+        // which is the "it did the thing" the person asked for. `refresh` as
+        // well as `push`, so the left sidebar's project list (fetched in the
+        // workspace layout) refetches and the new project appears there at once
+        // — the same pair the New project dialog uses.
+        if (data?.link) {
+          router.push(data.link);
+          router.refresh();
+          return;
+        }
         if (conversationId) openConversation(conversationId);
         else router.refresh();
         return;
@@ -272,6 +351,8 @@ export function Assistant({
       thinking={thinking}
       setThinking={setThinking}
       configured={configured}
+      hasProfile={Boolean(profile.trim())}
+      onEditProfile={() => setProfileOpen(true)}
     />
   );
 
@@ -312,22 +393,45 @@ export function Assistant({
       </div>
 
       {/* Right column: chat history. Desktop only — on a narrow screen the
-          conversation fills the width instead. */}
-      <aside className="hidden w-80 shrink-0 flex-col gap-4 overflow-y-auto border-l p-4 xl:flex">
-        <HistoryPanel
-          conversations={conversations}
-          openId={open?.id ?? null}
-          onNew={() => openConversation(null)}
-          onOpen={openConversation}
-          onRename={(c) => {
-            setRenaming(c);
-            setRenameValue(c.title);
-          }}
-          onDelete={setConfirmDelete}
-          onClear={() => setConfirmClear(true)}
+          conversation fills the width instead. It carries its own surface
+          (`bg-sidebar` + blur) and a border so it reads as a distinct column
+          against the star field rather than blending into the page. Folds to a
+          thin rail with the edge handle, mirroring the left sidebar.
+
+          The scrolling panel and the handle are separate elements: the panel
+          scrolls (which clips horizontal overflow), so the handle hangs off a
+          non-clipping `relative` wrapper around it instead. */}
+      <div className="relative hidden h-full shrink-0 xl:block">
+        {asideCollapsed ? (
+          // Collapsed: a thin, full-height sliver — the column's own border and
+          // a hint of its surface stay visible, and the edge toggle keeps its
+          // vertical middle so it does not jump when folded.
+          <div className="h-full w-8 border-l border-sidebar-border bg-sidebar/70 backdrop-blur-xl" />
+        ) : (
+          <aside className="flex h-full w-80 flex-col gap-4 overflow-y-auto border-l border-sidebar-border bg-sidebar/70 p-4 backdrop-blur-xl">
+            <HistoryPanel
+              conversations={conversations}
+              openId={open?.id ?? null}
+              onNew={() => openConversation(null)}
+              onOpen={openConversation}
+              onRename={(c) => {
+                setRenaming(c);
+                setRenameValue(c.title);
+              }}
+              onDelete={setConfirmDelete}
+              onClear={() => setConfirmClear(true)}
+            />
+            <QuoteCard />
+          </aside>
+        )}
+        <EdgeToggle
+          side="right"
+          collapsed={asideCollapsed}
+          onToggle={toggleAside}
+          label={asideCollapsed ? "Show chat history" : "Hide chat history"}
+          breakpoint="xl"
         />
-        <QuoteCard />
-      </aside>
+      </div>
 
       <ConfirmDialog
         open={Boolean(confirmDelete)}
@@ -365,6 +469,14 @@ export function Assistant({
         destructive
         onConfirm={handleClear}
       />
+
+      <ProfileDialog
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+        value={profile}
+        onSave={saveProfile}
+        canAdapt={configured.some((p) => p.id !== "builtin")}
+      />
     </div>
   );
 }
@@ -393,6 +505,8 @@ function Composer({
   thinking,
   setThinking,
   configured,
+  hasProfile,
+  onEditProfile,
 }: {
   draft: string;
   setDraft: (v: string) => void;
@@ -405,7 +519,22 @@ function Composer({
   thinking: boolean;
   setThinking: (fn: (v: boolean) => boolean) => void;
   configured: ProviderStatus[];
+  hasProfile: boolean;
+  onEditProfile: () => void;
 }) {
+  // A taller box for a longer question, folded back to one line when done.
+  const [expanded, setExpanded] = React.useState(false);
+
+  // What the configured assistants can actually do right now. These gate the
+  // tools honestly: a control that would fail when pressed is shown disabled
+  // with the reason, never as if it worked.
+  const imageModel = configured
+    .flatMap((p) => p.models)
+    .find((m) => m.capabilities.includes("images"));
+  const selected = modelId ? findModel(modelId) : null;
+  const canReason = Boolean(selected?.model.capabilities.includes("reasoning"));
+  const makingImage = Boolean(selected?.model.capabilities.includes("images"));
+
   return (
     <div className="rounded-2xl border bg-card p-2 shadow-sm transition-shadow focus-within:border-primary/50 focus-within:shadow-md">
       <Textarea
@@ -419,15 +548,96 @@ function Composer({
             onSend();
           }
         }}
-        placeholder="Ask about this app, your projects, or how to use Kanovra…"
+        placeholder={
+          makingImage
+            ? "Describe a picture to make…"
+            : "Ask about this app, your projects, or how to use Kanovra…"
+        }
         rows={1}
-        className="max-h-44 min-h-[2.75rem] resize-none border-0 bg-transparent px-2 py-2 text-[15px] shadow-none focus-visible:ring-0"
+        className={cn(
+          "resize-none border-0 bg-transparent px-2 py-2 text-[15px] shadow-none transition-[min-height] focus-visible:ring-0",
+          expanded ? "min-h-[9rem] max-h-80" : "min-h-[2.75rem] max-h-44",
+        )}
       />
       <div className="flex flex-wrap items-center justify-between gap-2 px-1 pb-1">
         <div className="flex items-center gap-1.5">
+          {/* The tools menu — the "+" that ChatGPT and Gemini put here. Each
+              entry is a real capability of the configured assistants; the ones
+              a paid key would unlock are shown disabled with the reason rather
+              than hidden, so nothing here fails silently when pressed. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8 rounded-full"
+                aria-label="Tools"
+                title="Tools"
+              >
+                <Plus className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-64">
+              <DropdownMenuLabel>Tools</DropdownMenuLabel>
+
+              <DropdownMenuItem onClick={onEditProfile}>
+                <UserRound />
+                <div className="flex flex-col">
+                  <span>About you {hasProfile ? "· on" : ""}</span>
+                  <span className="text-xs text-muted-foreground">
+                    Tell the assistant who you are, so it answers to suit you
+                  </span>
+                </div>
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem
+                disabled={!imageModel}
+                onClick={() => imageModel && setModelId(imageModel.id)}
+              >
+                <ImagePlus />
+                <div className="flex flex-col">
+                  <span>Create image</span>
+                  <span className="text-xs text-muted-foreground">
+                    {imageModel
+                      ? "Switch to an image model and describe a picture"
+                      : "Needs a Gemini or OpenAI key"}
+                  </span>
+                </div>
+              </DropdownMenuItem>
+
+              <DropdownMenuCheckboxItem
+                checked={thinking}
+                disabled={!canReason}
+                onCheckedChange={() => setThinking((v) => !v)}
+              >
+                <div className="flex flex-col">
+                  <span>Deep reasoning</span>
+                  <span className="text-xs text-muted-foreground">
+                    {canReason
+                      ? "Work the answer out at more length"
+                      : "Needs a reasoning model — add a free Gemini key to switch on"}
+                  </span>
+                </div>
+              </DropdownMenuCheckboxItem>
+
+              <DropdownMenuSeparator />
+              <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                Web search, deep research, video and music need an outside
+                service and are not wired up yet.
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Select value={modelId} onValueChange={setModelId}>
             <SelectTrigger className="h-8 w-auto min-w-40 gap-1.5 rounded-full text-xs">
-              <Sparkles className="size-3.5 text-primary" />
+              {makingImage ? (
+                <ImagePlus className="size-3.5 text-primary" />
+              ) : (
+                <Sparkles className="size-3.5 text-primary" />
+              )}
               <SelectValue placeholder="Choose an assistant" />
             </SelectTrigger>
             <SelectContent>
@@ -444,35 +654,44 @@ function Composer({
             </SelectContent>
           </Select>
 
-          <Button
-            type="button"
-            variant={thinking ? "secondary" : "ghost"}
-            size="sm"
-            className="h-8 rounded-full text-xs"
-            onClick={() => setThinking((v) => !v)}
-            aria-pressed={thinking}
-            title="Let the assistant work the answer out at more length before replying"
-          >
-            <Brain className="size-3.5" />
-            <span className="hidden sm:inline">Thinking</span>
-          </Button>
+          {thinking && canReason ? (
+            <span className="hidden items-center gap-1 rounded-full bg-secondary px-2 py-1 text-xs text-secondary-foreground sm:inline-flex">
+              <Brain className="size-3.5" />
+              Deep reasoning
+            </span>
+          ) : null}
         </div>
 
-        {sending ? (
-          <Button variant="outline" size="icon" className="rounded-xl" onClick={onStop} aria-label="Stop">
-            <Square className="size-4" />
-          </Button>
-        ) : (
+        <div className="flex items-center gap-1.5">
           <Button
+            type="button"
+            variant="ghost"
             size="icon"
             className="rounded-xl"
-            onClick={onSend}
-            disabled={!canSend}
-            aria-label="Send"
+            onClick={() => setExpanded((v) => !v)}
+            aria-pressed={expanded}
+            aria-label={expanded ? "Collapse the box" : "Expand the box"}
+            title={expanded ? "Collapse the box" : "Expand the box"}
           >
-            <SendHorizontal className="size-4" />
+            {expanded ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
           </Button>
-        )}
+
+          {sending ? (
+            <Button variant="outline" size="icon" className="rounded-xl" onClick={onStop} aria-label="Stop">
+              <Square className="size-4" />
+            </Button>
+          ) : (
+            <Button
+              size="icon"
+              className="rounded-xl"
+              onClick={onSend}
+              disabled={!canSend}
+              aria-label="Send"
+            >
+              <SendHorizontal className="size-4" />
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -495,8 +714,8 @@ const HERO_TEXT: Record<"en" | "vi", { title: string; tagline: string }> = {
  * The landing: the AI emblem, the name, a tagline, and the box — centred.
  *
  * The star field is *not* covered here any more (the page shows it across its
- * whole surface); the emblem is a robot rather than a sparkle, an AI mark that
- * reads as its own thing against that field.
+ * whole surface); the emblem is the Orbit mark — the brand K ringed by an
+ * orbit — a self-contained tile that reads as its own thing against that field.
  */
 function Landing({ composer }: { composer: React.ReactNode }) {
   const [lang, setLang] = React.useState<"en" | "vi">("en");
@@ -509,12 +728,7 @@ function Landing({ composer }: { composer: React.ReactNode }) {
   return (
     <div className="space-y-6 py-6 text-center">
       <div className="space-y-4">
-        <div
-          aria-hidden
-          className="mx-auto flex size-16 items-center justify-center rounded-3xl bg-gradient-to-br from-primary to-fuchsia-500 text-white shadow-lg shadow-primary/25"
-        >
-          <Bot className="size-8" />
-        </div>
+        <AiOrbitMark className="mx-auto size-16 rounded-full shadow-lg shadow-primary/25" />
         <div className="space-y-1.5">
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
             <span className="bg-gradient-to-r from-primary via-violet-500 to-fuchsia-500 bg-clip-text text-transparent">
@@ -612,6 +826,66 @@ function HistoryPanel({
         </Button>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * The "About you" editor. What the person writes here is sent with each question
+ * and dropped into the assistant's instructions, so a real model can match their
+ * tone, interests, language and slang. Stored in this browser only.
+ */
+function ProfileDialog({
+  open,
+  onOpenChange,
+  value,
+  onSave,
+  canAdapt,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  value: string;
+  onSave: (text: string) => void;
+  canAdapt: boolean;
+}) {
+  const [text, setText] = React.useState(value);
+  React.useEffect(() => {
+    if (open) setText(value);
+  }, [open, value]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>About you</DialogTitle>
+          <DialogDescription>
+            {canAdapt
+              ? "The assistant reads this to match your tone and what you care about. Kept in this browser only."
+              : "Kept in this browser only. It shapes answers once a real model is set (a free Gemini key does it) — the free built-in answers from a fixed knowledge base and can't adapt its tone."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <Textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          maxLength={1000}
+          rows={6}
+          placeholder="Ví dụ: Mình là PM, thích trả lời ngắn gọn, thẳng vào việc. Hay dùng tiếng Việt + teencode. Quan tâm deadline và các bước tiếp theo rõ ràng."
+          aria-label="About you"
+        />
+
+        <DialogFooter className="sm:justify-between">
+          <Button variant="ghost" onClick={() => onSave("")} disabled={!text.trim()}>
+            Clear
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => onSave(text)}>Save</Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

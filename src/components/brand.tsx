@@ -70,6 +70,72 @@ export function LogoMono({ className }: { className?: string }) {
   );
 }
 
+/**
+ * The assistant's own mark — the "Orbit" emblem: a bold violet→blue K on a soft
+ * lavender disc, with an orbit swoosh sweeping up past it and a sparkle above.
+ *
+ * It is a self-contained disc (its own pale background), so it reads the same on
+ * the light page and against the dark star field — an app icon does not restyle
+ * itself per theme, so pair it with `rounded-full`. The K is a *filled* glyph
+ * rather than three strokes on purpose: strokes for a K read as "<" the moment
+ * the arms meet the stem, a filled letter never does. The gradient ids are fixed
+ * and namespaced: every instance defines an identical gradient, so `url(#…)`
+ * resolving to the first painted is the same pixels wherever it lands, exactly
+ * as the hexagon mark above.
+ */
+export function AiOrbitMark({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 40 40"
+      className={cn("size-10 shrink-0", className)}
+      fill="none"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id="kanovra-ai-tile" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="100%" stopColor="#ece7ff" />
+        </linearGradient>
+        <linearGradient id="kanovra-ai-ink" x1="0" y1="0.1" x2="0.9" y2="1">
+          <stop offset="0%" stopColor="#7c3aed" />
+          <stop offset="50%" stopColor="#6366f1" />
+          <stop offset="100%" stopColor="#3b82f6" />
+        </linearGradient>
+        <linearGradient id="kanovra-ai-swoosh" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#a78bfa" />
+          <stop offset="100%" stopColor="#6366f1" />
+        </linearGradient>
+      </defs>
+
+      <circle cx="20" cy="20" r="19" fill="url(#kanovra-ai-tile)" stroke="#e4ddfa" strokeWidth="1" />
+
+      {/* The orbit swoosh — a tapering crescent from the lower-left planet,
+          under the K and up around its right. The "dynamic" of the reference. */}
+      <path
+        d="M7.6 25.2 C 15 33, 27.5 29.5, 33 14 C 31.4 16.8, 22 27.6, 9.4 23 C 8.4 22.5, 6.9 23.9, 7.6 25.2 Z"
+        fill="url(#kanovra-ai-swoosh)"
+        opacity="0.75"
+      />
+      <circle cx="7.6" cy="24.6" r="1.9" fill="url(#kanovra-ai-swoosh)" />
+
+      {/* The K, a filled glyph. */}
+      <path
+        d="M12 11.4 H16.2 V18 L22.9 11.4 H28.2 L19.9 19.7 L28.6 28.6 H23.1 L16.2 21.4 V28.6 H12 Z"
+        fill="url(#kanovra-ai-ink)"
+        stroke="url(#kanovra-ai-ink)"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+
+      {/* Sparkle. */}
+      <path
+        d="M30.5 7.2 C30.9 9.7 31.6 10.4 34.1 10.8 C31.6 11.2 30.9 11.9 30.5 14.4 C30.1 11.9 29.4 11.2 26.9 10.8 C29.4 10.4 30.1 9.7 30.5 7.2 Z"
+        fill="url(#kanovra-ai-ink)"
+      />
+    </svg>
+  );
+}
+
 export function Wordmark({ className }: { className?: string }) {
   return (
     <span className={cn("text-[15px] font-semibold tracking-[0.18em]", className)}>KANOVRA</span>

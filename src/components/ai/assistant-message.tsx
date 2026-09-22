@@ -1,7 +1,8 @@
 "use client";
 
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
+import { AiOrbitMark } from "@/components/brand";
 import type { ChatMessage } from "@/components/ai/assistant";
 import { findModel } from "@/lib/ai-providers";
 import { emphasisSegments } from "@/lib/rich-text";
@@ -48,9 +49,7 @@ export function AssistantMessage({
 
   return (
     <div className="flex gap-3">
-      <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-muted">
-        <Sparkles className="size-3.5 text-muted-foreground" />
-      </span>
+      <AiOrbitMark className="mt-0.5 size-7 shrink-0 rounded-full shadow-sm" />
 
       <div className="min-w-0 flex-1 space-y-2">
         {message.hasImage ? (
