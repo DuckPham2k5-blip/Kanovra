@@ -1613,3 +1613,65 @@
 .tf-map-still .tf-map-drift {
   animation: none;
 }
+
+/* ---------------------------------------------------------------------------
+   Appearance preferences (Settings → Appearance).
+
+   These are driven by `data-*` attributes on <html>, written by
+   `use-preferences.tsx`. They are genuine, applied choices — the accent colour
+   is handled separately as an inline `--primary` override on the same element.
+   The default state (no attribute, or the "on"/"cozy"/"aurora" values) is the
+   app exactly as it was before this panel existed.
+--------------------------------------------------------------------------- */
+
+/* Reduce motion — an explicit app control, distinct from the OS preference.
+   Unlike `prefers-reduced-motion`, this one is a choice the person made in this
+   app, so it applies on every surface including the map backdrop. */
+html[data-motion="off"] *,
+html[data-motion="off"] *::before,
+html[data-motion="off"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Background effects off — hide every decorative atmosphere layer. Content is
+   untouched; only the ambient wash and the header aurora go. */
+html[data-ambient="off"] .tf-ambient,
+html[data-ambient="off"] .tf-header-aurora {
+  display: none;
+}
+
+/* Compact density — a smaller rem base tightens every Tailwind spacing and
+   type step at once, which is what "more content, less spacing" means. */
+html[data-density="compact"] {
+  font-size: 15px;
+}
+
+/* Background style presets. Each names which decorative layers show; the
+   default (aurora) shows them all, exactly as before. */
+html[data-bg-style="grid"] .tf-aurora,
+html[data-bg-style="grid"] .tf-ambient-arcs,
+html[data-bg-style="dots"] .tf-aurora,
+html[data-bg-style="dots"] .tf-ambient-arcs,
+html[data-bg-style="minimal"] .tf-aurora,
+html[data-bg-style="minimal"] .tf-ambient-arcs,
+html[data-bg-style="minimal"] .tf-ambient-particles,
+html[data-bg-style="constellation"] .tf-aurora {
+  display: none;
+}
+
+/* Grid preset adds a faint ruled overlay in place of the aurora ribbons. */
+html[data-bg-style="grid"] .tf-ambient::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--page-accent) 22%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--page-accent) 22%, transparent) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 12%, black, transparent 78%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 12%, black, transparent 78%);
+  opacity: 0.5;
+}
