@@ -7,7 +7,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -24,7 +23,7 @@ import {
   type Sector,
 } from "@/lib/mind-map-radial";
 import type { MapPalette, MapTone } from "@/lib/mind-map-palette";
-import { EmojiSubmenu, NodeTextControls } from "@/components/mind-map/mind-map-node-format";
+import { EmojiSubmenu, TextSubmenu } from "@/components/mind-map/mind-map-node-format";
 import { fillBorder, fillCss, fillInk, gradientEnds } from "@/lib/mind-map-fill";
 import { fontScaleOf, textFaceCss } from "@/lib/mind-map-text";
 import { radialShade } from "@/lib/mind-maps";
@@ -475,7 +474,7 @@ export function MindMapWheel({
           rows={2}
           placeholder="Main title"
           onChange={(event) => onUpdate(root.id, { text: event.target.value })}
-          className="h-1/3 w-3/4 cursor-text resize-none bg-transparent text-center text-sm font-semibold leading-snug outline-none placeholder:text-muted-foreground"
+          className="h-1/3 w-3/4 cursor-text resize-none select-text bg-transparent text-center text-sm font-semibold leading-snug outline-none placeholder:text-muted-foreground"
           // On the words, not on the hub: `color` inherits, and the controls
           // pinned to the hub's corners sit inside it.
           style={{ color: root.fill ? fillInk(root.fill) : undefined }}
@@ -619,10 +618,7 @@ export function MindMapWheel({
                       {/* The same Word-style controls and folded emoji as the box
                           menu, so a branch is styled and marked exactly as a box
                           node is. */}
-                      <DropdownMenuLabel>Text</DropdownMenuLabel>
-                      <NodeTextControls node={node} onChange={(patch) => onUpdate(node.id, patch)} />
-
-                      <DropdownMenuSeparator />
+                      <TextSubmenu node={node} onChange={(patch) => onUpdate(node.id, patch)} />
                       <EmojiSubmenu
                         emoji={node.emoji}
                         onPick={(glyph) => onUpdate(node.id, { emoji: glyph })}

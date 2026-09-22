@@ -2,6 +2,8 @@
 
 import { MindMapType } from "@prisma/client";
 import {
+  BoxSelect,
+  Hand,
   MessageSquare,
   MoreHorizontal,
   Plus,
@@ -25,7 +27,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -33,8 +34,10 @@ import { MindMapWheel } from "@/components/mind-map/mind-map-wheel";
 import {
   DEFAULT_WEIGHT,
   clampRank,
+  formatTaskCount,
   newNodeId,
   nodeSize,
+  openTaskCount,
   rankFromRatio,
   rankScale,
   seedNodes,
@@ -42,7 +45,8 @@ import {
   type RadialSettings,
 } from "@/lib/mind-map-canvas";
 import { MindMapColorPanel } from "@/components/mind-map/mind-map-color-panel";
-import { EmojiSubmenu, NodeTextControls } from "@/components/mind-map/mind-map-node-format";
+import { MindMapNodeInfo } from "@/components/mind-map/mind-map-node-info";
+import { EmojiSubmenu, TextSubmenu } from "@/components/mind-map/mind-map-node-format";
 import { fillBorder, fillCss, fillInk, rememberFill, type NodeFill } from "@/lib/mind-map-fill";
 import { fontScaleOf, textFaceCss } from "@/lib/mind-map-text";
 import { HUB_RADIUS, radialLayout, radialReach, RING_THICKNESS } from "@/lib/mind-map-radial";
@@ -59,7 +63,7 @@ import { applyOffsets, isMovableLayout, isStructured, layoutNodes } from "@/lib/
 import { notationFor, replacesEdges } from "@/lib/mind-map-notation";
 import { setPresenceFocus, useFocusGroups } from "@/lib/presence";
 import { emptyHistory, record, redo, undo } from "@/lib/undo-history";
-import { mindMapColor, mindMapStyle, nodeBorderColor } from "@/lib/mind-maps";
+import { MIND_MAP_META, mindMapColor, mindMapStyle, nodeBorderColor } from "@/lib/mind-maps";
 import type { MapPalette } from "@/lib/mind-map-palette";
 import { cn, colorFromString } from "@/lib/utils";
 import { markNodeCommentsRead } from "@/server/actions/mind-map-comment";
@@ -256,6 +260,25 @@ export function MindMapCanvas({
    * hold of — and two would drift the first time only one of them was cleared.
    */
   const [selected, setSelected] = React.useState<string | null>(null);
+
+  /*
+   * A group of nodes picked to move together. Separate from `selected` (which is
+   * the one node the panels, Delete and the resize keys act on): a group is only
+   * about moving several at once. Built two ways — Ctrl/⌘-click a node to toggle
+   * it in, or drag a box round several in select mode — and dragging any member
+   * carries the whole group. Empty most of the time.
+   */
+  const [multi, setMulti] = React.useState<Set<string>>(new Set());
+  /** Drag on the empty plane draws a selection box instead of panning. */
+  const [selectMode, setSelectMode] = React.useState(false);
+  /** The selection box while it is being drawn, in map coordinates. */
+  const [marquee, setMarquee] = React.useState<{
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+  } | null>(null);
+  const marqueeStart = React.useRef<{ x: number; y: number } | null>(null);
 
   /**
    * Who else is on which node.
@@ -513,6 +536,12 @@ export function MindMapCanvas({
     startX: number;
     startY: number;
     pointerId: number;
+    /**
+     * When the pressed node is part of a group, every member and the value it
+     * held at the press, so the whole group moves by the same delta. Absent for
+     * an ordinary single-node drag.
+     */
+    members?: { id: string; fromA: number; fromB: number }[];
   } | null>(null);
   const panning = React.useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
   /**
@@ -699,6 +728,19 @@ export function MindMapCanvas({
   function update(id: string, patch: Partial<CanvasNode>, label = `edit:${id}`) {
     remember(label);
     setNodes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n)));
+    setDirty(true);
+  }
+
+  /**
+   * Patches several nodes at once, in one pass and under one history label — so a
+   * group drag is a single undo step, the way a single drag is. The label is
+   * held constant across the gesture, which is what makes `remember` coalesce
+   * every frame into that one step.
+   */
+  function moveMany(patches: { id: string; patch: Partial<CanvasNode> }[], label: string) {
+    remember(label);
+    const byId = new Map(patches.map((p) => [p.id, p.patch]));
+    setNodes((prev) => prev.map((n) => (byId.has(n.id) ? { ...n, ...byId.get(n.id)! } : n)));
     setDirty(true);
   }
 
@@ -1180,6 +1222,20 @@ export function MindMapCanvas({
      */
     setSelected(node.id);
 
+    /*
+     * Ctrl/⌘-click toggles the node in the movable group and does nothing else —
+     * no drag, so a press that adds a fifth node does not also start dragging it.
+     */
+    if ((event.ctrlKey || event.metaKey) && canEdit && movable) {
+      setMulti((prev) => {
+        const next = new Set(prev);
+        if (next.has(node.id)) next.delete(node.id);
+        else next.add(node.id);
+        return next;
+      });
+      return;
+    }
+
     if (!canEdit || !movable || onButton) return;
 
     // Pending, not captured. No pointer capture and no `preventDefault` yet, so a
@@ -1187,6 +1243,25 @@ export function MindMapCanvas({
     // is taken in `onPointerMove` once the pointer has actually moved.
     const point = toWorld(event);
     const offset = structured;
+
+    /*
+     * Pressing a node that is part of the group drags the whole group; pressing
+     * any other node is an ordinary single drag and clears the group first, so a
+     * plain click never silently carries a selection made earlier.
+     */
+    const group = multi.has(node.id) && multi.size > 1 ? [...multi] : null;
+    if (!group && multi.size) setMulti(new Set());
+    const members = group
+      ? group
+          .map((id) => nodes.find((n) => n.id === id))
+          .filter((n): n is CanvasNode => Boolean(n))
+          .map((n) => ({
+            id: n.id,
+            fromA: offset ? (n.ox ?? 0) : n.x,
+            fromB: offset ? (n.oy ?? 0) : n.y,
+          }))
+      : undefined;
+
     dragging.current = {
       id: node.id,
       fields: offset ? "offset" : "position",
@@ -1198,6 +1273,7 @@ export function MindMapCanvas({
       startX: event.clientX,
       startY: event.clientY,
       pointerId: event.pointerId,
+      members,
     };
   }
 
@@ -1253,10 +1329,24 @@ export function MindMapCanvas({
      * had three times.
      */
     if ((event.target as HTMLElement).closest("button, textarea, [role='menuitem']")) return;
+
+    // In select mode a press on the plane draws a selection box instead of
+    // panning; the box's contents become the group when the press is released.
+    if (selectMode && canEdit && movable) {
+      const point = toWorld(event);
+      marqueeStart.current = point;
+      setMarquee({ x0: point.x, y0: point.y, x1: point.x, y1: point.y });
+      setSelected(null);
+      (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+      return;
+    }
+
     // Pressing the empty plane is how you let go of a node. Without this the
     // ring stays lit on whatever was touched last and Delete still points at it,
-    // which is a loaded key aimed at something nobody is looking at.
+    // which is a loaded key aimed at something nobody is looking at. It also
+    // drops any group, so a pan never carries a stale selection.
     setSelected(null);
+    if (multi.size) setMulti(new Set());
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     panning.current = { x: event.clientX, y: event.clientY, ox: offset.x, oy: offset.y };
   }
@@ -1273,6 +1363,19 @@ export function MindMapCanvas({
         { rank: rankFromRatio(resize.rank, distance / resize.distance) },
         `size:${resize.id}`,
       );
+      return;
+    }
+
+    // The selection box, if one is being drawn. Before the pan for the same
+    // reason the resize is: the plane must not slide while a box is stretched.
+    if (marqueeStart.current) {
+      const point = toWorld(event);
+      setMarquee({
+        x0: marqueeStart.current.x,
+        y0: marqueeStart.current.y,
+        x1: point.x,
+        y1: point.y,
+      });
       return;
     }
 
@@ -1301,16 +1404,51 @@ export function MindMapCanvas({
       }
     }
     const point = toWorld(event);
-    const a = drag.fromA + (point.x - drag.worldX);
-    const b = drag.fromB + (point.y - drag.worldY);
+    const dx = point.x - drag.worldX;
+    const dy = point.y - drag.worldY;
+
+    // A group drag moves every member by the same delta, in one write and one
+    // undo step; a single drag is the same thing with one node.
+    if (drag.members) {
+      moveMany(
+        drag.members.map((m) => ({
+          id: m.id,
+          patch:
+            drag.fields === "offset"
+              ? { ox: m.fromA + dx, oy: m.fromB + dy }
+              : { x: m.fromA + dx, y: m.fromB + dy },
+        })),
+        "move-group",
+      );
+      return;
+    }
+
     update(
       drag.id,
-      drag.fields === "offset" ? { ox: a, oy: b } : { x: a, y: b },
+      drag.fields === "offset"
+        ? { ox: drag.fromA + dx, oy: drag.fromB + dy }
+        : { x: drag.fromA + dx, y: drag.fromB + dy },
       `move:${drag.id}`,
     );
   }
 
   function endDrag() {
+    // Turn the selection box into the group: every node whose centre it covers.
+    if (marqueeStart.current && marquee) {
+      const minX = Math.min(marquee.x0, marquee.x1);
+      const maxX = Math.max(marquee.x0, marquee.x1);
+      const minY = Math.min(marquee.y0, marquee.y1);
+      const maxY = Math.max(marquee.y0, marquee.y1);
+      const hits = nodes
+        .filter((n) => {
+          const c = positionOf(n);
+          return c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY;
+        })
+        .map((n) => n.id);
+      setMulti(new Set(hits));
+    }
+    marqueeStart.current = null;
+    setMarquee(null);
     dragging.current = null;
     panning.current = null;
     resizing.current = null;
@@ -1540,6 +1678,33 @@ export function MindMapCanvas({
           </span>
         ) : null}
 
+        {/* Move ↔ Select. In Move (the default) a drag pans, as it always has;
+            in Select a drag on the plane draws a box round several nodes to move
+            them as one. Only where nodes can actually be dragged. Ctrl/⌘-click a
+            node adds it to the group in either mode. */}
+        {canEdit && movable ? (
+          <button
+            type="button"
+            onClick={() => setSelectMode((v) => !v)}
+            aria-pressed={selectMode}
+            className={cn(
+              "pointer-events-auto flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs backdrop-blur",
+              selectMode
+                ? "border-primary bg-primary/10 text-primary"
+                : "bg-background/90 text-muted-foreground hover:text-foreground",
+            )}
+            title={
+              selectMode
+                ? "Select: drag a box to pick several nodes. Click to go back to Move."
+                : "Move: drag to pan. Switch to Select to box several nodes and move them together."
+            }
+          >
+            {selectMode ? <BoxSelect className="size-3.5" /> : <Hand className="size-3.5" />}
+            {selectMode ? "Select" : "Move"}
+            {multi.size > 0 ? ` · ${multi.size}` : ""}
+          </button>
+        ) : null}
+
         {/* A whole new main item in this map — a new wheel on a circle map, a
             new top-level node on every other. For an editor, on every type. */}
         {canEdit ? (
@@ -1635,7 +1800,14 @@ export function MindMapCanvas({
 
       <div
         ref={viewportRef}
-        className="absolute inset-0 cursor-grab overflow-hidden active:cursor-grabbing"
+        className={cn(
+          // `select-none` so a drag to pan, a box selection, or a double-click on
+          // the plane never highlights the words inside the nodes — which was
+          // catching on the text and making moves stutter. The editable text
+          // boxes turn selection back on for themselves with `select-text`.
+          "absolute inset-0 select-none overflow-hidden",
+          selectMode ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing",
+        )}
         onPointerDown={onViewportPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
@@ -1818,7 +1990,9 @@ export function MindMapCanvas({
                    * in pixels.
                    */
                   zIndex:
-                    selected === node.id ? 900 : Math.round(800 - Math.min(w, 780)),
+                    selected === node.id || multi.has(node.id)
+                      ? 900
+                      : Math.round(800 - Math.min(w, 780)),
                 }}
               >
               <div
@@ -1871,7 +2045,13 @@ export function MindMapCanvas({
                   // A box-shadow rather than an extra element, so it follows the
                   // node's own corner radius without anything restating it — and
                   // so it cannot sit over the node and swallow a click.
-                  boxShadow: ringFor(node.id, selected === node.id, scaled),
+                  // The selected node keeps its ring and gains a soft glow in the
+                  // map's colour — a highlight without a scale bump, which would
+                  // move the node and re-route every edge touching it.
+                  boxShadow:
+                    selected === node.id
+                      ? `${ringFor(node.id, true, scaled)}, 0 8px 34px -6px ${mindMapColor(palette, 0.6)}`
+                      : ringFor(node.id, multi.has(node.id), scaled),
                   transition: "box-shadow 160ms ease",
                 }}
               >
@@ -1932,7 +2112,10 @@ export function MindMapCanvas({
                     // top, which put every one-line label against the ceiling of
                     // its own shape — most visible on a circle, where the top of
                     // the box is the narrowest part of the drawing.
-                    "tf-map-node-text h-full w-full resize-none bg-transparent text-center text-[1em] leading-snug outline-none placeholder:text-muted-foreground",
+                    // `select-text` turns selection back on inside the editable
+                    // box — the canvas around it is `select-none` to stop a drag
+                    // catching on the words.
+                    "tf-map-node-text h-full w-full resize-none select-text bg-transparent text-center text-[1em] leading-snug outline-none placeholder:text-muted-foreground",
                     isCentre && "font-semibold",
                   )}
                   // The ink goes on the words, not on the node.
@@ -2069,13 +2252,10 @@ export function MindMapCanvas({
                         {/* The Word-style text controls, and the emoji folded into
                             one submenu — both shared with the wheel's menu, so a
                             box and a branch are styled and marked the same way. */}
-                        <DropdownMenuLabel>Text</DropdownMenuLabel>
-                        <NodeTextControls
+                        <TextSubmenu
                           node={node}
                           onChange={(patch) => update(node.id, patch, `style:${node.id}`)}
                         />
-
-                        <DropdownMenuSeparator />
                         <EmojiSubmenu
                           emoji={node.emoji}
                           onPick={(glyph) => update(node.id, { emoji: glyph })}
@@ -2189,6 +2369,19 @@ export function MindMapCanvas({
                   </span>
                 ) : null}
               </div>
+
+              {/* The remaining-task badge, on the outer box so it does not scale
+                  with the node and never intercepts a press. Only shown once the
+                  node has open tasks — a "0 Task" on every node would bury the
+                  drawing; the count starting from zero lives in the info panel. */}
+              {openTaskCount(node) > 0 ? (
+                <span
+                  className="pointer-events-none absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded-full border bg-background/90 px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm"
+                  style={{ borderColor: mindMapColor(palette, 0.4) }}
+                >
+                  {formatTaskCount(openTaskCount(node))}
+                </span>
+              ) : null}
               </div>
             );
           })}
@@ -2196,6 +2389,21 @@ export function MindMapCanvas({
           )}
         </div>
       </div>
+
+      {/* The selection box while it is being dragged. Drawn in screen space
+          (world × scale + pan) as a sibling of the viewport, so its border stays
+          one pixel at any zoom, and it never intercepts a press. */}
+      {marquee ? (
+        <div
+          className="pointer-events-none absolute z-20 rounded-sm border-2 border-primary/70 bg-primary/10"
+          style={{
+            left: Math.min(marquee.x0, marquee.x1) * scale + offset.x,
+            top: Math.min(marquee.y0, marquee.y1) * scale + offset.y,
+            width: Math.abs(marquee.x1 - marquee.x0) * scale,
+            height: Math.abs(marquee.y1 - marquee.y0) * scale,
+          }}
+        />
+      ) : null}
 
       {/* Outside the pan-and-zoom transform on purpose: a thread scaled to 40%
           is unreadable and one at 200% is bigger than the node it belongs to. */}
@@ -2250,6 +2458,39 @@ export function MindMapCanvas({
           onClose={() => setColouring(null)}
         />
       ) : null}
+
+      {/* Clicking a node opens its info: its title, how many tasks it has left,
+          and its checklist. It yields to the colour and comment panels so only
+          one thing ever docks on the right at a time, and closes with the node
+          it describes. */}
+      {selected && !colouring && !openThread && nodes.some((node) => node.id === selected)
+        ? (() => {
+            const index = nodes.findIndex((node) => node.id === selected);
+            return (
+              <MindMapNodeInfo
+                node={nodes[index]}
+                typeLabel={MIND_MAP_META[type].label}
+                index={index + 1}
+                total={nodes.length}
+                related={nodes
+                  .filter((n) => n.parentId === selected)
+                  .map((n) => ({ id: n.id, text: n.text }))}
+                canEdit={canEdit}
+                onChangeTasks={(tasks) => update(selected, { tasks }, `tasks:${selected}`)}
+                onChangeNote={(note) => update(selected, { note }, `note:${selected}`)}
+                onFocus={(id) => {
+                  setSelected(id);
+                  setPresenceFocus(`map:${mapId}:${id}`);
+                }}
+                onPrev={() =>
+                  setSelected(nodes[(index - 1 + nodes.length) % nodes.length].id)
+                }
+                onNext={() => setSelected(nodes[(index + 1) % nodes.length].id)}
+                onClose={() => setSelected(null)}
+              />
+            );
+          })()
+        : null}
     </div>
   );
 }

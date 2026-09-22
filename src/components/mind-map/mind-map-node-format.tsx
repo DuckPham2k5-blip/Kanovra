@@ -1,6 +1,6 @@
 "use client";
 
-import { Bold, Italic, Minus, Plus, Underline } from "lucide-react";
+import { Bold, Italic, Minus, Plus, Type, Underline } from "lucide-react";
 import * as React from "react";
 
 import {
@@ -96,6 +96,34 @@ export function NodeTextControls({
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * The text controls, folded behind a single "Text" row like the emoji picker.
+ *
+ * The owner asked for the menu to open showing just "Text" rather than the whole
+ * bar of bold/italic/size/fonts spilled into it — one tidy row that expands on
+ * hover/click into the controls. A Radix submenu, so the panel portals out of
+ * the canvas and is not clipped, exactly as `EmojiSubmenu` does.
+ */
+export function TextSubmenu({
+  node,
+  onChange,
+}: {
+  node: StyleFields;
+  onChange: (patch: Patch) => void;
+}) {
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        <Type className="size-4" />
+        Text
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="w-auto p-0">
+        <NodeTextControls node={node} onChange={onChange} />
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   );
 }
 

@@ -74,6 +74,25 @@ export const RANK_MAX = 40;
  */
 export const RANK_FLOOR = -6;
 
+/** The most tasks one node holds — a node is a heading, not a backlog. */
+export const NODE_TASK_LIMIT = 50;
+
+/**
+ * One task on a node: a line of work with a done flag.
+ *
+ * Its own small list, kept on the node rather than linked to the board's tasks —
+ * a map node is a heading someone is thinking under, and the checklist that
+ * belongs to it is theirs to keep here. `done` is the whole of its state; the
+ * count a node shows is how many are *not* done yet.
+ */
+export const nodeTaskSchema = z.object({
+  id: z.string().min(1).max(64),
+  text: z.string().trim().max(200).default(""),
+  done: z.boolean().default(false),
+});
+
+export type NodeTask = z.infer<typeof nodeTaskSchema>;
+
 export const canvasNodeSchema = z.object({
   id: z.string().min(1).max(64),
   text: z.string().trim().max(160).default(""),
@@ -187,6 +206,20 @@ export const canvasNodeSchema = z.object({
   underline: z.boolean().nullish(),
   font: z.string().max(40).nullish(),
   fontScale: z.number().finite().min(0.4).max(4).nullish(),
+  /**
+   * A longer description shown in the node's detail panel — the box's text is its
+   * heading, this is the paragraph under it. `nullish` for the same reason the
+   * rest are: absent by default, so it lands off `CanvasNode` rather than forcing
+   * every hand-built node to carry an empty string.
+   */
+  note: z.string().max(2000).nullish(),
+  /**
+   * This node's own checklist. `nullish` for the same reason `fill` is — a
+   * defaulted array would land on `CanvasNode` as required and break every place
+   * that builds a node by hand — and a node that was never given a task genuinely
+   * has none rather than an empty list.
+   */
+  tasks: z.array(nodeTaskSchema).max(NODE_TASK_LIMIT).nullish(),
 });
 
 /**
@@ -236,6 +269,22 @@ export type RadialSettings = z.infer<typeof radialSchema>;
 
 export type CanvasNode = z.infer<typeof canvasNodeSchema>;
 export type CanvasData = z.infer<typeof canvasSchema>;
+
+/** How many of a node's tasks are still open (not done). */
+export function openTaskCount(node: Pick<CanvasNode, "tasks">): number {
+  return (node.tasks ?? []).filter((t) => !t.done).length;
+}
+
+/**
+ * The task badge on a node: "0 Task", "01 Task", "02 Tasks".
+ *
+ * Zero is written plainly; one and up are padded to two digits and pluralised —
+ * the shape the owner asked for, so a node's remaining work reads at a glance.
+ */
+export function formatTaskCount(count: number): string {
+  if (count <= 0) return "0 Task";
+  return `${String(count).padStart(2, "0")} ${count === 1 ? "Task" : "Tasks"}`;
+}
 
 let seed = 0;
 /** Ids only have to be unique inside one map, and are generated client-side. */
