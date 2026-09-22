@@ -2,12 +2,13 @@
 
 import type { Role } from "@prisma/client";
 import { Menu } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 
 import { AmbientBackdrop } from "@/components/layout/ambient-backdrop";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { PageAccentScope } from "@/components/layout/page-accent-scope";
+import { EdgeToggle } from "@/components/layout/edge-toggle";
 import { PageGlyph } from "@/components/layout/page-glyph";
 import { RealtimeSync } from "@/components/layout/realtime-sync";
 import { ShortcutsDialog } from "@/components/layout/shortcuts-dialog";
@@ -68,6 +69,17 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+
+  /*
+   * Inside a single map (`…/maps/<id>`) the workspace sidebar is hidden. The map
+   * renders as its own full-bleed surface; the sidebar's `backdrop-blur` — a
+   * filter — makes it a containing block for that surface's `position: fixed`,
+   * so the overlay stops at the content area and the rail stays visible unless
+   * it is removed here. The maps *list* (`…/maps`) keeps its sidebar.
+   */
+  const onMapDetail = /\/maps\/[^/]+/.test(pathname);
+
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
   const [helpOpen, setHelpOpen] = React.useState(false);
@@ -157,27 +169,41 @@ export function AppShell({
       <AmbientBackdrop />
       <RealtimeSync workspaceSlug={workspace.slug} />
 
-      {/* `relative z-10` on the chrome and the content column is what keeps
+      {/* `relative z-20` on the chrome and the content column is what keeps
           them above the decorative layers. Those layers cannot use a negative
           z-index: this wrapper is positioned but does not create a stacking
           context, so a negative index would drop them into the root context
-          and paint them *behind* this element's own opaque background. */}
-      <aside
-        className={cn(
-          "relative z-10 hidden shrink-0 border-r bg-sidebar/70 backdrop-blur-xl transition-[width] duration-200 lg:block",
-          collapsed ? "w-16" : "w-64",
-        )}
-      >
-        <Sidebar
-          workspace={workspace}
-          workspaces={workspaces}
-          projects={projects}
-          role={role}
-          unreadCount={unreadCount}
-          collapsed={collapsed}
-          onToggleCollapsed={toggleCollapsed}
-        />
-      </aside>
+          and paint them *behind* this element's own opaque background. The
+          sidebar sits a step above the content column (z-20 vs z-10) so its
+          edge handle, which straddles the border into the content area, is not
+          painted over. */}
+      {onMapDetail ? null : (
+        <aside
+          className={cn(
+            "relative z-20 hidden shrink-0 border-r bg-sidebar/70 backdrop-blur-xl transition-[width] duration-200 lg:block",
+            collapsed ? "w-16" : "w-64",
+          )}
+        >
+          <Sidebar
+            workspace={workspace}
+            workspaces={workspaces}
+            projects={projects}
+            role={role}
+            unreadCount={unreadCount}
+            collapsed={collapsed}
+          />
+
+          {/* The collapse handle — a bordered button that straddles the
+              sidebar's right edge rather than living inside its header, so it
+              reads as a control *on the seam* between the rail and the page. */}
+          <EdgeToggle
+            side="left"
+            collapsed={collapsed}
+            onToggle={toggleCollapsed}
+            label={collapsed ? "Expand menu" : "Collapse menu"}
+          />
+        </aside>
+      )}
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="left" className="w-72 bg-sidebar p-0">
@@ -217,7 +243,12 @@ export function AppShell({
               lifted to z-10 over them. */}
           <div className="tf-accent-veil" />
           <PageGlyph />
-          <div className="relative z-10">{children}</div>
+          {/* `h-full` so a page can fill the viewport: `main` is a flex child
+              with a real height, but this wrapper was auto-height, which
+              collapsed any child's `h-full` (the assistant's right column came
+              out short, its edge toggle stuck to the top). Taller pages still
+              overflow and scroll through `main`. */}
+          <div className="relative z-10 h-full">{children}</div>
         </main>
       </div>
 

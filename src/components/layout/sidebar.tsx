@@ -13,8 +13,6 @@ import {
   ListChecks,
   Network,
   LogOut,
-  PanelLeftClose,
-  PanelLeftOpen,
   Plus,
   Settings,
   Sparkles,
@@ -58,7 +56,6 @@ export function Sidebar({
   unreadCount,
   onNavigate,
   collapsed = false,
-  onToggleCollapsed,
 }: {
   workspace: ShellWorkspace;
   workspaces: (ShellWorkspace & { role: Role })[];
@@ -66,9 +63,9 @@ export function Sidebar({
   role: Role;
   unreadCount: number;
   onNavigate?: () => void;
-  /** Icon-only mode. Desktop only — the mobile sheet is always full. */
+  /** Icon-only mode. Desktop only — the mobile sheet is always full. The
+   *  collapse control itself is the shell's edge handle, not part of this. */
   collapsed?: boolean;
-  onToggleCollapsed?: () => void;
 }) {
   const pathname = usePathname();
   const base = `/w/${workspace.slug}`;
@@ -100,11 +97,11 @@ export function Sidebar({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Workspace switcher + collapse toggle */}
+      {/* Workspace switcher. The collapse control is the shell's edge handle. */}
       <div
         className={cn(
           "flex h-16 items-center border-b border-sidebar-border",
-          collapsed ? "flex-col justify-center gap-1 px-2" : "gap-2 px-3",
+          collapsed ? "justify-center px-2" : "gap-2 px-3",
         )}
       >
         <DropdownMenu>
@@ -161,25 +158,6 @@ export function Sidebar({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-
-        {/* Collapse / expand. Desktop only, and absent on the mobile sheet
-            (no `onToggleCollapsed` passed there). */}
-        {onToggleCollapsed ? (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={onToggleCollapsed}
-            title={collapsed ? "Expand menu" : "Collapse menu"}
-            aria-label={collapsed ? "Expand menu" : "Collapse menu"}
-            className={collapsed ? undefined : "shrink-0"}
-          >
-            {collapsed ? (
-              <PanelLeftOpen className="size-4" />
-            ) : (
-              <PanelLeftClose className="size-4" />
-            )}
-          </Button>
-        ) : null}
       </div>
 
       <ScrollArea className="flex-1">
