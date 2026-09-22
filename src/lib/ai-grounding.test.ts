@@ -187,7 +187,7 @@ describe("the grounding reaches the provider", () => {
   });
 
   it("sends the guide to OpenRouter, as the system message", async () => {
-    const req = await captureRequest("deepseek/deepseek-chat-v3-0324:free", "OPENROUTER_API_KEY");
+    const req = await captureRequest("qwen/qwen3.8-27b:free", "OPENROUTER_API_KEY");
     const body = req.body as { messages: { role: string; content: string }[] };
     const system = body.messages.find((m) => m.role === "system")!.content;
 

@@ -101,7 +101,7 @@ describe("defaultModel", () => {
   it("uses OpenRouter's first model when only its key is set", () => {
     const REAL = "test-key-abcdefghijklmnopqrstuvwxyz";
     expect(defaultModel(providerStatus({ OPENROUTER_API_KEY: REAL }))).toBe(
-      "deepseek/deepseek-chat-v3-0324:free",
+      "qwen/qwen3.8-27b:free",
     );
   });
 

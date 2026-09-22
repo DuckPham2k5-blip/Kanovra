@@ -135,8 +135,11 @@ export const AI_PROVIDERS: AiProvider[] = [
      * URL. It exists because Google's own key issuance is gated behind an
      * organisation policy on the owner's account (a service-account binding a
      * plain API key cannot satisfy), so this is the free model that could
-     * actually be turned on. Model ids carry a `:free` suffix and can change on
-     * OpenRouter's side; they are plain constants here, easy to swap.
+     * actually be turned on. Model ids carry a `:free` suffix and change on
+     * OpenRouter's side as free tiers come and go — they are plain constants
+     * here, easy to swap. The first set (deepseek-v3-0324 / llama-3.3-70b /
+     * deepseek-r1) was all retired to paid-only; these are the free models that
+     * answered a live call on 2026-09-22, Qwen verified returning Vietnamese.
      */
     id: "openrouter",
     label: "OpenRouter",
@@ -145,20 +148,26 @@ export const AI_PROVIDERS: AiProvider[] = [
     keyUrl: "https://openrouter.ai/keys",
     models: [
       {
-        id: "deepseek/deepseek-chat-v3-0324:free",
-        label: "DeepSeek V3 · free",
+        id: "qwen/qwen3.8-27b:free",
+        label: "Qwen3 27B · free",
         hint: "Free, strong and multilingual — a good default.",
         capabilities: ["text"],
       },
       {
-        id: "meta-llama/llama-3.3-70b-instruct:free",
-        label: "Llama 3.3 70B · free",
-        hint: "Free, from Meta. A capable general model.",
+        id: "z-ai/glm-5.2:free",
+        label: "GLM 5.2 · free",
+        hint: "Free, capable and multilingual.",
         capabilities: ["text"],
       },
       {
-        id: "deepseek/deepseek-r1:free",
-        label: "DeepSeek R1 · free",
+        id: "google/gemma-4-31b-it:free",
+        label: "Gemma 4 31B · free",
+        hint: "Free, from Google. A capable general model.",
+        capabilities: ["text"],
+      },
+      {
+        id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        label: "Nemotron 3 · free (reasoning)",
         hint: "Free reasoning model — works the answer out at length.",
         capabilities: ["text", "reasoning"],
       },
