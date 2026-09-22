@@ -29,7 +29,7 @@ export type AiModel = {
 };
 
 export type AiProvider = {
-  id: "anthropic" | "google" | "openai" | "builtin";
+  id: "anthropic" | "google" | "openai" | "openrouter" | "builtin";
   label: string;
   /** What the picker calls the family, for people who know the product name. */
   familiarName: string;
@@ -130,6 +130,42 @@ export const AI_PROVIDERS: AiProvider[] = [
   },
   {
     /*
+     * OpenRouter — one key, many models, and a real free tier. It speaks the
+     * OpenAI wire format, so it reuses that adapter with only a different base
+     * URL. It exists because Google's own key issuance is gated behind an
+     * organisation policy on the owner's account (a service-account binding a
+     * plain API key cannot satisfy), so this is the free model that could
+     * actually be turned on. Model ids carry a `:free` suffix and can change on
+     * OpenRouter's side; they are plain constants here, easy to swap.
+     */
+    id: "openrouter",
+    label: "OpenRouter",
+    familiarName: "OpenRouter",
+    envVar: "OPENROUTER_API_KEY",
+    keyUrl: "https://openrouter.ai/keys",
+    models: [
+      {
+        id: "deepseek/deepseek-chat-v3-0324:free",
+        label: "DeepSeek V3 · free",
+        hint: "Free, strong and multilingual — a good default.",
+        capabilities: ["text"],
+      },
+      {
+        id: "meta-llama/llama-3.3-70b-instruct:free",
+        label: "Llama 3.3 70B · free",
+        hint: "Free, from Meta. A capable general model.",
+        capabilities: ["text"],
+      },
+      {
+        id: "deepseek/deepseek-r1:free",
+        label: "DeepSeek R1 · free",
+        hint: "Free reasoning model — works the answer out at length.",
+        capabilities: ["text", "reasoning"],
+      },
+    ],
+  },
+  {
+    /*
      * The one that always works. It runs in this process off the product's own
      * knowledge base — no key, no network, no bill — so a workspace with nothing
      * configured still has a working assistant. It is last in the list so a
@@ -148,6 +184,19 @@ export const AI_PROVIDERS: AiProvider[] = [
         label: "Kanovra guide · free",
         hint: "Built in, no key needed. Helps with maps and explains the app.",
         capabilities: ["text"],
+      },
+      {
+        /*
+         * Free image generation, no key — the same bargain as the text guide.
+         * It runs through a public image service rather than a paid provider, so
+         * "Create image" works out of the box; a key only buys a different model
+         * (Imagen, GPT Image), not the ability itself. This is a deliberate
+         * change from the earlier decision that images needed Gemini or OpenAI.
+         */
+        id: "kanovra-image",
+        label: "Kanovra image · free",
+        hint: "Makes a picture from a description. Free, no key — via a public image service.",
+        capabilities: ["images"],
       },
     ],
   },

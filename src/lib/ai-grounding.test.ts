@@ -109,6 +109,33 @@ describe("shortcuts are derived, not retyped", () => {
  * perfect prompt that the request body never carries is the exact failure the
  * owner asked about, and no amount of testing `buildSystemPrompt` would show it.
  */
+describe("the About-you note is carried into the prompt", () => {
+  it("adds a fenced preference section when a profile is given", () => {
+    const prompt = buildSystemPrompt({
+      workspaceName: "Acme",
+      userProfile: "I'm a PM. Keep answers short and use casual slang.",
+    });
+    expect(prompt).toContain("About the person you are talking to");
+    expect(prompt).toContain("I'm a PM. Keep answers short and use casual slang.");
+    // Framed as a preference, not an instruction that overrides the rules.
+    expect(prompt).toMatch(/preference/i);
+    expect(prompt).toMatch(/never overrides the rules/i);
+  });
+
+  it("adds nothing when there is no profile", () => {
+    const prompt = buildSystemPrompt({ workspaceName: "Acme" });
+    expect(prompt).not.toContain("About the person you are talking to");
+  });
+
+  it("caps a very long profile so it cannot flood the prompt", () => {
+    const prompt = buildSystemPrompt({ workspaceName: "Acme", userProfile: "x".repeat(2000) });
+    expect(prompt).toContain("About the person you are talking to");
+    // The profile block is trimmed to an 800-char run, not the 2000 sent.
+    expect(prompt).toContain("x".repeat(800));
+    expect(prompt).not.toContain("x".repeat(801));
+  });
+});
+
 describe("the grounding reaches the provider", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -155,6 +182,16 @@ describe("the grounding reaches the provider", () => {
     const system = body.messages.find((m) => m.role === "system")!.content;
 
     expect(req.url).toContain("api.openai.com");
+    expect(system).toContain("⋯ menu");
+    expect(system).toContain("Kanban board");
+  });
+
+  it("sends the guide to OpenRouter, as the system message", async () => {
+    const req = await captureRequest("deepseek/deepseek-chat-v3-0324:free", "OPENROUTER_API_KEY");
+    const body = req.body as { messages: { role: string; content: string }[] };
+    const system = body.messages.find((m) => m.role === "system")!.content;
+
+    expect(req.url).toContain("openrouter.ai");
     expect(system).toContain("⋯ menu");
     expect(system).toContain("Kanban board");
   });

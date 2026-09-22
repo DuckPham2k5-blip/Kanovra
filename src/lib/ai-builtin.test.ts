@@ -34,6 +34,14 @@ describe("matchEntry", () => {
     expect(matchEntry("xoá node")?.id).toBe("map-delete-node");
   });
 
+  it("finds the intent even when the trigger words are split apart", () => {
+    // The words "tạo" and "project" are separated by three others; the old
+    // contiguous-substring match missed this and fell through to the fallback.
+    expect(matchEntry("tạo cho tôi một project có tên là Duc đi")?.id).toBe("project-create");
+    expect(matchEntry("giúp mình tạo một task mới nhé")?.id).toBe("task-create");
+    expect(matchEntry("làm sao để tạo một map bây giờ")?.id).toBe("map-create");
+  });
+
   it("returns null when nothing matches", () => {
     expect(matchEntry("what is the weather in Hanoi")).toBeNull();
     expect(matchEntry("qwerty zxcvb")).toBeNull();

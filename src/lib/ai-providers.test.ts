@@ -98,6 +98,13 @@ describe("defaultModel", () => {
     expect(defaultModel(providerStatus({}))).toBe("kanovra-guide");
   });
 
+  it("uses OpenRouter's first model when only its key is set", () => {
+    const REAL = "test-key-abcdefghijklmnopqrstuvwxyz";
+    expect(defaultModel(providerStatus({ OPENROUTER_API_KEY: REAL }))).toBe(
+      "deepseek/deepseek-chat-v3-0324:free",
+    );
+  });
+
   it("prefers a configured keyed provider over the built-in", () => {
     // The built-in is last, so a real key wins the default when there is one.
     expect(defaultModel(providerStatus({ ANTHROPIC_API_KEY: REAL }))).toBe("claude-opus-5");
@@ -116,26 +123,31 @@ describe("defaultModel", () => {
 });
 
 describe("capabilityAvailable", () => {
-  it("says images are unavailable on Claude alone", () => {
-    // Worth stating plainly: Claude does not generate images. A button that is
-    // offered and then fails is worse than one that explains why it is off.
+  it("offers images for free through the built-in, though Claude's own models don't", () => {
+    // Images are keyless now — the built-in draws them through a public service.
+    // What stays true is that it is not Claude doing it: none of Claude's own
+    // models claim the images capability.
     const statuses = providerStatus({ ANTHROPIC_API_KEY: REAL });
     expect(capabilityAvailable(statuses, "text")).toBe(true);
     expect(capabilityAvailable(statuses, "reasoning")).toBe(true);
-    expect(capabilityAvailable(statuses, "images")).toBe(false);
+    expect(capabilityAvailable(statuses, "images")).toBe(true);
+
+    const claude = AI_PROVIDERS.find((p) => p.id === "anthropic");
+    expect(claude?.models.every((m) => !m.capabilities.includes("images"))).toBe(true);
   });
 
-  it("says images are available once Gemini or ChatGPT is configured", () => {
+  it("still reports images available once Gemini or ChatGPT is configured", () => {
     expect(capabilityAvailable(providerStatus({ GOOGLE_AI_API_KEY: REAL }), "images")).toBe(true);
     expect(capabilityAvailable(providerStatus({ OPENAI_API_KEY: REAL }), "images")).toBe(true);
   });
 
-  it("still offers text through the built-in with no keys at all", () => {
+  it("offers text and images through the built-in with no keys at all", () => {
     const statuses = providerStatus({});
-    // The keyless assistant can hold a conversation, so text is always there;
-    // reasoning, images and vision still need a keyed provider.
+    // The keyless assistant holds a conversation and draws pictures, both free;
+    // reasoning and vision still need a keyed provider.
     expect(capabilityAvailable(statuses, "text")).toBe(true);
-    for (const cap of ["reasoning", "images", "vision"] as const) {
+    expect(capabilityAvailable(statuses, "images")).toBe(true);
+    for (const cap of ["reasoning", "vision"] as const) {
       expect(capabilityAvailable(statuses, cap), cap).toBe(false);
     }
   });

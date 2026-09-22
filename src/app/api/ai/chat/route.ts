@@ -11,6 +11,15 @@ import {
   streamChat,
   type ChatTurn,
 } from "@/lib/ai-chat";
+import { detectLang, type Lang } from "@/lib/ai-builtin";
+import {
+  type AiCommand,
+  cleanImagePrompt,
+  looksLikeImageRequest,
+  looksLikeQuestion,
+  MAP_TYPE_LABEL,
+  parseAiCommand,
+} from "@/lib/ai-commands";
 import { conversationWindow, titleFromMessage } from "@/lib/ai-conversation";
 import { findOwnConversation, recentTurns } from "@/lib/ai-conversations";
 import { findModel } from "@/lib/ai-providers";
@@ -18,6 +27,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { logError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { AI_LIMIT, consumeToken } from "@/lib/rate-limit";
+import { createMindMap } from "@/server/actions/mind-map";
+import { createProject } from "@/server/actions/project";
 import { saveAttachment } from "@/lib/storage";
 
 /**
@@ -49,6 +60,8 @@ const bodySchema = z.object({
   thinking: z.boolean().optional(),
   /** Where the person is, so "this page" means something. Validated by the guide. */
   path: z.string().max(400).nullish(),
+  /** The person's "About you" note, kept in their browser and sent each turn. */
+  profile: z.string().max(1000).nullish(),
 });
 
 export async function POST(request: NextRequest) {
@@ -80,7 +93,7 @@ export async function POST(request: NextRequest) {
   // workspace the caller is not in answers exactly as one that does not exist.
   const membership = await prisma.workspaceMember.findFirst({
     where: { userId: user.id, workspace: { slug: body.workspaceSlug } },
-    select: { workspace: { select: { id: true, name: true } } },
+    select: { workspace: { select: { id: true, name: true, slug: true } } },
   });
   if (!membership) return NextResponse.json({ error: "Not found." }, { status: 404 });
   const workspace = membership.workspace;
@@ -122,11 +135,44 @@ export async function POST(request: NextRequest) {
     data: { conversationId, role: AiRole.USER, content: body.message },
   });
 
-  // A picture is not a stream. It arrives whole or not at all, so that path
-  // answers with JSON and the browser branches on the content type.
-  if (found.model.capabilities.includes("images")) {
-    return respondWithImage({ conversationId, prompt: body.message, modelId: body.modelId });
+  const isImageModel = found.model.capabilities.includes("images");
+  const question = looksLikeQuestion(body.message);
+
+  /*
+   * Drawing comes first, and is decided by the *message*, not only the model.
+   * "tạo cho tôi một ảnh về một mind map" wants a picture — the word "ảnh" is
+   * the intent — and must not be grabbed by the create-map parser and turned
+   * into "we don't have that map". So an explicit image request, or anything
+   * (bar a question) while an image model is selected, is drawn. A picture is
+   * not a stream: it answers with JSON and the browser branches on that.
+   */
+  if (!question && (looksLikeImageRequest(body.message) || isImageModel)) {
+    const imageModelId = isImageModel ? body.modelId : "kanovra-image";
+    return respondWithImage({ conversationId, prompt: body.message, modelId: imageModelId });
   }
+
+  /*
+   * A create command — "tạo project tên Duc" — is performed here rather than
+   * answered. The command is the signed-in person's own typed instruction, and
+   * each create still runs the ordinary server-side permission check inside its
+   * action, so this is a second door to the same guarded write, not a way past
+   * it. A question ("how do I create a project") parses to null and falls
+   * through to the normal answer below. It is deterministic and free — it needs
+   * no model at all.
+   */
+  const command = parseAiCommand(body.message);
+  if (command) {
+    return respondWithCommand({
+      command,
+      conversationId,
+      workspace,
+      lang: detectLang(body.message),
+    });
+  }
+
+  // A question in image mode is answered as text, by the built-in guide — the
+  // image model cannot hold a conversation.
+  const answerModelId = isImageModel ? "kanovra-guide" : body.modelId;
 
   // Oldest first, trimmed at the recent end, then shaped into something a
   // provider will accept — see `conversationWindow`, which exists because a
@@ -140,7 +186,11 @@ export async function POST(request: NextRequest) {
     HISTORY_TURNS,
   );
 
-  const system = buildSystemPrompt({ workspaceName: workspace.name, currentPath: body.path });
+  const system = buildSystemPrompt({
+    workspaceName: workspace.name,
+    currentPath: body.path,
+    userProfile: body.profile,
+  });
 
   const encoder = new TextEncoder();
   let answer = "";
@@ -149,7 +199,7 @@ export async function POST(request: NextRequest) {
     async start(controller) {
       try {
         for await (const piece of streamChat({
-          modelId: body.modelId,
+          modelId: answerModelId,
           system,
           turns,
           thinking: body.thinking,
@@ -189,7 +239,7 @@ export async function POST(request: NextRequest) {
                 conversationId,
                 role: AiRole.ASSISTANT,
                 content: answer,
-                model: body.modelId,
+                model: answerModelId,
               },
             })
             .catch((e: unknown) => logError("ai.persist", e, { conversationId }));
@@ -215,13 +265,104 @@ export async function POST(request: NextRequest) {
   });
 }
 
+/** A pleasant default colour for a project made from chat (the create schema
+ *  requires one; the picker's palette is where these come from). */
+const PROJECT_COLORS = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+
+/**
+ * Performs a create command and answers with JSON the browser acts on.
+ *
+ * A successful create returns a `link`; the browser opens it, which is the "it
+ * did the thing" the person asked for. A refusal or a request for a name has no
+ * link and simply appears as the assistant's reply in the thread. Either way the
+ * reply is saved as an assistant message, so the conversation reads back
+ * sensibly and a reload shows it.
+ */
+async function respondWithCommand(input: {
+  command: AiCommand;
+  conversationId: string;
+  workspace: { id: string; slug: string; name: string };
+  lang: Lang;
+}) {
+  const { command, conversationId, workspace, lang } = input;
+  const vi = lang === "vi";
+
+  let reply: string;
+  let link: string | null = null;
+
+  if (command.kind === "need-name") {
+    reply = vi
+      ? "Bạn muốn đặt tên là gì? Ví dụ: “tạo project tên Marketing”."
+      : "What should it be called? For example: “create a project named Marketing”.";
+  } else if (command.kind === "unsupported-map") {
+    reply = vi
+      ? "Xin lỗi, Kanovra chỉ có 5 loại map: **Circle, Bubble, Tree, Brace, Multi-flow**. Bạn muốn loại nào?"
+      : "Sorry — Kanovra only has five map kinds: **Circle, Bubble, Tree, Brace, Multi-flow**. Which would you like?";
+  } else if (command.kind === "create-project") {
+    const color = PROJECT_COLORS[Math.floor(Math.random() * PROJECT_COLORS.length)];
+    const result = await createProject({ workspaceId: workspace.id, name: command.name, color });
+    if (result.success) {
+      link = `/w/${workspace.slug}/projects/${result.data.id}/board`;
+      reply = vi
+        ? `Đã tạo project **${command.name}** cho bạn. Mình mở nó ra ngay.`
+        : `Created the project **${command.name}**. Opening it now.`;
+    } else {
+      reply = apologyFor(result.error, "project", lang);
+    }
+  } else {
+    const title = command.title || (vi ? "Map mới" : "New map");
+    const result = await createMindMap({ workspaceId: workspace.id, type: command.type, title });
+    if (result.success) {
+      link = `/w/${workspace.slug}/maps/${result.data.id}`;
+      reply = vi
+        ? `Đã tạo map **${title}** (${MAP_TYPE_LABEL[command.type]}). Mình mở ra nhé.`
+        : `Created the map **${title}** (${MAP_TYPE_LABEL[command.type]}). Opening it now.`;
+    } else {
+      reply = apologyFor(result.error, "map", lang);
+    }
+  }
+
+  await prisma.aiMessage
+    .create({
+      data: { conversationId, role: AiRole.ASSISTANT, content: reply, model: "kanovra-guide" },
+    })
+    .catch((e: unknown) => logError("ai.command.persist", e, { conversationId }));
+  await prisma.aiConversation
+    .update({ where: { id: conversationId }, data: { updatedAt: new Date() } })
+    .catch(() => {});
+
+  return NextResponse.json(
+    { kind: "action", conversationId, link, reply },
+    { headers: { "x-conversation-id": conversationId } },
+  );
+}
+
+/** Turn an action's error into a friendly line, naming the permission case. */
+function apologyFor(error: string, resource: string, lang: Lang): string {
+  const forbidden = /permission|forbidden|quyền/i.test(error);
+  if (forbidden) {
+    return lang === "vi"
+      ? `Bạn chưa có quyền tạo ${resource} trong workspace này (cần vai trò Member trở lên).`
+      : `You don't have permission to create a ${resource} here (needs Member or above).`;
+  }
+  return lang === "vi"
+    ? `Xin lỗi, mình chưa tạo được ${resource}: ${error}`
+    : `Sorry, I couldn't create the ${resource}: ${error}`;
+}
+
 async function respondWithImage(input: {
   conversationId: string;
   prompt: string;
   modelId: string;
 }) {
   try {
-    const { bytes, mime } = await generateImage({ modelId: input.modelId, prompt: input.prompt });
+    // Generate from the subject alone; the original request is kept below as the
+    // caption. Sending the whole "please make me a picture of …" sentence is a
+    // large part of why the results came out strange.
+    const { bytes, mime } = await generateImage({
+      modelId: input.modelId,
+      prompt: cleanImagePrompt(input.prompt),
+    });
 
     // Stored the way attachments are: a generated id outside the web root,
     // never a name derived from the prompt, served through a route that

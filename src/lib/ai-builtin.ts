@@ -210,6 +210,14 @@ const ENTRIES: Entry[] = [
     },
   },
   {
+    id: "about",
+    keywords: ["kanovra", "gioi thieu", "san pham", "what is kanovra", "about kanovra", "ung dung gi", "app gi", "phan mem gi", "introduce"],
+    answer: {
+      vi: "**Kanovra** là ứng dụng quản lý công việc cho nhóm: workspace, project, bảng **Kanban** kéo–thả, task/subtask, checklist, bình luận, lịch, phân tích, thông báo và **sơ đồ tư duy** (maps). Có phân quyền 4 cấp (Viewer/Member/Admin/Owner), chia sẻ board công khai chỉ-đọc, xuất CSV, và trợ lý AI này. Bạn có thể bảo mình “tạo project tên …” hay “tạo map circle tên …” là mình tạo luôn.",
+      en: "**Kanovra** is team task management: workspaces, projects, a drag-and-drop **Kanban** board, tasks/subtasks, checklists, comments, calendar, analytics, notifications and **mind maps**. It has a four-level permission model (Viewer/Member/Admin/Owner), read-only public board sharing, CSV export, and this AI assistant. You can tell me “create a project named …” or “create a circle map named …” and I'll make it.",
+    },
+  },
+  {
     id: "real-ai",
     keywords: ["gemini", "claude", "chatgpt", "openai", "api key", "model manh", "dung ai that", "tra phi", "con ai khac", "ai xin", "mo hinh khac"],
     answer: {
@@ -230,14 +238,31 @@ const FALLBACK: Record<Lang, string> = {
  * Scored by how many of an entry's trigger phrases the (accent-folded) question
  * contains, so a more specific question — more phrases matched — beats a vaguer
  * one, and ties fall to the earlier, more general entry.
+ *
+ * A phrase counts fully when it appears as-is, and *half* when it is a
+ * multi-word phrase whose words are all present but not adjacent — so
+ * "tạo cho tôi một project" still finds `project-create` even though the words
+ * "tạo" and "project" are split by three others. The exact phrase still outranks
+ * the scattered one, and a single word (which cannot be "split") only ever
+ * counts on an exact hit, so this widens what matches without inventing matches:
+ * "what is the weather" still finds nothing.
  */
 export function matchEntry(question: string): Entry | null {
   const flat = deaccent(question).toLowerCase();
+  const words = new Set(flat.split(/[^a-z0-9]+/).filter(Boolean));
+
   let best: Entry | null = null;
   let bestScore = 0;
   for (const entry of ENTRIES) {
     let score = 0;
-    for (const keyword of entry.keywords) if (flat.includes(keyword)) score += 1;
+    for (const keyword of entry.keywords) {
+      if (flat.includes(keyword)) {
+        score += 1;
+        continue;
+      }
+      const parts = keyword.split(" ").filter(Boolean);
+      if (parts.length >= 2 && parts.every((w) => words.has(w))) score += 0.5;
+    }
     if (score > bestScore) {
       bestScore = score;
       best = entry;
