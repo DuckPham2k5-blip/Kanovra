@@ -119,15 +119,14 @@ describe("moteAlpha", () => {
   });
 
   /*
-   * The light theme is bold now, its own decision rather than a fraction of
-   * dark: the owner asked for each speck to be prominent enough to notice. It
-   * still sits below dark's peak (dark are stars on near-black; light are ink on
-   * a pale page), but the old "under half of dark" cap is gone on purpose — that
-   * is the rule this change relaxes, pinned here so it is not re-tightened by
-   * reflex.
+   * The light theme is its own decision, not a fraction of dark. It is soft now
+   * — the aura carries the prominence, so the centre sits light — but still a
+   * real mark (not invisible) and still below dark's peak. The old "under half
+   * of dark" cap is gone on purpose; this only pins that the speck neither
+   * vanishes nor overtakes dark.
    */
-  it("is bold on the light theme, and still under dark's peak", () => {
-    expect(moteAlpha(0.5, false)).toBeGreaterThanOrEqual(0.5);
+  it("is a soft but real mark on the light theme, under dark's peak", () => {
+    expect(moteAlpha(0.5, false)).toBeGreaterThan(0.25);
     expect(moteAlpha(0.5, false)).toBeLessThan(moteAlpha(0.5, true));
   });
 
