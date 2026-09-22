@@ -6,20 +6,20 @@ import { RegionProvider } from "@/components/settings/region-provider";
 import { PreferencesProvider } from "@/components/settings/use-preferences";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { DateFormatKey } from "@/lib/region";
+import type { Region } from "@/lib/region";
 
 /**
  * Client-side providers mounted once in the root layout.
  * `ClerkProvider` stays in the layout itself so it can wrap the <html> element.
- * `dateFormat` is read from the cookie by the server layout and passed in, so
- * the region formatters render the same on the server and the client.
+ * `region` (date format + timezone) is read from the cookie by the server
+ * layout and passed in, so the formatters render the same on server and client.
  */
 export function Providers({
   children,
-  dateFormat,
+  region,
 }: {
   children: React.ReactNode;
-  dateFormat: DateFormatKey;
+  region: Region;
 }) {
   return (
     <ThemeProvider
@@ -30,7 +30,7 @@ export function Providers({
       storageKey="kanovra-theme"
     >
       <PreferencesProvider>
-        <RegionProvider initial={dateFormat}>
+        <RegionProvider initial={region}>
           <TooltipProvider delayDuration={200} skipDelayDuration={300}>
             {children}
             <Toaster />

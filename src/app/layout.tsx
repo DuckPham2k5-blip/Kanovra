@@ -6,7 +6,7 @@ import { cookies } from "next/headers";
 import { APPEARANCE_INIT_SCRIPT } from "@/components/settings/appearance-init";
 import { Providers } from "@/components/providers";
 import { APP_DESCRIPTION, APP_NAME, APP_TAGLINE } from "@/lib/constants";
-import { parseDateFormat, REGION_COOKIE } from "@/lib/region";
+import { parseRegionCookie, REGION_COOKIE } from "@/lib/region";
 
 import "./globals.css";
 
@@ -78,7 +78,7 @@ export const viewport: Viewport = {
  * component.
  */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const dateFormat = parseDateFormat((await cookies()).get(REGION_COOKIE)?.value);
+  const region = parseRegionCookie((await cookies()).get(REGION_COOKIE)?.value);
   return (
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning className={`${sans.variable} ${mono.variable}`}>
@@ -88,7 +88,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               not flash the defaults first. The theme's own no-flash script,
               injected by next-themes, handles dark/light the same way. */}
           <script dangerouslySetInnerHTML={{ __html: APPEARANCE_INIT_SCRIPT }} />
-          <Providers dateFormat={dateFormat}>{children}</Providers>
+          <Providers region={region}>{children}</Providers>
         </body>
       </html>
     </ClerkProvider>
