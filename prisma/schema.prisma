@@ -135,6 +135,7 @@ model User {
   savedViews         SavedView[]
   shareLinks         ShareLink[]          @relation("ShareLinkCreator")
   aiConversations    AiConversation[]
+  notificationPrefs  NotificationPreference[]
 
   @@index([email])
   @@map("users")
@@ -608,6 +609,25 @@ model Notification {
 
   @@index([userId, read, createdAt])
   @@map("notifications")
+}
+
+/// One row per person per muted notification category. Absence means "on" — the
+/// default is opt-out, so a person only ever has rows for categories they have
+/// turned off, and a brand-new account receives everything without any rows.
+/// `category` is a plain string keyed in TypeScript (`notification-prefs.ts`)
+/// rather than a Prisma enum, so adding a category is a code change, not an enum
+/// migration with the delete-before-swap ordering that trap warns about.
+model NotificationPreference {
+  id        String   @id @default(cuid())
+  userId    String
+  category  String
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+  @@map("notification_preferences")
 }
 
 /// The eight Thinking Maps. Each has its own structure, so the shape stored in

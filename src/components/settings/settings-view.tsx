@@ -15,6 +15,7 @@ import * as React from "react";
 
 import { AiCard } from "@/components/settings/ai-card";
 import { AppearanceCard } from "@/components/settings/appearance-card";
+import { NotificationsCard } from "@/components/settings/notifications-card";
 import { ProfileCard } from "@/components/settings/profile-card";
 import {
   AccountOverviewCard,
@@ -22,10 +23,10 @@ import {
   DataPrivacyCard,
   IntegrationsCard,
   LanguageCard,
-  NotificationsCard,
   SecurityCard,
 } from "@/components/settings/static-cards";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { NotificationCategory } from "@/lib/notification-prefs";
 import { cn } from "@/lib/utils";
 
 export type SettingsOverview = {
@@ -51,11 +52,13 @@ const RAIL = [
 export function SettingsView({
   overview,
   aiModels,
+  notificationPrefs,
   workspaceSlot,
   organizationSlot,
 }: {
   overview: SettingsOverview;
   aiModels: { id: string; label: string }[];
+  notificationPrefs: Record<NotificationCategory, boolean>;
   workspaceSlot: React.ReactNode;
   organizationSlot: React.ReactNode;
 }) {
@@ -84,7 +87,7 @@ export function SettingsView({
                 <AppearanceCard />
                 <AiCard models={aiModels} />
                 <AccountOverviewCard {...overview} />
-                <NotificationsCard />
+                <NotificationsCard initial={notificationPrefs} />
                 <LanguageCard />
                 <SecurityCard />
                 <DataPrivacyCard />

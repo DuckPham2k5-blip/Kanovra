@@ -12,6 +12,7 @@ import { requireWorkspace } from "@/lib/auth";
 import { providerStatus } from "@/lib/ai-providers";
 import { prisma } from "@/lib/prisma";
 import { ROLE_LABEL } from "@/lib/permissions";
+import { getNotificationPreferences } from "@/server/actions/notification-prefs";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -31,8 +32,15 @@ export default async function WorkspaceSettingsPage({
   });
   const workspaceIds = memberships.map((m) => m.workspaceId);
 
-  const [labels, memberCount, workspaceProjectCount, owner, totalProjects, totalTasks] =
-    await Promise.all([
+  const [
+    labels,
+    memberCount,
+    workspaceProjectCount,
+    owner,
+    totalProjects,
+    totalTasks,
+    notificationPrefs,
+  ] = await Promise.all([
       prisma.label.findMany({
         where: { workspaceId: workspace.id },
         orderBy: { name: "asc" },
@@ -46,6 +54,7 @@ export default async function WorkspaceSettingsPage({
       }),
       prisma.project.count({ where: { workspaceId: { in: workspaceIds } } }),
       prisma.task.count({ where: { project: { workspaceId: { in: workspaceIds } } } }),
+      getNotificationPreferences(user.id),
     ]);
 
   const overview: SettingsOverview = {
@@ -194,6 +203,7 @@ export default async function WorkspaceSettingsPage({
       <SettingsView
         overview={overview}
         aiModels={aiModels}
+        notificationPrefs={notificationPrefs}
         workspaceSlot={workspaceSlot}
         organizationSlot={organizationSlot}
       />

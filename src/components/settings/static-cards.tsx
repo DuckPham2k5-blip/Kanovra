@@ -1,5 +1,4 @@
 import {
-  Bell,
   BarChart3,
   Blocks,
   CreditCard,
@@ -55,42 +54,6 @@ export function AccountOverviewCard({
           </div>
         ))}
       </dl>
-    </SettingsCard>
-  );
-}
-
-const NOTIFICATION_TYPES = [
-  "Task assignments",
-  "Task updates",
-  "Task due dates",
-  "Mentions & comments",
-  "Project updates",
-  "AI notifications",
-];
-
-export function NotificationsCard() {
-  return (
-    <SettingsCard
-      id="notifications"
-      icon={Bell}
-      title="Notifications"
-      description="Choose what you want to be notified about."
-      action={<ComingSoonBadge />}
-    >
-      <p className="mb-3 text-xs text-muted-foreground">
-        In-app notifications are on today (the bell in the top bar). Per-type controls and
-        email/browser delivery are on the way.
-      </p>
-      <ul className="divide-y">
-        {NOTIFICATION_TYPES.map((label) => (
-          <li key={label} className="flex items-center justify-between py-2.5 text-sm">
-            <span className="text-muted-foreground">{label}</span>
-            <Badge variant="outline" className="text-[11px] font-normal">
-              In-app
-            </Badge>
-          </li>
-        ))}
-      </ul>
     </SettingsCard>
   );
 }

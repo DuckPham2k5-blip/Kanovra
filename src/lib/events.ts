@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { categoryForType } from "@/lib/notification-prefs";
 import { ORIGIN_COOKIE, publishChange, type ChangeEvent } from "@/lib/realtime";
 
 /**
@@ -91,9 +92,39 @@ type NotifyInput = {
   actorId?: string | null;
 };
 
-/** Sends one notification, skipping the case where the actor is the recipient. */
+/**
+ * The recipients from `userIds` who have *not* muted this category. A single
+ * query for the disabled rows, since absence means enabled — so a fresh account
+ * with no rows at all is returned whole. Ungated types (an invitation) skip the
+ * check entirely and always go through.
+ */
+async function notifiableUsers(
+  userIds: string[],
+  type: NotificationType,
+): Promise<string[]> {
+  const category = categoryForType(type);
+  if (!category || userIds.length === 0) return userIds;
+  try {
+    const muted = await prisma.notificationPreference.findMany({
+      where: { userId: { in: userIds }, category, enabled: false },
+      select: { userId: true },
+    });
+    if (muted.length === 0) return userIds;
+    const off = new Set(muted.map((m) => m.userId));
+    return userIds.filter((id) => !off.has(id));
+  } catch (error) {
+    // A failed preference read must not swallow the notification — fail open,
+    // the same way the writes below fail without rolling back the user's change.
+    logError("notification.prefs", error, { type });
+    return userIds;
+  }
+}
+
+/** Sends one notification, skipping the actor and anyone who muted the category. */
 export async function notify(input: NotifyInput) {
   if (input.actorId && input.actorId === input.userId) return;
+  const [allowed] = await notifiableUsers([input.userId], input.type);
+  if (!allowed) return;
   try {
     await prisma.notification.create({
       data: {
@@ -114,10 +145,11 @@ export async function notify(input: NotifyInput) {
 /** Fan-out helper — de-duplicates recipients and drops the actor. */
 export async function notifyMany(userIds: string[], input: Omit<NotifyInput, "userId">) {
   const unique = Array.from(new Set(userIds)).filter((id) => id !== input.actorId);
-  if (unique.length === 0) return;
+  const recipients = await notifiableUsers(unique, input.type);
+  if (recipients.length === 0) return;
   try {
     await prisma.notification.createMany({
-      data: unique.map((userId) => ({
+      data: recipients.map((userId) => ({
         userId,
         workspaceId: input.workspaceId,
         type: input.type,
