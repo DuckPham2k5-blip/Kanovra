@@ -92,9 +92,18 @@ function readStored(): Preferences {
 export function applyPreferences(prefs: Preferences) {
   const root = document.documentElement;
 
-  const swatch = ACCENT_SWATCHES.find((s) => s.key === prefs.accent);
-  if (swatch?.hsl) root.style.setProperty("--primary", swatch.hsl);
-  else root.style.removeProperty("--primary");
+  // Spectrum is not a colour but a motion: CSS cycles `--primary` through the
+  // whole hue wheel, so the inline override is cleared and a data flag drives
+  // the animation instead. Every other accent is one inline HSL triplet.
+  if (prefs.accent === "spectrum") {
+    root.style.removeProperty("--primary");
+    root.dataset.spectrum = "on";
+  } else {
+    delete root.dataset.spectrum;
+    const swatch = ACCENT_SWATCHES.find((s) => s.key === prefs.accent);
+    if (swatch?.hsl) root.style.setProperty("--primary", swatch.hsl);
+    else root.style.removeProperty("--primary");
+  }
 
   root.dataset.bgStyle = prefs.background;
   root.dataset.motion = prefs.reduceMotion ? "off" : "on";

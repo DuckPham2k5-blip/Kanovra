@@ -78,24 +78,20 @@ export function SettingsView({
             {/* Section rail — sticky anchors that light up the section in view. */}
             <SectionRail />
 
-            {/* Cards. Profile spans the full width; the rest flow in a masonry
-                so tall and short cards pack without leaving gaps. */}
+            {/* Cards, one per row. A single column keeps DOM order and visual
+                order identical, so a section anchor jumps to its own card
+                rather than to wherever a masonry column happened to place it. */}
             <div className="min-w-0 flex-1 space-y-4">
               <ProfileCard />
-              <div
-                className="lg:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid"
-                style={{ columnGap: "1rem" }}
-              >
-                <AppearanceCard />
-                <AiCard models={aiModels} />
-                <AccountOverviewCard {...overview} />
-                <NotificationsCard initial={notificationPrefs} />
-                <LanguageCard />
-                <SecurityCard />
-                <DataPrivacyCard exportHref={`/api/workspaces/${workspaceSlug}/export`} />
-                <IntegrationsCard />
-                <BillingCard plan={overview.plan} />
-              </div>
+              <AppearanceCard />
+              <AiCard models={aiModels} />
+              <AccountOverviewCard {...overview} />
+              <NotificationsCard initial={notificationPrefs} />
+              <LanguageCard />
+              <SecurityCard />
+              <DataPrivacyCard exportHref={`/api/workspaces/${workspaceSlug}/export`} />
+              <IntegrationsCard />
+              <BillingCard plan={overview.plan} />
             </div>
           </div>
         </TabsContent>

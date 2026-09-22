@@ -1675,3 +1675,40 @@ html[data-bg-style="grid"] .tf-ambient::after {
   mask-image: radial-gradient(ellipse 70% 60% at 50% 12%, black, transparent 78%);
   opacity: 0.5;
 }
+
+/* ---------------------------------------------------------------------------
+   Spectrum accent — the one accent that is a motion, not a colour.
+
+   `--primary` is cycled through the whole hue wheel by animating a registered
+   custom property. A full loop is 6s; change that one number to make it faster
+   or slower. The saturation and lightness are fixed so only the hue moves, and
+   they are chosen to stay legible under white/dark foreground text.
+
+   Under the app's reduce-motion switch the cycle is frozen to a single violet —
+   note that the blanket reduce-motion rule targets descendants (`… *`), not the
+   <html> element the animation lives on, so this needs its own stop.
+--------------------------------------------------------------------------- */
+@property --kanovra-hue {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 280;
+}
+
+@keyframes kanovra-spectrum-cycle {
+  from {
+    --kanovra-hue: 0;
+  }
+  to {
+    --kanovra-hue: 360;
+  }
+}
+
+html[data-spectrum="on"] {
+  --primary: var(--kanovra-hue) 85% 62%;
+  animation: kanovra-spectrum-cycle 6s linear infinite;
+}
+
+html[data-spectrum="on"][data-motion="off"] {
+  animation: none;
+  --primary: 280 85% 62%;
+}
