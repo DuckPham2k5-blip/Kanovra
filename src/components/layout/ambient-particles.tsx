@@ -113,16 +113,18 @@ export function AmbientParticles() {
       mote.speed = 0.02 + Math.random() * 0.05;
       mote.roll = Math.random();
       mote.phase = Math.random() * Math.PI * 2;
-      mote.twinkle = 0.6 + Math.random() * 1.1;
-      // About a third blink deeply (down to ~0.1 and back), the rest only
-      // shimmer (staying near full). Amplitude and midpoint together, so a deep
-      // blinker's floor cannot dip below zero.
-      if (Math.random() < 0.35) {
-        mote.twAmp = 0.45;
-        mote.twMid = 0.55;
+      mote.twinkle = 0.8 + Math.random() * 0.8;
+      // Roughly half blink deeply (all but winking out and back), the rest
+      // shimmer clearly rather than barely. Amplitude and midpoint together, so
+      // a deep blinker's floor stays just above zero. Raised from a near-still
+      // shimmer on purpose — under reduced motion the travel is frozen, so this
+      // twinkle is the *only* motion left and has to be visible on its own.
+      if (Math.random() < 0.45) {
+        mote.twAmp = 0.46;
+        mote.twMid = 0.52;
       } else {
-        mote.twAmp = 0.12;
-        mote.twMid = 0.88;
+        mote.twAmp = 0.26;
+        mote.twMid = 0.7;
       }
     }
 
@@ -224,7 +226,12 @@ export function AmbientParticles() {
         // own depth too — a deep blinker or a faint shimmer — set once at spawn.
         // Under reduced motion this is all that is left of the animation, which is
         // why the deep ones go deep enough to be worth watching on their own.
-        const twinkle = mote.twMid + mote.twAmp * Math.sin((now / 900) * mote.twinkle + mote.phase);
+        //
+        // The `380` sets the pace: with the rates above it gives each mote a
+        // full blink every ~1.5–3s — fast enough to read as twinkling, slow
+        // enough not to strobe. (It was `900`, a languid 3–9s that read as
+        // static once the field stopped travelling under reduced motion.)
+        const twinkle = mote.twMid + mote.twAmp * Math.sin((now / 380) * mote.twinkle + mote.phase);
 
         const radius = moteRadius(mote.roll, dark);
 
