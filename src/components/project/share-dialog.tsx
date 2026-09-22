@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formatDate } from "@/lib/date";
+import { useRegion } from "@/components/settings/region-provider";
 import { SHARE_EXPIRY_CHOICES, shareUrl, type ShareExpiryChoice } from "@/lib/share-link";
 import { createShareLink, revokeShareLink } from "@/server/actions/share";
 
@@ -71,6 +71,7 @@ export function ShareDialog({
   link: ShareLinkState;
 }) {
   const router = useRouter();
+  const { formatDate } = useRegion();
   const [pending, setPending] = React.useState(false);
   const [expiry, setExpiry] = React.useState<ShareExpiryChoice>("30d");
   const [copied, setCopied] = React.useState(false);

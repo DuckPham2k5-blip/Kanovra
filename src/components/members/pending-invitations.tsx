@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatDate } from "@/lib/date";
+import { useRegion } from "@/components/settings/region-provider";
 import { ROLE_LABEL } from "@/lib/permissions";
 import { revokeInvitation } from "@/server/actions/member";
 
@@ -25,6 +25,7 @@ type Invitation = {
 
 export function PendingInvitations({ invitations }: { invitations: Invitation[] }) {
   const router = useRouter();
+  const { formatDate } = useRegion();
   const [revoking, setRevoking] = React.useState<string | null>(null);
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
 

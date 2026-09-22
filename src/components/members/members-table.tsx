@@ -19,7 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { formatDate } from "@/lib/date";
+import { useRegion } from "@/components/settings/region-provider";
 import { assignableRoles, ROLE_LABEL } from "@/lib/permissions";
 import { removeMember, transferOwnership, updateMemberRole } from "@/server/actions/member";
 
@@ -55,6 +55,7 @@ export function MembersTable({
   members: MemberRow[];
 }) {
   const router = useRouter();
+  const { formatDate } = useRegion();
   const [query, setQuery] = React.useState("");
   const [pendingRemove, setPendingRemove] = React.useState<MemberRow | null>(null);
   const [pendingTransfer, setPendingTransfer] = React.useState<MemberRow | null>(null);

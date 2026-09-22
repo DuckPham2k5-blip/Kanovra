@@ -38,7 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { formatDate } from "@/lib/date";
+import { useRegion } from "@/components/settings/region-provider";
 import { bannerPresetCss, isLightBanner } from "@/lib/project-banners";
 import { cn } from "@/lib/utils";
 import { deleteProject, setProjectArchived } from "@/server/actions/project";
@@ -127,6 +127,7 @@ export function ProjectHeader({
 }) {
   const router = useRouter();
   const segment = useSelectedLayoutSegment();
+  const { formatDate } = useRegion();
   const [editOpen, setEditOpen] = React.useState(false);
   const [membersOpen, setMembersOpen] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);

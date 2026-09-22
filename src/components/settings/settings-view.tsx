@@ -15,6 +15,7 @@ import * as React from "react";
 
 import { AiCard } from "@/components/settings/ai-card";
 import { AppearanceCard } from "@/components/settings/appearance-card";
+import { LanguageCard } from "@/components/settings/language-card";
 import { NotificationsCard } from "@/components/settings/notifications-card";
 import { ProfileCard } from "@/components/settings/profile-card";
 import {
@@ -22,7 +23,6 @@ import {
   BillingCard,
   DataPrivacyCard,
   IntegrationsCard,
-  LanguageCard,
   SecurityCard,
 } from "@/components/settings/static-cards";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";

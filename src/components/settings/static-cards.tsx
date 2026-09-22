@@ -4,7 +4,6 @@ import {
   CreditCard,
   Database,
   Download,
-  Globe,
   Shield,
 } from "lucide-react";
 
@@ -55,34 +54,6 @@ export function AccountOverviewCard({
           </div>
         ))}
       </dl>
-    </SettingsCard>
-  );
-}
-
-export function LanguageCard() {
-  return (
-    <SettingsCard
-      id="language"
-      icon={Globe}
-      title="Language & Region"
-      description="Set your language, timezone, and date format."
-      action={<ComingSoonBadge />}
-    >
-      <dl className="divide-y">
-        {[
-          ["Language", "English"],
-          ["Timezone", "Auto (from your device)"],
-          ["Date format", "DD/MM/YYYY"],
-        ].map(([label, value]) => (
-          <div key={label} className="flex items-center justify-between py-2.5 text-sm">
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className="font-medium">{value}</dd>
-          </div>
-        ))}
-      </dl>
-      <p className="mt-3 text-[11px] text-muted-foreground">
-        The interface is English throughout for now; localization is planned.
-      </p>
     </SettingsCard>
   );
 }

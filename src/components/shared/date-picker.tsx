@@ -5,8 +5,8 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { useRegion } from "@/components/settings/region-provider";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { formatDate } from "@/lib/date";
 import { cn } from "@/lib/utils";
 
 /** Single-date picker with a clear button; `null` means "no date". */
@@ -24,6 +24,7 @@ export function DatePicker({
   className?: string;
 }) {
   const [open, setOpen] = React.useState(false);
+  const { formatDate } = useRegion();
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

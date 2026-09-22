@@ -21,9 +21,12 @@ export function formatDate(date: Date | string | null | undefined, pattern = "MM
   return format(new Date(date), pattern, OPTS);
 }
 
-export function formatDateTime(date: Date | string | null | undefined) {
+export function formatDateTime(
+  date: Date | string | null | undefined,
+  pattern = "MMM d, yyyy 'at' h:mm a",
+) {
   if (!date) return "—";
-  return format(new Date(date), "MMM d, yyyy 'at' h:mm a", OPTS);
+  return format(new Date(date), pattern, OPTS);
 }
 
 /** `2 hours ago` — used by the activity feed and comment list. */

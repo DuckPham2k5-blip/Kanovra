@@ -40,7 +40,8 @@ import {
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { PRIORITY_META, PRIORITY_ORDER, TASK_STATUS_META, TASK_STATUS_ORDER } from "@/lib/constants";
-import { formatDate, fromNow } from "@/lib/date";
+import { useRegion } from "@/components/settings/region-provider";
+import { fromNow } from "@/lib/date";
 import { describeRecurrence, parseRecurrence } from "@/lib/recurrence";
 import { cn } from "@/lib/utils";
 import {
@@ -88,6 +89,7 @@ export function TaskDetailSheet({
   workspaceSlug: string;
 }) {
   const router = useRouter();
+  const { formatDate } = useRegion();
   const [title, setTitle] = React.useState(task.title);
   const [description, setDescription] = React.useState(task.description ?? "");
   const [savingField, setSavingField] = React.useState<string | null>(null);

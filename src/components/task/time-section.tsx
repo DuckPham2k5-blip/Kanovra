@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatDate } from "@/lib/date";
+import { useRegion } from "@/components/settings/region-provider";
 import {
   entrySeconds,
   estimateProgress,
@@ -55,6 +55,7 @@ export function TimeSection({
   canEdit: boolean;
 }) {
   const router = useRouter();
+  const { formatDate } = useRegion();
   const [pending, setPending] = React.useState(false);
   const [adding, setAdding] = React.useState(false);
   const [minutes, setMinutes] = React.useState("");

@@ -34,7 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PRIORITY_META, PRIORITY_ORDER, TASK_STATUS_META, TASK_STATUS_ORDER } from "@/lib/constants";
-import { formatDate } from "@/lib/date";
+import { useRegion } from "@/components/settings/region-provider";
 import { csvFilename, taskCsv, type ExportRow } from "@/lib/task-csv";
 import { deaccent, cn } from "@/lib/utils";
 import { deleteTask, restoreDeletedTasks, toggleTaskDone } from "@/server/actions/task";
@@ -104,6 +104,7 @@ export function TaskList({
   canManageViews?: boolean;
 }) {
   const router = useRouter();
+  const { formatDate } = useRegion();
 
   /**
    * The rows picked out for a bulk edit, and where the last pick was.

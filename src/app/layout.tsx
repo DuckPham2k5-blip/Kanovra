@@ -1,10 +1,12 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 
 import { APPEARANCE_INIT_SCRIPT } from "@/components/settings/appearance-init";
 import { Providers } from "@/components/providers";
 import { APP_DESCRIPTION, APP_NAME, APP_TAGLINE } from "@/lib/constants";
+import { parseDateFormat, REGION_COOKIE } from "@/lib/region";
 
 import "./globals.css";
 
@@ -75,7 +77,8 @@ export const viewport: Viewport = {
  * is paid on every route rather than on the two screens that show a Clerk
  * component.
  */
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const dateFormat = parseDateFormat((await cookies()).get(REGION_COOKIE)?.value);
   return (
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning className={`${sans.variable} ${mono.variable}`}>
@@ -85,7 +88,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               not flash the defaults first. The theme's own no-flash script,
               injected by next-themes, handles dark/light the same way. */}
           <script dangerouslySetInnerHTML={{ __html: APPEARANCE_INIT_SCRIPT }} />
-          <Providers>{children}</Providers>
+          <Providers dateFormat={dateFormat}>{children}</Providers>
         </body>
       </html>
     </ClerkProvider>
