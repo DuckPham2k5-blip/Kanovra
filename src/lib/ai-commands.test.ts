@@ -100,6 +100,9 @@ describe("looksLikeImageRequest", () => {
     expect(looksLikeImageRequest("tạo ảnh logo kanovra")).toBe(true);
     expect(looksLikeImageRequest("vẽ một con mèo")).toBe(true);
     expect(looksLikeImageRequest("a picture of a mountain")).toBe(true);
+    // "tạo" and "ảnh" split by "cho tôi" — still an image request.
+    expect(looksLikeImageRequest("tạo cho tôi ảnh con mèo")).toBe(true);
+    expect(looksLikeImageRequest("vẽ cho mình hình con chó")).toBe(true);
   });
 
   it("does not mistake a real project/map create for a picture request", () => {

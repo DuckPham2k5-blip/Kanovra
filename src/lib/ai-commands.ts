@@ -79,7 +79,7 @@ export function looksLikeQuestion(message: string): boolean {
  * "anh" and words like "cấu hình" do not trip it.
  */
 const IMAGE_REQUEST =
-  /\b(tao anh|tao hinh|tao buc|lam anh|lam hinh|ve anh|hinh anh|buc anh|tam anh|mot anh|1 anh|anh ve|anh cua|hinh ve|buc tranh|ve mot|ve 1|ve cho|ve giup|ve buc|picture|image|photo|drawing|illustration|wallpaper)\b/;
+  /\b(tao anh|tao hinh|tao buc|lam anh|lam hinh|ve anh|hinh anh|buc anh|tam anh|mot anh|1 anh|anh ve|anh cua|hinh ve|buc tranh|ve mot|ve 1|ve cho|ve giup|ve buc|cho toi anh|cho minh anh|cho tao anh|cho toi hinh|cho minh hinh|picture|image|photo|drawing|illustration|wallpaper)\b/;
 
 export function looksLikeImageRequest(message: string): boolean {
   return IMAGE_REQUEST.test(deaccent(message).toLowerCase());
