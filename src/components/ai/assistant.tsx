@@ -142,6 +142,45 @@ export function Assistant({
   }, []);
 
   /*
+   * The AI preferences set in Settings → AI Assistant. They live in the same
+   * browser, so they are read here rather than passed down: a preferred model
+   * restores the picker, and style/tone/memory shape the profile sent with each
+   * question. `tf-ai-memory` gates only the personal context — style and tone
+   * are separate choices and apply regardless.
+   */
+  React.useEffect(() => {
+    try {
+      const preferred = localStorage.getItem("tf-ai-model");
+      if (preferred && providers.some((p) => p.configured && p.models.some((m) => m.id === preferred))) {
+        setModelId(preferred);
+      }
+    } catch {
+      // Blocked storage: keep the server-chosen default.
+    }
+  }, [providers]);
+
+  const effectiveProfile = React.useCallback((): string | null => {
+    let memoryOn = true;
+    let style = "balanced";
+    let tone = "professional";
+    try {
+      memoryOn = localStorage.getItem("tf-ai-memory") !== "0";
+      style = localStorage.getItem("tf-ai-style") ?? "balanced";
+      tone = localStorage.getItem("tf-ai-tone") ?? "professional";
+    } catch {
+      // Blocked storage: fall through to the defaults above.
+    }
+    const parts: string[] = [];
+    if (style !== "balanced" || tone !== "professional") {
+      const styleWord =
+        style === "concise" ? "concise, to-the-point" : style === "detailed" ? "thorough, detailed" : "balanced";
+      parts.push(`Please answer in a ${styleWord} style with a ${tone} tone.`);
+    }
+    if (memoryOn && profile.trim()) parts.push(profile.trim());
+    return parts.join("\n\n") || null;
+  }, [profile]);
+
+  /*
    * Whether the right history column is folded to a thin rail. Kept in
    * `localStorage` so the choice sticks across visits, and read after mount so
    * the server and first client render agree (both start expanded).
@@ -224,7 +263,7 @@ export function Assistant({
           modelId,
           thinking,
           path: previousPath(searchParams),
-          profile: profile.trim() || null,
+          profile: effectiveProfile(),
         }),
       });
 
