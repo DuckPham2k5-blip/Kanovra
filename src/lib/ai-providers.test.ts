@@ -105,6 +105,11 @@ describe("defaultModel", () => {
     );
   });
 
+  it("uses Groq's first model when only its key is set", () => {
+    const REAL = "test-key-abcdefghijklmnopqrstuvwxyz";
+    expect(defaultModel(providerStatus({ GROQ_API_KEY: REAL }))).toBe("llama-3.3-70b-versatile");
+  });
+
   it("prefers a configured keyed provider over the built-in", () => {
     // The built-in is last, so a real key wins the default when there is one.
     expect(defaultModel(providerStatus({ ANTHROPIC_API_KEY: REAL }))).toBe("claude-opus-5");

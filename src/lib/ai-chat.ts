@@ -190,6 +190,9 @@ export async function* streamChat(input: {
     case "openrouter":
       yield* streamOpenRouter({ ...input, key: key!, thinking });
       return;
+    case "groq":
+      yield* streamGroq({ ...input, key: key! });
+      return;
   }
 }
 
@@ -351,6 +354,39 @@ async function* streamOpenRouter(input: {
         ...input.turns.map((t) => ({ role: t.role, content: t.content })),
       ],
       ...(input.thinking ? { reasoning: { effort: "high" } } : {}),
+    }),
+  });
+
+  yield* readSse(response, (frame: OpenAiFrame) => frame.choices?.[0]?.delta?.content ?? "");
+}
+
+/**
+ * Groq, which also speaks OpenAI's wire format — a bearer key and the same SSE.
+ * Its free tier is generous and it does not gate key issuance the way Google's
+ * does, which is why it is here. No `reasoning` field: its models on this list
+ * are plain chat models.
+ */
+async function* streamGroq(input: {
+  modelId: string;
+  system: string;
+  turns: ChatTurn[];
+  key: string;
+  signal?: AbortSignal;
+}): AsyncGenerator<string> {
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    signal: input.signal,
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${input.key}`,
+    },
+    body: JSON.stringify({
+      model: input.modelId,
+      stream: true,
+      messages: [
+        { role: "system", content: input.system },
+        ...input.turns.map((t) => ({ role: t.role, content: t.content })),
+      ],
     }),
   });
 

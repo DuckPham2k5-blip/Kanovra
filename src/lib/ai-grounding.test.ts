@@ -196,6 +196,16 @@ describe("the grounding reaches the provider", () => {
     expect(system).toContain("Kanban board");
   });
 
+  it("sends the guide to Groq, as the system message", async () => {
+    const req = await captureRequest("llama-3.3-70b-versatile", "GROQ_API_KEY");
+    const body = req.body as { messages: { role: string; content: string }[] };
+    const system = body.messages.find((m) => m.role === "system")!.content;
+
+    expect(req.url).toContain("api.groq.com");
+    expect(system).toContain("⋯ menu");
+    expect(system).toContain("Kanban board");
+  });
+
   it("carries the whole guide, not a truncated head of it", async () => {
     // A prompt assembled correctly and then cut by a max-length somewhere would
     // lose the concepts at the end — the sharing answer among them — and the

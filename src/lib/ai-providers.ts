@@ -29,7 +29,7 @@ export type AiModel = {
 };
 
 export type AiProvider = {
-  id: "anthropic" | "google" | "openai" | "openrouter" | "builtin";
+  id: "anthropic" | "google" | "openai" | "openrouter" | "groq" | "builtin";
   label: string;
   /** What the picker calls the family, for people who know the product name. */
   familiarName: string;
@@ -170,6 +170,40 @@ export const AI_PROVIDERS: AiProvider[] = [
         label: "Nemotron 3 · free (reasoning)",
         hint: "Free reasoning model — works the answer out at length.",
         capabilities: ["text", "reasoning"],
+      },
+    ],
+  },
+  {
+    /*
+     * Groq — a free, fast, OpenAI-compatible service whose key issuance is not
+     * gated the way Google's is (which blocked the owner with "suspicious"), and
+     * whose free daily limits are far higher than OpenRouter's. Model ids are
+     * plain constants and can be swapped from `GET /openai/v1/models` if one is
+     * retired, the same as OpenRouter.
+     */
+    id: "groq",
+    label: "Groq",
+    familiarName: "Groq",
+    envVar: "GROQ_API_KEY",
+    keyUrl: "https://console.groq.com/keys",
+    models: [
+      {
+        id: "llama-3.3-70b-versatile",
+        label: "Llama 3.3 70B · free",
+        hint: "Free, fast and multilingual — a good default.",
+        capabilities: ["text"],
+      },
+      {
+        id: "llama-3.1-8b-instant",
+        label: "Llama 3.1 8B · free",
+        hint: "Free and very fast for short answers.",
+        capabilities: ["text"],
+      },
+      {
+        id: "gemma2-9b-it",
+        label: "Gemma 2 9B · free",
+        hint: "Free, from Google, served on Groq.",
+        capabilities: ["text"],
       },
     ],
   },
