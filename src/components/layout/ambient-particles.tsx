@@ -192,18 +192,22 @@ export function AmbientParticles() {
 
       /*
        * Stars, not dots. The glow is a canvas shadow of the mote's own colour,
-       * which is what turns a flat 2px circle into something with a halo — and it
+       * which is what turns a flat circle into something with a halo — and it
        * is set once for the whole field rather than per mote, because changing
        * `shadowBlur` between fills is one of the more expensive things a 2D
        * context can be asked to do.
        *
-       * No halo on the light theme. Black ink glowing black over a pale page is a
-       * grey smear, and the point there is a crisp speck.
+       * The light theme now has a halo too — an *aura* the owner asked for. A
+       * black shadow over a pale page reads as a soft grey ring around the black
+       * centre, which is exactly what makes each speck register instead of
+       * sitting flat. Kept moderate (5px, against dark's 8) so it stays a halo
+       * and not the "grey smear" this once avoided outright: enough to notice,
+       * small enough that neighbours do not run together.
        */
       const ink = moteInk(dark, accent);
       ctx.fillStyle = ink;
-      ctx.shadowColor = dark ? ink : "transparent";
-      ctx.shadowBlur = dark ? 8 : 0;
+      ctx.shadowColor = ink;
+      ctx.shadowBlur = dark ? 8 : 5;
 
       const still = calm.matches;
 
