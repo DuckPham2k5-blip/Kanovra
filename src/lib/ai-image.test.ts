@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { generateImage } from "@/lib/ai-chat";
+import { generateImage, toEnglishImagePrompt } from "@/lib/ai-chat";
 
 /**
  * The free, keyless image path. The network is the one double — a test must
@@ -67,5 +67,28 @@ describe("generateImage — free built-in", () => {
     await expect(generateImage({ modelId: "kanovra-image", prompt: "x" })).rejects.toThrow(
       /no picture/,
     );
+  });
+});
+
+/**
+ * The picture service is English-only, so a non-English subject is translated
+ * first. The one thing pinned deterministically is the cheap gate: an
+ * already-English (pure-ASCII) prompt is returned untouched and never reaches a
+ * model — so English requests pay no extra call and cannot be broken by a
+ * translation step. The live translation itself needs a real key and is left to
+ * a live check.
+ */
+describe("toEnglishImagePrompt", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("returns an ASCII prompt unchanged without any network call", async () => {
+    let reached = false;
+    vi.stubGlobal("fetch", async () => {
+      reached = true;
+      return new Response("", { status: 200 });
+    });
+    expect(await toEnglishImagePrompt("a red fox in the snow")).toBe("a red fox in the snow");
+    expect(await toEnglishImagePrompt("   ")).toBe("");
+    expect(reached).toBe(false);
   });
 });

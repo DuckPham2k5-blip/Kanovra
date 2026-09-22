@@ -4,7 +4,13 @@ import Anthropic from "@anthropic-ai/sdk";
 import sharp from "sharp";
 
 import { builtinChunks, builtinReply } from "@/lib/ai-builtin";
-import { AI_PROVIDERS, findModel, isRealKey } from "@/lib/ai-providers";
+import {
+  AI_PROVIDERS,
+  findModel,
+  firstConfiguredTextModel,
+  isRealKey,
+  providerStatus,
+} from "@/lib/ai-providers";
 import { guideAsText, guideForPath } from "@/lib/product-guide";
 import { parseJsonFrame, SseDecoder } from "@/lib/sse-parse";
 
@@ -403,6 +409,57 @@ async function* readSse<T>(response: Response, textOf: (frame: T) => string): As
  * ChatGPT has a key. That is stated in the interface rather than discovered by
  * pressing a button and getting an error.
  */
+const IMAGE_TRANSLATE_SYSTEM =
+  "You rewrite a user's image request as a concise English prompt for a " +
+  "text-to-image model. Translate any non-English words to English. Reply with " +
+  "ONLY the final prompt — no quotes, no preamble, no explanation — as a short " +
+  "descriptive phrase (a few words up to one sentence).";
+
+/**
+ * Turns a possibly non-English image request into a short English prompt.
+ *
+ * The free picture service is English-only, so a Vietnamese subject like
+ * "con mèo" reaches it as noise and comes back as an unrelated stock portrait.
+ * A pure-ASCII prompt is assumed already English and sent untouched — that skips
+ * a model call (and its rate limit) on the common case. Otherwise the first
+ * configured real model translates it; if none is configured, or it is rate
+ * limited, times out or refuses, the original prompt still stands rather than
+ * failing the whole generation. The built-in KB assistant is deliberately not
+ * used — it matches words against a fixed base and cannot translate.
+ */
+export async function toEnglishImagePrompt(
+  prompt: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const trimmed = prompt.trim();
+  if (!trimmed || /^[\x20-\x7E\s]*$/.test(trimmed)) return trimmed;
+
+  const modelId = firstConfiguredTextModel(providerStatus(process.env));
+  if (!modelId) return trimmed;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12_000);
+  if (signal) signal.addEventListener("abort", () => controller.abort());
+  try {
+    let out = "";
+    for await (const chunk of streamChat({
+      modelId,
+      system: IMAGE_TRANSLATE_SYSTEM,
+      turns: [{ role: "user", content: trimmed }],
+      signal: controller.signal,
+    })) {
+      out += chunk;
+      if (out.length > 300) break;
+    }
+    const cleaned = out.replace(/\s+/g, " ").replace(/^["'`]+|["'`]+$/g, "").trim();
+    return cleaned || trimmed;
+  } catch {
+    return trimmed;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function generateImage(input: {
   modelId: string;
   prompt: string;

@@ -115,6 +115,8 @@ describe("cleanImagePrompt", () => {
     expect(cleanImagePrompt("vẽ một con mèo đang ngủ")).toBe("con mèo đang ngủ");
     expect(cleanImagePrompt("tạo ảnh logo kanovra")).toBe("logo kanovra");
     expect(cleanImagePrompt("a picture of a mountain at sunset")).toBe("mountain at sunset");
+    // Trailing courtesy dropped, so only the subject reaches the image service.
+    expect(cleanImagePrompt("tạo ảnh 1 con mèo cho tôi")).toBe("con mèo");
   });
 
   it("keeps a subject with no scaffolding, and reduces a bare 'draw a picture' to its noun", () => {

@@ -9,6 +9,7 @@ import {
   buildSystemPrompt,
   generateImage,
   streamChat,
+  toEnglishImagePrompt,
   type ChatTurn,
 } from "@/lib/ai-chat";
 import { detectLang, type Lang } from "@/lib/ai-builtin";
@@ -359,9 +360,13 @@ async function respondWithImage(input: {
     // Generate from the subject alone; the original request is kept below as the
     // caption. Sending the whole "please make me a picture of …" sentence is a
     // large part of why the results came out strange.
+    // Strip the "please draw me a …" scaffolding, then translate the subject to
+    // English — the free picture service is English-only, so a Vietnamese
+    // subject otherwise comes back as an unrelated stock image.
+    const subject = await toEnglishImagePrompt(cleanImagePrompt(input.prompt));
     const { bytes, mime } = await generateImage({
       modelId: input.modelId,
-      prompt: cleanImagePrompt(input.prompt),
+      prompt: subject,
     });
 
     // Stored the way attachments are: a generated id outside the web root,

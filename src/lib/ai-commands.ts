@@ -114,6 +114,8 @@ export function cleanImagePrompt(message: string): string {
       /\s+(bất kỳ|bat ky|nào đó|nao do|gì đó|gi do|ngẫu nhiên|ngau nhien|any|random)\s*$/i,
       "",
     )
+    // Trailing courtesies that are not part of the subject: "… cho tôi", "for me".
+    .replace(/\s+(cho tôi|cho mình|cho toi|cho minh|giúp tôi|giúp mình|for me|nhé|nha|đi)\s*$/i, "")
     .trim();
   return s || message.trim();
 }

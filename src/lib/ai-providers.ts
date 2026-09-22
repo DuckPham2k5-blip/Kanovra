@@ -303,6 +303,21 @@ export function defaultModel(statuses: ProviderStatus[]): string | null {
   return null;
 }
 
+/**
+ * The first configured *real* (non-built-in) chat model, or null. Used where the
+ * built-in KB assistant cannot stand in — translating an image prompt, say,
+ * which needs a model that actually reasons over the words rather than matching
+ * them against a fixed knowledge base.
+ */
+export function firstConfiguredTextModel(statuses: ProviderStatus[]): string | null {
+  for (const status of statuses) {
+    if (!status.configured || status.id === "builtin") continue;
+    const model = status.models.find((m) => m.capabilities.includes("text"));
+    if (model) return model.id;
+  }
+  return null;
+}
+
 /** True when some configured provider can do this. */
 export function capabilityAvailable(
   statuses: ProviderStatus[],
